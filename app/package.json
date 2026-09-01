@@ -1,0 +1,10 @@
+{
+  "name": "blinkflow-app",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --parallel --filter \"./**\" dev",
+    "dev:web": "pnpm --filter blinkflow-web dev",
+    "dev:server": "pnpm --filter blinkflow-server dev",
+    "build": "pnpm -r build"
+  }
+}

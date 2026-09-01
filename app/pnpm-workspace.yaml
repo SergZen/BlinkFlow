@@ -1,0 +1,15 @@
+packages:
+  - "web"
+  - "server"
+
+allowBuilds:
+  esbuild: true
+  sharp: true
+  unrs-resolver: true
+  "@stellar/stellar-sdk": false
+  blake-hash: false
+  bufferutil: false
+  protobufjs: false
+  tiny-secp256k1: false
+  usb: false
+  utf-8-validate: false
