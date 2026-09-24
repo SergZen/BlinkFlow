@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" width="512" height="512">
+  <defs>
+    <linearGradient id="bg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#9333ea" /> <!-- purple-600 -->
+      <stop offset="100%" stop-color="#2563eb" /> <!-- blue-600 -->
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="36" height="36" rx="8" fill="url(#bg-grad)" />
+  
+  <!-- Shield (centered, 24x24) -->
+  <g transform="translate(6, 6)" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
+  </g>
+  
+  <!-- Zap (centered, 14x14) -->
+  <g transform="translate(11, 11) scale(0.58333)" fill="white">
+    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+  </g>
+</svg>
