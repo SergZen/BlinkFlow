@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import { useRole } from '../RoleContext';
-import { NavLink } from 'react-router-dom';
+import { NavLink, Link } from 'react-router-dom';
 import { Zap, Wallet, Home, ScrollText, ShieldCheck, Shield } from 'lucide-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { NetworkControls } from './NetworkControls';
@@ -14,13 +14,13 @@ export const Layout = ({ children }: { children: ReactNode }) => {
     <div className="h-screen bg-gray-950 text-gray-100 flex flex-col md:flex-row font-sans selection:bg-purple-500/30 overflow-hidden">
       {/* Sidebar */}
       <aside className="w-full md:w-64 shrink-0 bg-gray-900 border-b md:border-b-0 md:border-r border-gray-800 p-4 flex flex-col z-10 md:overflow-y-auto">
-        <div className="flex items-center gap-2 mb-8 px-2 mt-2">
+        <Link to="/" className="flex items-center gap-2 mb-8 px-2 mt-2 hover:opacity-80 transition-opacity">
           <div className="relative bg-gradient-to-br from-purple-600 to-blue-600 rounded-lg shadow-lg shadow-purple-500/20 flex items-center justify-center w-9 h-9">
             <Shield className="w-6 h-6 text-white absolute" strokeWidth={1.5} />
             <Zap className="w-3.5 h-3.5 text-white absolute fill-white" />
           </div>
           <span className="font-bold text-xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">BlinkFlow</span>
-        </div>
+        </Link>
 
         <nav className="flex-1 space-y-1.5 hidden md:block">
           <NavLink to="/" className={({isActive}) => `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all font-medium text-sm ${isActive ? 'bg-gray-800 text-white shadow-sm' : 'text-gray-400 hover:text-white hover:bg-gray-800/50'}`}>
