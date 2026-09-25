@@ -45,8 +45,8 @@ app.get('/logo.jpg', (req, res) => {
 
 app.get('/deal/:id', (req, res) => {
   const { id } = req.params;
-  // Use the host header for the base URL, but ensure https since we use tunnels
-  const baseUrl = `https://${req.get('host')}`;
+  const protocol = req.hostname === 'localhost' ? 'http' : 'https';
+  const baseUrl = `${protocol}://${req.get('host')}`;
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
   const localAppUrl = `${frontendUrl}/deal/${id}`;
   
@@ -108,7 +108,8 @@ app.get('/deal/:id', (req, res) => {
 
 
 app.get('/api/deal/:id', (req, res) => {
-  const baseUrl = `https://${req.get('host')}`;
+  const protocol = req.hostname === 'localhost' ? 'http' : 'https';
+  const baseUrl = `${protocol}://${req.get('host')}`;
   res.json({
     icon: `${baseUrl}/logo.jpg`,
     title: `Fund Escrow: ${req.params.id}`,

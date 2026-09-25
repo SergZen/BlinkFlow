@@ -11,6 +11,30 @@ import { truncateAddress } from '../lib/utils';
 import { useSolBalance } from '../hooks/useSolBalance';
 import { useNetwork } from '../NetworkContext';
 import type { Deal } from '../mockData';
+import { Blink, useBlink } from '@dialectlabs/blinks';
+import { useBlinkSolanaWalletAdapter } from '@dialectlabs/blinks/hooks/solana';
+import '@dialectlabs/blinks/index.css';
+import { useConnection } from '@solana/wallet-adapter-react';
+
+const BlinkPreview = ({ id }: { id: string }) => {
+  const { connection } = useConnection();
+  const { adapter } = useBlinkSolanaWalletAdapter(connection);
+  
+  const BLINK_SERVER_URL = import.meta.env.VITE_ACTIONS_API_URL || 'http://localhost:3001';
+  // Use solana-action: prefix to force direct API resolution without interstitial fallback
+  const actionUrl = `solana-action:${BLINK_SERVER_URL}/api/deal/${id}`;
+  
+  const { blink, isLoading } = useBlink({ url: actionUrl });
+
+  if (isLoading) return <div className="text-gray-400 text-sm p-4 text-center border border-gray-800 rounded-xl">Loading Blink preview...</div>;
+  if (!blink) return <div className="text-red-400 text-sm p-4 text-center border border-red-500/20 bg-red-500/10 rounded-xl">Failed to load Blink preview</div>;
+
+  return (
+    <div className="w-full overflow-hidden rounded-xl">
+      <Blink blink={blink} adapter={adapter} securityLevel="all" />
+    </div>
+  );
+};
 
 export const DealDetails = () => {
   const { id } = useParams();
@@ -23,6 +47,7 @@ export const DealDetails = () => {
   
   const { isTestMode } = useNetwork();
   const { solBalance } = useSolBalance();
+  const { symbol } = useToken();
   const MIN_SOL_REQUIRED = 0.01;
   const hasEnoughSol = solBalance !== null && solBalance >= MIN_SOL_REQUIRED;
 
@@ -189,6 +214,15 @@ export const DealDetails = () => {
         </div>
 
         <div className="space-y-6">
+          <Card className="p-6 border-purple-500/20 bg-purple-500/5">
+            <h3 className="font-medium mb-4 text-purple-400 flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+              Live Blink Preview
+            </h3>
+            <p className="text-xs text-purple-300/70 mb-4 leading-relaxed">This is exactly how your deal appears on X (Twitter) or Telegram using Dialect's rendering SDK.</p>
+            <BlinkPreview id={deal.id} />
+          </Card>
+
           <Card className="p-6">
             <h3 className="font-medium mb-4">Deal Details</h3>
             <div className="space-y-4 text-sm">
