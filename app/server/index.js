@@ -47,6 +47,8 @@ app.get('/deal/:id', (req, res) => {
   const { id } = req.params;
   // Use the host header for the base URL, but ensure https since we use tunnels
   const baseUrl = `https://${req.get('host')}`;
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const localAppUrl = `${frontendUrl}/deal/${id}`;
   
   res.send(`<!DOCTYPE html>
 <html lang="en">
@@ -91,7 +93,7 @@ app.get('/deal/:id', (req, res) => {
     <script>
         // dial.to is currently down globally (Vercel 503).
         // Redirecting to the local BlinkFlow React app instead.
-        const localAppUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/deal/${id}`;
+        const localAppUrl = "${localAppUrl}";
         
         document.getElementById('fallback-link').href = localAppUrl;
         
