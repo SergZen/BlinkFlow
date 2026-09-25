@@ -29,7 +29,7 @@ export const Badge = ({ children, status, className, ...props }: BadgeProps) => 
 
 export const getStatusLabel = (status: DealStatus) => {
   switch (status) {
-    case 'searching': return 'Seeking Freelancer';
+    case 'searching': return 'Seeking Contractor';
     case 'in_progress': return 'In Progress';
     case 'pending_approval': return 'Awaiting Confirmation';
     case 'dispute': return 'Disputed';

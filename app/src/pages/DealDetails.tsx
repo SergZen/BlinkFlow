@@ -132,9 +132,9 @@ export const DealDetails = () => {
           {/* Action Panel based on role and status */}
           <Card className="p-6 border-purple-500/20 bg-purple-500/5">
             <h3 className="text-lg font-medium mb-4">Action Panel</h3>
-            {role === 'freelancer' && deal.status === 'in_progress' && (
+            {role === 'contractor' && deal.status === 'in_progress' && (
               <div className="space-y-4">
-                <p className="text-sm text-gray-400">Submit your work for review. The client will be notified to release funds.</p>
+                <p className="text-sm text-gray-400">Submit your work for review. The customer will be notified to release funds.</p>
                 <textarea 
                   rows={3} 
                   maxLength={500}
@@ -157,10 +157,10 @@ export const DealDetails = () => {
               </div>
             )}
             
-            {role === 'client' && deal.status === 'pending_approval' && (
+            {role === 'customer' && deal.status === 'pending_approval' && (
               <div className="space-y-4">
                 <div className="p-4 bg-gray-900 rounded-lg border border-gray-800">
-                  <p className="text-sm font-medium mb-1">Freelancer's Submission:</p>
+                  <p className="text-sm font-medium mb-1">Contractor's Submission:</p>
                   <a href="#" className="text-sm text-blue-400 hover:underline">https://github.com/blinkflow/pr-12</a>
                 </div>
                 {renderSolWarning()}
@@ -187,11 +187,11 @@ export const DealDetails = () => {
               <p className="text-gray-400 text-sm bg-gray-900/50 p-3 rounded-lg border border-gray-800">This deal is closed. No further actions can be taken.</p>
             )}
             
-            {deal.status === 'searching' && role === 'client' && (
-              <p className="text-gray-400 text-sm bg-gray-900/50 p-3 rounded-lg border border-gray-800">Waiting for a freelancer to accept the Blink.</p>
+            {deal.status === 'searching' && role === 'customer' && (
+              <p className="text-gray-400 text-sm bg-gray-900/50 p-3 rounded-lg border border-gray-800">Waiting for a contractor to accept the Blink.</p>
             )}
             
-            {deal.status === 'searching' && role === 'freelancer' && (
+            {deal.status === 'searching' && role === 'contractor' && (
               <div>
                 {renderSolWarning()}
                 <Button 
@@ -227,12 +227,12 @@ export const DealDetails = () => {
             <h3 className="font-medium mb-4">Deal Details</h3>
             <div className="space-y-4 text-sm">
               <div>
-                <div className="text-gray-500 mb-1">Client</div>
-                <div className="font-mono text-gray-300">{truncateAddress(deal.client)}</div>
+                <div className="text-gray-500 mb-1">Customer</div>
+                <div className="font-mono text-gray-300">{truncateAddress(deal.customer)}</div>
               </div>
               <div>
-                <div className="text-gray-500 mb-1">Freelancer</div>
-                <div className="font-mono text-gray-300">{deal.freelancer ? truncateAddress(deal.freelancer) : 'Not assigned yet'}</div>
+                <div className="text-gray-500 mb-1">Contractor</div>
+                <div className="font-mono text-gray-300">{deal.contractor ? truncateAddress(deal.contractor) : 'Not assigned yet'}</div>
               </div>
               <div>
                 <div className="text-gray-500 mb-1">Deadline</div>

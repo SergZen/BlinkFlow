@@ -58,16 +58,16 @@ export const Layout = ({ children }: { children: ReactNode }) => {
           <div className="text-[10px] text-gray-500 mb-2 px-2 uppercase font-bold tracking-widest hidden md:block">Demo Role Switcher</div>
           <div className="flex bg-gray-950 p-1 rounded-lg border border-gray-800 shadow-inner">
             <button
-              onClick={() => setRole('freelancer')}
-              className={`flex-1 text-xs py-1.5 rounded-md transition-all font-medium ${role === 'freelancer' ? 'bg-gray-800 text-white shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}
+              onClick={() => setRole('contractor')}
+              className={`flex-1 text-xs py-1.5 rounded-md transition-all font-medium ${role === 'contractor' ? 'bg-gray-800 text-white shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}
             >
-              Freelancer
+              Contractor
             </button>
             <button
-              onClick={() => setRole('client')}
-              className={`flex-1 text-xs py-1.5 rounded-md transition-all font-medium ${role === 'client' ? 'bg-gray-800 text-white shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}
+              onClick={() => setRole('customer')}
+              className={`flex-1 text-xs py-1.5 rounded-md transition-all font-medium ${role === 'customer' ? 'bg-gray-800 text-white shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}
             >
-              Client
+              Customer
             </button>
           </div>
         </div>
@@ -81,7 +81,7 @@ export const Layout = ({ children }: { children: ReactNode }) => {
         {/* Topbar */}
         <header className="h-16 border-b border-gray-800/60 bg-gray-900/50 backdrop-blur-md flex items-center justify-between px-6 shrink-0 sticky top-0 z-10">
           <h1 className="text-lg font-semibold tracking-tight text-gray-100">
-            {role === 'freelancer' ? 'Freelancer Dashboard' : 'Client Dashboard'}
+            {role === 'contractor' ? 'Contractor Dashboard' : 'Customer Dashboard'}
           </h1>
           <div className="flex items-center gap-4">
             <style>

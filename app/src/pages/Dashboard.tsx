@@ -33,7 +33,7 @@ export const Dashboard = () => {
 
   const activeDeals = deals.filter(d => d.status !== 'completed' && d.status !== 'cancelled');
   
-  const pendingActions = role === 'client' 
+  const pendingActions = role === 'customer' 
     ? activeDeals.filter(d => d.status === 'pending_approval' || d.status === 'searching')
     : activeDeals.filter(d => d.status === 'in_progress');
 
@@ -84,7 +84,7 @@ export const Dashboard = () => {
       </div>
 
       {/* Pending Actions */}
-      {role === 'client' && pendingActions.length > 0 && (
+      {role === 'customer' && pendingActions.length > 0 && (
         <div className="space-y-4">
           <h3 className="text-lg font-medium flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse shadow-[0_0_8px_rgba(249,115,22,0.6)]"></div>
@@ -96,7 +96,7 @@ export const Dashboard = () => {
                 <div>
                   <div className="font-semibold text-gray-200">{deal.title}</div>
                   <div className="text-sm text-gray-400 mt-1">
-                    {deal.status === 'pending_approval' ? 'Freelancer submitted work for review.' : 'Waiting to assign a freelancer.'}
+                    {deal.status === 'pending_approval' ? 'Contractor submitted work for review.' : 'Waiting to assign a contractor.'}
                   </div>
                 </div>
                 <div className="flex gap-2 w-full sm:w-auto">
@@ -106,7 +106,7 @@ export const Dashboard = () => {
                       <Button variant="primary" className="flex-1 sm:flex-none bg-orange-500 hover:bg-orange-600 text-white">Release Payment ${deal.amount}</Button>
                     </>
                   ) : (
-                    <Button variant="outline" className="w-full sm:w-auto border-orange-500/30 text-orange-400 hover:bg-orange-500/10">Assign Freelancer</Button>
+                    <Button variant="outline" className="w-full sm:w-auto border-orange-500/30 text-orange-400 hover:bg-orange-500/10">Assign Contractor</Button>
                   )}
                 </div>
               </Card>
@@ -152,7 +152,7 @@ export const Dashboard = () => {
               <thead className="text-[11px] text-gray-500 uppercase tracking-wider bg-gray-950/40">
                 <tr>
                   <th className="px-5 py-3 font-semibold">Deal</th>
-                  <th className="px-5 py-3 font-semibold">{role === 'freelancer' ? 'Client' : 'Freelancer'}</th>
+                  <th className="px-5 py-3 font-semibold">{role === 'contractor' ? 'Customer' : 'Contractor'}</th>
                   <th className="px-5 py-3 font-semibold">Amount</th>
                   <th className="px-5 py-3 font-semibold">Status</th>
                   <th className="px-5 py-3 font-semibold">Deadline</th>
@@ -167,7 +167,7 @@ export const Dashboard = () => {
                       <div className="text-[11px] text-gray-500 mt-0.5">{deal.id}</div>
                     </td>
                     <td className="px-5 py-4 font-mono text-xs text-gray-400">
-                      {role === 'freelancer' ? truncateAddress(deal.client) : (deal.freelancer ? truncateAddress(deal.freelancer) : <span className="text-gray-600 italic">Unassigned</span>)}
+                      {role === 'contractor' ? truncateAddress(deal.customer) : (deal.contractor ? truncateAddress(deal.contractor) : <span className="text-gray-600 italic">Unassigned</span>)}
                     </td>
                     <td className="px-5 py-4 font-semibold text-gray-200">${deal.amount.toLocaleString()}</td>
                     <td className="px-5 py-4">

@@ -64,7 +64,7 @@ export const Profile = () => {
 
         <div className="md:col-span-2 space-y-6">
           <Card className="p-6">
-            <h3 className="text-lg font-medium mb-4">As Freelancer</h3>
+            <h3 className="text-lg font-medium mb-4">As Contractor</h3>
             <div className="grid grid-cols-3 gap-4">
               <div className="p-4 bg-gray-950 rounded-lg border border-gray-800">
                 <div className="flex items-center gap-2 text-green-400 mb-2">
@@ -91,7 +91,7 @@ export const Profile = () => {
           </Card>
 
           <Card className="p-6">
-            <h3 className="text-lg font-medium mb-4">As Client</h3>
+            <h3 className="text-lg font-medium mb-4">As Customer</h3>
             <div className="grid grid-cols-3 gap-4">
               <div className="p-4 bg-gray-950 rounded-lg border border-gray-800">
                 <div className="flex items-center gap-2 text-green-400 mb-2">

@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, ReactNode } from 'react';
 
-export type Role = 'freelancer' | 'client';
+export type Role = 'contractor' | 'customer';
 
 interface RoleContextProps {
   role: Role;
@@ -10,7 +10,7 @@ interface RoleContextProps {
 const RoleContext = createContext<RoleContextProps | undefined>(undefined);
 
 export const RoleProvider = ({ children }: { children: ReactNode }) => {
-  const [role, setRole] = useState<Role>('freelancer');
+  const [role, setRole] = useState<Role>('contractor');
   return (
     <RoleContext.Provider value={{ role, setRole }}>
       {children}

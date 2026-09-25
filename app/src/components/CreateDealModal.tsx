@@ -116,7 +116,7 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
               </div>
 
               <div className="pt-4">
-                {!hasEnoughSol && role === 'client' && (
+                {!hasEnoughSol && role === 'customer' && (
                   <div className="mb-4 bg-orange-500/10 border border-orange-500/20 rounded-lg p-3 text-sm text-orange-400">
                     You need a small amount of SOL (~0.01) to cover network fees and account rent.
                     {isTestMode && (
@@ -129,9 +129,9 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
                 
                 <Button 
                   variant="gradient" 
-                  className={`w-full py-2.5 text-base ${(!hasEnoughSol && role === 'client') ? 'opacity-50 cursor-not-allowed' : ''}`} 
+                  className={`w-full py-2.5 text-base ${(!hasEnoughSol && role === 'customer') ? 'opacity-50 cursor-not-allowed' : ''}`} 
                   type="submit"
-                  disabled={!hasEnoughSol && role === 'client'}
+                  disabled={!hasEnoughSol && role === 'customer'}
                 >
                   Generate Blink Link
                 </Button>
@@ -144,12 +144,12 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
               </div>
               <div>
                 <h3 className="text-lg font-bold">
-                  {role === 'freelancer' ? 'Deal Created!' : 'Deal Created & Funded!'}
+                  {role === 'contractor' ? 'Deal Created!' : 'Deal Created & Funded!'}
                 </h3>
                 <p className="text-sm text-gray-400 mt-1">
-                  {role === 'freelancer' 
-                    ? 'Send this Blink to the client so they can fund the escrow.' 
-                    : 'Send this Blink to potential freelancers.'}
+                  {role === 'contractor' 
+                    ? 'Send this Blink to the customer so they can fund the escrow.' 
+                    : 'Send this Blink to potential contractors.'}
                 </p>
               </div>
               

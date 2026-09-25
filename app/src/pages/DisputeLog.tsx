@@ -12,12 +12,12 @@ export interface Dispute {
 
 export const DisputeLog = () => {
   const disputes: Dispute[] = [
-    { id: 'DSP-8821', amount: '$500 - $1,000', ratio: '100/0 (Freelancer/Client)', category: 'Unreasonable Rejection', date: '2026-09-12' },
-    { id: 'DSP-8822', amount: '< $500', ratio: '0/100 (Freelancer/Client)', category: 'Non-Delivery', date: '2026-09-10' },
-    { id: 'DSP-8823', amount: '$1,000 - $5,000', ratio: '30/70 (Freelancer/Client)', category: 'Poor Quality', date: '2026-09-05' },
-    { id: 'DSP-8824', amount: '< $500', ratio: '50/50 (Freelancer/Client)', category: 'Scope Creep', date: '2026-09-01' },
-    { id: 'DSP-8825', amount: '$1,000 - $5,000', ratio: '50/50 (Freelancer/Client)', category: 'Force Majeure', date: '2026-08-28' },
-    { id: 'DSP-8826', amount: '< $500', ratio: '60/40 (Freelancer/Client)', category: 'Mutual Agreement', date: '2026-08-20' },
+    { id: 'DSP-8821', amount: '$500 - $1,000', ratio: '100/0 (Contractor/Customer)', category: 'Unreasonable Rejection', date: '2026-09-12' },
+    { id: 'DSP-8822', amount: '< $500', ratio: '0/100 (Contractor/Customer)', category: 'Non-Delivery', date: '2026-09-10' },
+    { id: 'DSP-8823', amount: '$1,000 - $5,000', ratio: '30/70 (Contractor/Customer)', category: 'Poor Quality', date: '2026-09-05' },
+    { id: 'DSP-8824', amount: '< $500', ratio: '50/50 (Contractor/Customer)', category: 'Scope Creep', date: '2026-09-01' },
+    { id: 'DSP-8825', amount: '$1,000 - $5,000', ratio: '50/50 (Contractor/Customer)', category: 'Force Majeure', date: '2026-08-28' },
+    { id: 'DSP-8826', amount: '< $500', ratio: '60/40 (Contractor/Customer)', category: 'Mutual Agreement', date: '2026-08-20' },
   ];
 
   const [loading, setLoading] = useState(true);
