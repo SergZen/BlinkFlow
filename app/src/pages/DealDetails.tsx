@@ -6,9 +6,11 @@ import { Button } from '../components/Button';
 import { useRole } from '../RoleContext';
 import { ArrowLeft, CheckCircle2, History, Loader2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { TOKEN_SYMBOL } from '../lib/constants';
+import { useToken } from '../lib/constants';
 import { truncateAddress } from '../lib/utils';
-import { Deal } from '../mockData';
+import { useSolBalance } from '../hooks/useSolBalance';
+import { useNetwork } from '../NetworkContext';
+import type { Deal } from '../mockData';
 
 export const DealDetails = () => {
   const { id } = useParams();
@@ -18,6 +20,25 @@ export const DealDetails = () => {
   const [deal, setDeal] = useState<Deal | null>(null);
   const [submission, setSubmission] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+  
+  const { isTestMode } = useNetwork();
+  const { solBalance } = useSolBalance();
+  const MIN_SOL_REQUIRED = 0.01;
+  const hasEnoughSol = solBalance !== null && solBalance >= MIN_SOL_REQUIRED;
+
+  const renderSolWarning = () => {
+    if (hasEnoughSol) return null;
+    return (
+      <div className="mb-4 bg-orange-500/10 border border-orange-500/20 rounded-lg p-3 text-sm text-orange-400">
+        You need a small amount of SOL (~0.01) to cover network fees.
+        {isTestMode && (
+          <a href="https://faucet.solana.com" target="_blank" rel="noopener noreferrer" className="ml-1 text-orange-300 font-medium hover:underline">
+            Get devnet SOL →
+          </a>
+        )}
+      </div>
+    );
+  };
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -67,7 +88,7 @@ export const DealDetails = () => {
           <p className="text-gray-400 text-sm font-mono">{deal.id}</p>
         </div>
         <div className="text-right">
-          <div className="text-3xl font-bold text-white">${deal.amount.toLocaleString()} <span className="text-lg text-gray-500 font-medium">{TOKEN_SYMBOL}</span></div>
+          <div className="text-3xl font-bold text-white">${deal.amount.toLocaleString()} <span className="text-lg text-gray-500 font-medium">{symbol}</span></div>
         </div>
       </div>
 
@@ -98,7 +119,13 @@ export const DealDetails = () => {
                   className="w-full bg-gray-950 border border-gray-800 rounded-lg p-3 text-sm focus:outline-none focus:border-purple-500/50"
                   disabled={actionLoading}
                 ></textarea>
-                <Button variant="primary" onClick={handleSubmitWork} disabled={actionLoading || !submission.trim()}>
+                {renderSolWarning()}
+                <Button 
+                  variant="primary" 
+                  onClick={handleSubmitWork} 
+                  disabled={actionLoading || !submission.trim() || !hasEnoughSol}
+                  className={!hasEnoughSol ? 'opacity-50 cursor-not-allowed' : ''}
+                >
                   {actionLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2 inline" /> : null}
                   Submit Work
                 </Button>
@@ -111,9 +138,22 @@ export const DealDetails = () => {
                   <p className="text-sm font-medium mb-1">Freelancer's Submission:</p>
                   <a href="#" className="text-sm text-blue-400 hover:underline">https://github.com/blinkflow/pr-12</a>
                 </div>
+                {renderSolWarning()}
                 <div className="flex gap-3">
-                  <Button variant="primary" className="bg-green-600 hover:bg-green-500">Approve & Release Payment</Button>
-                  <Button variant="danger">Open Dispute</Button>
+                  <Button 
+                    variant="primary" 
+                    className={`bg-green-600 hover:bg-green-500 ${!hasEnoughSol ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    disabled={!hasEnoughSol}
+                  >
+                    Approve & Release Payment
+                  </Button>
+                  <Button 
+                    variant="danger"
+                    className={!hasEnoughSol ? 'opacity-50 cursor-not-allowed' : ''}
+                    disabled={!hasEnoughSol}
+                  >
+                    Open Dispute
+                  </Button>
                 </div>
               </div>
             )}
@@ -127,7 +167,16 @@ export const DealDetails = () => {
             )}
             
             {deal.status === 'searching' && role === 'freelancer' && (
-              <Button variant="gradient">Accept Deal</Button>
+              <div>
+                {renderSolWarning()}
+                <Button 
+                  variant="gradient"
+                  className={!hasEnoughSol ? 'opacity-50 cursor-not-allowed' : ''}
+                  disabled={!hasEnoughSol}
+                >
+                  Accept Deal
+                </Button>
+              </div>
             )}
             
             {deal.status === 'dispute' && (

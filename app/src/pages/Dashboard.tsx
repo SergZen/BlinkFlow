@@ -8,7 +8,8 @@ import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { CreateDealModal } from '../components/CreateDealModal';
 import { truncateAddress } from '../lib/utils';
-import { Deal } from '../mockData';
+import type { Deal } from '../mockData';
+import { useToken } from '../lib/constants';
 
 export const Dashboard = () => {
   const { role } = useRole();

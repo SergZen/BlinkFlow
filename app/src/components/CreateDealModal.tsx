@@ -4,11 +4,20 @@ import { Button } from './Button';
 import { X, Link2, Check, Share2, Copy } from 'lucide-react';
 import { useRole } from '../RoleContext';
 import { useWallet } from '@solana/wallet-adapter-react';
-import { TOKEN_SYMBOL } from '../lib/constants';
+import { useToken } from '../lib/constants';
+import { useSolBalance } from '../hooks/useSolBalance';
+import { useNetwork } from '../NetworkContext';
 
 export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) => {
+  const { symbol } = useToken();
+  const { isTestMode } = useNetwork();
+  const { solBalance } = useSolBalance();
+  const MIN_SOL_REQUIRED = 0.01; // Estimate for rent + network fees
+  const hasEnoughSol = solBalance !== null && solBalance >= MIN_SOL_REQUIRED;
+
   const [step, setStep] = useState<1 | 2>(1);
   const [blinkUrl, setBlinkUrl] = useState('');
+  const [rawActionUrl, setRawActionUrl] = useState('');
   const { role } = useRole();
   const { connected } = useWallet();
 
@@ -44,12 +53,17 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
     setError('');
     // TODO: replace with real transaction once Anchor program is deployed
     const baseUrl = import.meta.env.VITE_ACTIONS_API_URL || 'http://localhost:3001';
-    setBlinkUrl(`https://dial.to/?action=solana-action:${baseUrl}/api/deal/ESC-1006`);
+    
+    // The Dial.to wrapped link
+    setBlinkUrl(`https://dial.to/?action=solana-action:${encodeURIComponent(`${baseUrl}/api/deal/ESC-1006`)}`);
+    // The HTML wrapper URL format expected by X/Telegram unfurling bots
+    setRawActionUrl(`${baseUrl}/deal/ESC-1006`);
+    
     setStep(2);
   };
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(blinkUrl);
+  const handleCopy = (url: string) => {
+    navigator.clipboard.writeText(url);
   };
 
   return (
@@ -71,7 +85,7 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
                 </div>
               )}
               <div>
-                <label htmlFor="deal-amount" className="block text-sm font-medium text-gray-300 mb-1.5">Amount ({TOKEN_SYMBOL})</label>
+                <label htmlFor="deal-amount" className="block text-sm font-medium text-gray-300 mb-1.5">Amount ({symbol})</label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
                   <input id="deal-amount" type="number" min="0.01" step="0.01" required placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full bg-gray-950 border border-gray-800 rounded-lg pl-8 pr-4 py-2.5 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all text-white" />
@@ -102,7 +116,23 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
               </div>
 
               <div className="pt-4">
-                <Button variant="gradient" className="w-full py-2.5 text-base" type="submit">
+                {!hasEnoughSol && role === 'client' && (
+                  <div className="mb-4 bg-orange-500/10 border border-orange-500/20 rounded-lg p-3 text-sm text-orange-400">
+                    You need a small amount of SOL (~0.01) to cover network fees and account rent.
+                    {isTestMode && (
+                      <a href="https://faucet.solana.com" target="_blank" rel="noopener noreferrer" className="ml-1 text-orange-300 font-medium hover:underline">
+                        Get devnet SOL →
+                      </a>
+                    )}
+                  </div>
+                )}
+                
+                <Button 
+                  variant="gradient" 
+                  className={`w-full py-2.5 text-base ${(!hasEnoughSol && role === 'client') ? 'opacity-50 cursor-not-allowed' : ''}`} 
+                  type="submit"
+                  disabled={!hasEnoughSol && role === 'client'}
+                >
                   Generate Blink Link
                 </Button>
               </div>
@@ -123,13 +153,30 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
                 </p>
               </div>
               
-              <div className="w-full p-1 bg-gray-950 rounded-lg border border-gray-800 flex items-center gap-2 mt-4">
-                <div className="flex-1 overflow-hidden">
-                  <input type="text" readOnly value={blinkUrl} className="w-full bg-transparent text-sm text-gray-400 px-3 outline-none" />
+              {/* Dial.to wrapped link */}
+              <div className="w-full text-left mt-2">
+                <label className="text-xs text-gray-400 font-medium ml-1">Dial.to Preview Link</label>
+                <div className="w-full p-1 bg-gray-950 rounded-lg border border-gray-800 flex items-center gap-2 mt-1">
+                  <div className="flex-1 overflow-hidden">
+                    <input type="text" readOnly value={blinkUrl} className="w-full bg-transparent text-sm text-gray-400 px-3 outline-none" />
+                  </div>
+                  <Button variant="secondary" onClick={() => handleCopy(blinkUrl)} className="shrink-0">
+                    <Copy className="w-4 h-4" /> Copy
+                  </Button>
                 </div>
-                <Button variant="secondary" onClick={handleCopy} className="shrink-0">
-                  <Copy className="w-4 h-4" /> Copy
-                </Button>
+              </div>
+              
+              {/* Raw Action URL */}
+              <div className="w-full text-left mt-2">
+                <label className="text-xs text-gray-400 font-medium ml-1">Raw Action URL (for Telegram/X unfurling)</label>
+                <div className="w-full p-1 bg-gray-950 rounded-lg border border-gray-800 flex items-center gap-2 mt-1">
+                  <div className="flex-1 overflow-hidden">
+                    <input type="text" readOnly value={rawActionUrl} className="w-full bg-transparent text-sm text-gray-400 px-3 outline-none" />
+                  </div>
+                  <Button variant="secondary" onClick={() => handleCopy(rawActionUrl)} className="shrink-0">
+                    <Copy className="w-4 h-4" /> Copy
+                  </Button>
+                </div>
               </div>
 
               <div className="flex w-full gap-3 mt-4">

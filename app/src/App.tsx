@@ -11,9 +11,10 @@ import { Profile } from './pages/Profile';
 import { DisputeLog } from './pages/DisputeLog';
 
 import '@solana/wallet-adapter-react-ui/styles.css';
+import { NetworkProvider, useNetwork } from './NetworkContext';
 
-function App() {
-  const network = 'devnet';
+function InnerApp() {
+  const { network } = useNetwork();
   const endpoint = useMemo(() => clusterApiUrl(network), [network]);
   const wallets = useMemo(() => [], []);
 
@@ -36,6 +37,14 @@ function App() {
         </WalletModalProvider>
       </WalletProvider>
     </ConnectionProvider>
+  );
+}
+
+function App() {
+  return (
+    <NetworkProvider>
+      <InnerApp />
+    </NetworkProvider>
   );
 }
 

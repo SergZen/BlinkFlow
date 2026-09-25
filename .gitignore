@@ -1,2 +1,7 @@
 .DS_Store
 .vscode/
+.env
+.env.*
+!.env.example
+node_modules/
+SESSION_NOTES.md

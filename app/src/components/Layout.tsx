@@ -4,6 +4,8 @@ import { NavLink } from 'react-router-dom';
 import { Zap, Wallet, Home, ScrollText, ShieldCheck, Shield } from 'lucide-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { NetworkControls } from './NetworkControls';
+import { BalanceDisplay } from './BalanceDisplay';
+import { FaucetButton } from './FaucetButton';
 
 export const Layout = ({ children }: { children: ReactNode }) => {
   const { role, setRole } = useRole();
@@ -104,6 +106,8 @@ export const Layout = ({ children }: { children: ReactNode }) => {
                 }
               `}
             </style>
+            <FaucetButton />
+            <BalanceDisplay />
             <NetworkControls />
             <WalletMultiButton />
           </div>
