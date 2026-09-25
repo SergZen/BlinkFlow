@@ -91,7 +91,7 @@ app.get('/deal/:id', (req, res) => {
     <script>
         // dial.to is currently down globally (Vercel 503).
         // Redirecting to the local BlinkFlow React app instead.
-        const localAppUrl = 'http://localhost:5173/deal/${id}';
+        const localAppUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/deal/${id}`;
         
         document.getElementById('fallback-link').href = localAppUrl;
         
