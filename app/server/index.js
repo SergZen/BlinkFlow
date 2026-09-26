@@ -2,11 +2,17 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import fs from 'fs';
+import satori from 'satori';
+import { Resvg } from '@resvg/resvg-js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+
+const fontRegular = fs.readFileSync(path.join(__dirname, 'Roboto-Regular.ttf'));
+const fontBold = fs.readFileSync(path.join(__dirname, 'Roboto-Bold.ttf'));
 
 // Solana Actions require specific CORS headers
 const corsOptions = {
@@ -58,15 +64,16 @@ app.get('/deal/:id', (req, res) => {
     <title>BlinkFlow Escrow: ${id}</title>
     
     <!-- OpenGraph tags for Telegram & Twitter Unfurling -->
+    <meta property="og:site_name" content="BlinkFlow">
     <meta property="og:title" content="BlinkFlow Deal: ${id}">
     <meta property="og:description" content="Secure non-custodial escrow deal on Solana.">
-    <meta property="og:image" content="${baseUrl}/logo.jpg">
+    <meta property="og:image" content="${baseUrl}/api/deal/${id}/og-image.png">
     <meta property="og:type" content="website">
     
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="BlinkFlow Deal: ${id}">
     <meta name="twitter:description" content="Secure non-custodial escrow deal on Solana.">
-    <meta name="twitter:image" content="${baseUrl}/logo.jpg">
+    <meta name="twitter:image" content="${baseUrl}/api/deal/${id}/og-image.png">
 
     <!-- CRITICAL: The Solana Action Tag -->
     <meta name="solana:action" content="${baseUrl}/api/deal/${id}">
@@ -106,6 +113,111 @@ app.get('/deal/:id', (req, res) => {
 });
 
 
+
+app.get('/api/deal/:id/og-image.png', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const svg = await satori(
+      {
+        type: 'div',
+        props: {
+          style: {
+            height: '100%',
+            width: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            backgroundColor: '#030712',
+            padding: '80px',
+            fontFamily: 'Roboto',
+          },
+          children: [
+            {
+              type: 'div',
+              props: {
+                style: { display: 'flex', alignItems: 'center', gap: '20px' },
+                children: [
+                  {
+                    type: 'div',
+                    props: {
+                      style: {
+                        width: '60px',
+                        height: '60px',
+                        borderRadius: '16px',
+                        background: 'linear-gradient(135deg, #a855f7, #3b82f6)',
+                      },
+                    },
+                  },
+                  {
+                    type: 'span',
+                    props: {
+                      style: { fontSize: '48px', color: '#fff', fontWeight: 700 },
+                      children: 'BlinkFlow',
+                    },
+                  },
+                ],
+              },
+            },
+            {
+              type: 'div',
+              props: {
+                style: { display: 'flex', flexDirection: 'column', gap: '20px' },
+                children: [
+                  {
+                    type: 'h1',
+                    props: {
+                      style: { fontSize: '72px', color: '#fff', margin: 0, fontWeight: 700 },
+                      children: `Escrow Deal`,
+                    },
+                  },
+                  {
+                    type: 'p',
+                    props: {
+                      style: { fontSize: '48px', color: '#a855f7', margin: 0, fontWeight: 700 },
+                      children: `ID: ${id}`,
+                    },
+                  },
+                ],
+              },
+            },
+            {
+              type: 'p',
+              props: {
+                style: { fontSize: '32px', color: '#9ca3af', margin: 0 },
+                children: 'Secure non-custodial escrow on Solana',
+              },
+            }
+          ],
+        },
+      },
+      {
+        width: 1200,
+        height: 630,
+        fonts: [
+          { name: 'Roboto', data: fontRegular, weight: 400, style: 'normal' },
+          { name: 'Roboto', data: fontBold, weight: 700, style: 'normal' },
+        ],
+      }
+    );
+
+    const resvg = new Resvg(svg, {
+      background: 'rgba(3, 7, 18, 1)',
+      fitTo: { mode: 'width', value: 1200 },
+    });
+    
+    const pngData = resvg.render();
+    const pngBuffer = pngData.asPng();
+    
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    res.send(pngBuffer);
+  } catch (error) {
+    console.error('OG Image generation error:', error);
+    res.sendFile(path.join(__dirname, '../public/logo.jpg'));
+  }
+});
 
 app.get('/api/deal/:id', (req, res) => {
   const protocol = req.hostname === 'localhost' ? 'http' : 'https';
