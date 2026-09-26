@@ -148,7 +148,43 @@ export const Dashboard = () => {
               </Button>
             </div>
           ) : (
-            <table className="w-full text-sm text-left whitespace-nowrap">
+            <>
+            {/* Mobile Card Layout */}
+            <div className="flex flex-col gap-3 p-4 sm:hidden">
+              {deals.map(deal => (
+                <div key={deal.id} className="bg-gray-900/40 border border-gray-800/60 rounded-lg p-4 space-y-3">
+                  <div className="flex justify-between items-start gap-2">
+                    <div>
+                      <div className="font-medium text-gray-200">{deal.title}</div>
+                      <div className="text-[11px] text-gray-500 mt-0.5">{deal.id}</div>
+                    </div>
+                    <Badge status={deal.status}>{getStatusLabel(deal.status)}</Badge>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-500">{role === 'contractor' ? 'Customer' : 'Contractor'}:</span>
+                    <span className="font-mono text-gray-400 text-xs">
+                      {role === 'contractor' ? truncateAddress(deal.customer) : (deal.contractor ? truncateAddress(deal.contractor) : <span className="italic">Unassigned</span>)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-500">Amount:</span>
+                    <span className="font-semibold text-gray-200">${deal.amount.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-500">Deadline:</span>
+                    <span className="text-gray-400 text-xs">{deal.deadline}</span>
+                  </div>
+                  <div className="pt-2">
+                    <Link to={`/deal/${deal.id}`} className="flex items-center justify-center w-full gap-1.5 text-gray-300 hover:text-white font-medium transition-colors bg-gray-800/50 hover:bg-gray-700 px-3 py-2 rounded-md text-sm">
+                      View Deal <ArrowRight className="w-4 h-4" />
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            {/* Desktop Table Layout */}
+            <table className="w-full text-sm text-left whitespace-nowrap hidden sm:table">
               <thead className="text-[11px] text-gray-500 uppercase tracking-wider bg-gray-950/40">
                 <tr>
                   <th className="px-5 py-3 font-semibold">Deal</th>
@@ -183,6 +219,7 @@ export const Dashboard = () => {
                 ))}
               </tbody>
             </table>
+            </>
           )}
         </div>
       </Card>

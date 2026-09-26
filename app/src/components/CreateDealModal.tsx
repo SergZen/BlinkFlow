@@ -68,12 +68,12 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-950/80 backdrop-blur-sm animate-in fade-in">
-      <Card className="w-full max-w-lg bg-gray-900 border-gray-800 shadow-2xl relative overflow-visible">
-        <button onClick={onClose} aria-label="Close" className="absolute right-4 top-4 text-gray-400 hover:text-white transition-colors">
+      <Card className="w-full max-w-lg bg-gray-900 border-gray-800 shadow-2xl relative max-h-[90vh] flex flex-col">
+        <button onClick={onClose} aria-label="Close" className="absolute right-4 top-4 z-10 text-gray-400 hover:text-white transition-colors bg-gray-900/50 rounded-full p-1">
           <X className="w-5 h-5" />
         </button>
 
-        <div className="p-6">
+        <div className="p-6 overflow-y-auto max-h-[90vh]">
           <h2 className="text-xl font-bold mb-1">Create New Deal</h2>
           <p className="text-sm text-gray-400 mb-6">Set escrow terms and generate a Blink for your partner.</p>
 

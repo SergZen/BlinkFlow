@@ -79,7 +79,7 @@ export const Layout = ({ children }: { children: ReactNode }) => {
         <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-600/5 rounded-full blur-3xl pointer-events-none"></div>
 
         {/* Topbar */}
-        <header className="min-h-[64px] py-4 md:py-0 md:h-16 border-b border-gray-800/60 bg-gray-900/50 backdrop-blur-md flex flex-col md:flex-row items-center justify-center md:justify-between px-4 md:px-6 shrink-0 sticky top-0 z-10 gap-3 md:gap-0">
+        <header className="min-h-[64px] py-4 md:py-0 md:h-16 border-b border-gray-800/60 bg-gray-900/50 backdrop-blur-md flex flex-col md:flex-row items-center justify-center md:justify-between px-4 md:px-6 shrink-0 md:sticky md:top-0 z-10 gap-3 md:gap-0">
           <h1 className="text-lg font-semibold tracking-tight text-gray-100 text-center md:text-left">
             {role === 'contractor' ? 'Contractor Dashboard' : 'Customer Dashboard'}
           </h1>
