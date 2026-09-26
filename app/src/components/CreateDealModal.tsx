@@ -66,6 +66,23 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
     navigator.clipboard.writeText(url);
   };
 
+  const handleShareTelegram = () => {
+    const text = encodeURIComponent('Check out this BlinkFlow deal!');
+    const url = encodeURIComponent(rawActionUrl);
+    const deepLink = `tg://msg_url?url=${url}&text=${text}`;
+    const fallbackLink = `https://t.me/share/url?url=${url}&text=${text}`;
+
+    // Attempt to open the native Telegram app
+    window.location.href = deepLink;
+
+    // Fallback if the app doesn't take over (document remains visible)
+    setTimeout(() => {
+      if (!document.hidden) {
+        window.open(fallbackLink, '_blank');
+      }
+    }, 1500);
+  };
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-950/80 backdrop-blur-sm animate-in fade-in">
       <Card className="w-full max-w-lg bg-gray-900 border-gray-800 shadow-2xl relative max-h-[90vh] flex flex-col">
@@ -162,7 +179,7 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
                   <Button 
                     variant="gradient" 
                     className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/20 p-0 hover:scale-105 transition-transform"
-                    onClick={() => window.open(`https://t.me/share/url?url=${encodeURIComponent(rawActionUrl)}&text=${encodeURIComponent('Check out this BlinkFlow deal!')}`, '_blank')}
+                    onClick={handleShareTelegram}
                     title="Share to Telegram"
                   >
                     <svg className="w-7 h-7" viewBox="0 0 24 24" fill="currentColor">
