@@ -63,56 +63,58 @@ export const Profile = () => {
         </div>
 
         <div className="md:col-span-2 space-y-6">
-          <Card className="p-6">
-            <h3 className="text-lg font-medium mb-4">As Contractor</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-              <div className="p-4 bg-gray-950 rounded-lg border border-gray-800">
-                <div className="flex items-center gap-2 text-green-400 mb-2">
-                  <Trophy className="w-4 h-4" />
-                  <span className="text-sm font-medium">Success</span>
+          <Card className="p-6 bg-gray-900/40 backdrop-blur-sm border-gray-800/60">
+            <h3 className="text-lg font-medium mb-6">Historical Track Record</h3>
+            
+            <div className="space-y-8">
+              {/* As Contractor */}
+              <div>
+                <div className="flex justify-between items-end mb-3">
+                  <div>
+                    <div className="text-sm text-gray-400">As Contractor</div>
+                    <div className="text-xl font-bold text-gray-200">13 Deals</div>
+                  </div>
+                  <div className="text-green-400 font-medium text-sm bg-green-500/10 px-2 py-1 rounded">92% Success</div>
                 </div>
-                <div className="text-3xl font-bold">12</div>
+                {/* Stacked bar */}
+                <div className="h-4 w-full flex rounded-full overflow-hidden bg-gray-950 border border-gray-800 shadow-inner">
+                  <div className="bg-green-500/80 hover:bg-green-500 transition-colors cursor-pointer" style={{ width: '92%' }} title="12 Success"></div>
+                  <div className="bg-orange-500/80 hover:bg-orange-500 transition-colors cursor-pointer" style={{ width: '8%' }} title="1 Arbitrated"></div>
+                  <div className="bg-red-500/80 hover:bg-red-500 transition-colors cursor-pointer" style={{ width: '0%' }} title="0 Lost"></div>
+                </div>
               </div>
-              <div className="p-4 bg-gray-950 rounded-lg border border-gray-800">
-                <div className="flex items-center gap-2 text-orange-400 mb-2">
-                  <AlertTriangle className="w-4 h-4" />
-                  <span className="text-sm font-medium">Arbitrated</span>
+
+              {/* As Customer */}
+              <div>
+                <div className="flex justify-between items-end mb-3">
+                  <div>
+                    <div className="text-sm text-gray-400">As Customer</div>
+                    <div className="text-xl font-bold text-gray-200">5 Deals</div>
+                  </div>
+                  <div className="text-green-400 font-medium text-sm bg-green-500/10 px-2 py-1 rounded">100% Success</div>
                 </div>
-                <div className="text-3xl font-bold">1</div>
-              </div>
-              <div className="p-4 bg-gray-950 rounded-lg border border-gray-800">
-                <div className="flex items-center gap-2 text-red-400 mb-2">
-                  <XCircle className="w-4 h-4" />
-                  <span className="text-sm font-medium">Lost</span>
+                {/* Stacked bar */}
+                <div className="h-4 w-full flex rounded-full overflow-hidden bg-gray-950 border border-gray-800 shadow-inner">
+                  <div className="bg-green-500/80 hover:bg-green-500 transition-colors cursor-pointer" style={{ width: '100%' }} title="5 Success"></div>
+                  <div className="bg-orange-500/80 hover:bg-orange-500 transition-colors cursor-pointer" style={{ width: '0%' }} title="0 Arbitrated"></div>
+                  <div className="bg-red-500/80 hover:bg-red-500 transition-colors cursor-pointer" style={{ width: '0%' }} title="0 Lost"></div>
                 </div>
-                <div className="text-3xl font-bold">0</div>
               </div>
             </div>
-          </Card>
 
-          <Card className="p-6">
-            <h3 className="text-lg font-medium mb-4">As Customer</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-              <div className="p-4 bg-gray-950 rounded-lg border border-gray-800">
-                <div className="flex items-center gap-2 text-green-400 mb-2">
-                  <Trophy className="w-4 h-4" />
-                  <span className="text-sm font-medium">Success</span>
-                </div>
-                <div className="text-3xl font-bold">5</div>
+            {/* Shared Legend */}
+            <div className="flex flex-wrap gap-4 md:gap-6 mt-8 pt-6 border-t border-gray-800/60 text-xs sm:text-sm text-gray-400 justify-center">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-green-500/80 shadow-[0_0_8px_rgba(34,197,94,0.4)]"></div> 
+                <span>Completed</span>
               </div>
-              <div className="p-4 bg-gray-950 rounded-lg border border-gray-800">
-                <div className="flex items-center gap-2 text-orange-400 mb-2">
-                  <AlertTriangle className="w-4 h-4" />
-                  <span className="text-sm font-medium">Arbitrated</span>
-                </div>
-                <div className="text-3xl font-bold">0</div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-orange-500/80 shadow-[0_0_8px_rgba(249,115,22,0.4)]"></div> 
+                <span>Settled (Arbitration)</span>
               </div>
-              <div className="p-4 bg-gray-950 rounded-lg border border-gray-800">
-                <div className="flex items-center gap-2 text-red-400 mb-2">
-                  <XCircle className="w-4 h-4" />
-                  <span className="text-sm font-medium">Lost</span>
-                </div>
-                <div className="text-3xl font-bold">0</div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-red-500/80 shadow-[0_0_8px_rgba(239,68,68,0.4)]"></div> 
+                <span>Lost (Disputed)</span>
               </div>
             </div>
           </Card>

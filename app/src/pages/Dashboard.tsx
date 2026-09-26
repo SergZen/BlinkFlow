@@ -51,17 +51,8 @@ export const Dashboard = () => {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        <Card className="p-5 bg-gray-900/40 backdrop-blur-sm border-gray-800/60 hover:bg-gray-900/60 transition-colors">
-          <div className="flex items-center gap-3 text-gray-400 mb-3">
-            <div className="p-2 bg-blue-500/10 rounded-lg">
-              <Briefcase className="w-4 h-4 text-blue-400" />
-            </div>
-            <span className="text-sm font-medium">Active Deals</span>
-          </div>
-          <div className="text-3xl font-bold tracking-tight">{activeDeals.length}</div>
-        </Card>
-        <Card className="p-5 bg-gray-900/40 backdrop-blur-sm border-gray-800/60 hover:bg-gray-900/60 transition-colors">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-5">
+        <Card className="col-span-2 md:col-span-1 order-1 md:order-2 p-5 bg-gray-900/40 backdrop-blur-sm border-gray-800/60 hover:bg-gray-900/60 transition-colors">
           <div className="flex items-center gap-3 text-gray-400 mb-3">
             <div className="p-2 bg-purple-500/10 rounded-lg">
               <DollarSign className="w-4 h-4 text-purple-400" />
@@ -72,14 +63,23 @@ export const Dashboard = () => {
             ${activeDeals.reduce((acc, deal) => acc + deal.amount, 0).toLocaleString()}
           </div>
         </Card>
-        <Card className="p-5 bg-gray-900/40 backdrop-blur-sm border-gray-800/60 hover:bg-gray-900/60 transition-colors">
+        <Card className="col-span-1 order-2 md:order-1 p-5 bg-gray-900/40 backdrop-blur-sm border-gray-800/60 hover:bg-gray-900/60 transition-colors">
+          <div className="flex items-center gap-3 text-gray-400 mb-3">
+            <div className="p-2 bg-blue-500/10 rounded-lg">
+              <Briefcase className="w-4 h-4 text-blue-400" />
+            </div>
+            <span className="text-sm font-medium">Active Deals</span>
+          </div>
+          <div className="text-2xl sm:text-3xl font-bold tracking-tight">{activeDeals.length}</div>
+        </Card>
+        <Card className="col-span-1 order-3 md:order-3 p-5 bg-gray-900/40 backdrop-blur-sm border-gray-800/60 hover:bg-gray-900/60 transition-colors">
           <div className="flex items-center gap-3 text-gray-400 mb-3">
             <div className="p-2 bg-orange-500/10 rounded-lg">
               <Clock className="w-4 h-4 text-orange-400" />
             </div>
             <span className="text-sm font-medium">Needs Attention</span>
           </div>
-          <div className="text-3xl font-bold tracking-tight">{pendingActions.length}</div>
+          <div className="text-2xl sm:text-3xl font-bold tracking-tight">{pendingActions.length}</div>
         </Card>
       </div>
 
