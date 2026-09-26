@@ -26,10 +26,11 @@ export const ShareDealPanel = ({ rawActionUrl, dealId, onCopy, customClass = '' 
       if (navigator.clipboard && window.ClipboardItem) {
         await navigator.clipboard.write([
           new ClipboardItem({
-            [blob.type]: blob
+            [blob.type]: blob,
+            'text/plain': new Blob([`${rawActionUrl}`], { type: 'text/plain' })
           })
         ]);
-        alert('Image copied to clipboard! Paste it in Instagram, then copy the link below.');
+        alert('Картинку та посилання скопійовано!\n\nВстав у чат — більшість месенджерів (зокрема Instagram) підхоплять картинку, а лінк додадуть як підпис.');
       } else {
         // Fallback: download the image
         const url = URL.createObjectURL(blob);
@@ -40,7 +41,11 @@ export const ShareDealPanel = ({ rawActionUrl, dealId, onCopy, customClass = '' 
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        alert('Image downloaded! Share it on Instagram, then copy the link below.');
+        
+        // Also copy the text to clipboard since we couldn't copy the image
+        navigator.clipboard.writeText(rawActionUrl);
+        
+        alert('Картинку завантажено, а посилання скопійовано!\n\nВідправ картинку в Instagram, а потім встав посилання.');
       }
     } catch (e) {
       console.error('Failed to copy image:', e);
@@ -98,11 +103,11 @@ export const ShareDealPanel = ({ rawActionUrl, dealId, onCopy, customClass = '' 
         <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">More options</p>
         <div className="flex flex-col gap-3 w-full">
           <Button variant="outline" className="w-full justify-between group border-gray-800 hover:bg-gray-800/50" onClick={copyForInstagram}>
-            <span className="text-sm font-medium">1. Copy Image for Instagram</span>
+            <span className="text-sm font-medium">Copy for Instagram (Image + Link)</span>
             <Copy className="w-4 h-4 text-gray-500 group-hover:text-white transition-colors" />
           </Button>
           <Button variant="outline" className="w-full justify-between group border-gray-800 hover:bg-gray-800/50" onClick={() => onCopy(rawActionUrl)}>
-            <span className="text-sm font-medium">2. Copy Raw Action Link</span>
+            <span className="text-sm font-medium">Copy Raw Action Link Only</span>
             <Copy className="w-4 h-4 text-gray-500 group-hover:text-white transition-colors" />
           </Button>
         </div>
