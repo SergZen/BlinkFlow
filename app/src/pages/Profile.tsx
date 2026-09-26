@@ -79,7 +79,7 @@ export const Profile = () => {
                 {/* Stacked bar */}
                 <div className="h-4 w-full flex rounded-full overflow-hidden bg-gray-950 border border-gray-800 shadow-inner">
                   <div className="bg-green-500/80 hover:bg-green-500 transition-colors cursor-pointer" style={{ width: '92%' }} title="12 Success"></div>
-                  <div className="bg-orange-500/80 hover:bg-orange-500 transition-colors cursor-pointer" style={{ width: '8%' }} title="1 Arbitrated"></div>
+                  <div className="bg-yellow-500/80 hover:bg-yellow-500 transition-colors cursor-pointer" style={{ width: '8%' }} title="1 Arbitrated"></div>
                   <div className="bg-red-500/80 hover:bg-red-500 transition-colors cursor-pointer" style={{ width: '0%' }} title="0 Lost"></div>
                 </div>
               </div>
@@ -96,7 +96,7 @@ export const Profile = () => {
                 {/* Stacked bar */}
                 <div className="h-4 w-full flex rounded-full overflow-hidden bg-gray-950 border border-gray-800 shadow-inner">
                   <div className="bg-green-500/80 hover:bg-green-500 transition-colors cursor-pointer" style={{ width: '100%' }} title="5 Success"></div>
-                  <div className="bg-orange-500/80 hover:bg-orange-500 transition-colors cursor-pointer" style={{ width: '0%' }} title="0 Arbitrated"></div>
+                  <div className="bg-yellow-500/80 hover:bg-yellow-500 transition-colors cursor-pointer" style={{ width: '0%' }} title="0 Arbitrated"></div>
                   <div className="bg-red-500/80 hover:bg-red-500 transition-colors cursor-pointer" style={{ width: '0%' }} title="0 Lost"></div>
                 </div>
               </div>
@@ -109,7 +109,7 @@ export const Profile = () => {
                 <span>Completed</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-orange-500/80 shadow-[0_0_8px_rgba(249,115,22,0.4)]"></div> 
+                <div className="w-3 h-3 rounded-full bg-yellow-500/80 shadow-[0_0_8px_rgba(234,179,8,0.4)]"></div> 
                 <span>Settled (Arbitration)</span>
               </div>
               <div className="flex items-center gap-2">

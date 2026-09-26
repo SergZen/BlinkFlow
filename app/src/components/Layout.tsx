@@ -60,25 +60,6 @@ export const Layout = ({ children }: { children: ReactNode }) => {
             Public Dispute Log
           </NavLink>
         </nav>
-
-        {/* Demo Switcher */}
-        <div className="mt-4 md:mt-auto pt-4 md:pt-6 border-t border-gray-800">
-          <div className="text-[10px] text-gray-500 mb-2 px-2 uppercase font-bold tracking-widest">Demo Role Switcher</div>
-          <div className="flex bg-gray-950 p-1 rounded-lg border border-gray-800 shadow-inner">
-            <button
-              onClick={() => { setRole('contractor'); setIsMobileMenuOpen(false); }}
-              className={`flex-1 text-xs py-1.5 rounded-md transition-all font-medium ${role === 'contractor' ? 'bg-gray-800 text-white shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}
-            >
-              Contractor
-            </button>
-            <button
-              onClick={() => { setRole('customer'); setIsMobileMenuOpen(false); }}
-              className={`flex-1 text-xs py-1.5 rounded-md transition-all font-medium ${role === 'customer' ? 'bg-gray-800 text-white shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}
-            >
-              Customer
-            </button>
-          </div>
-        </div>
       </aside>
 
       {/* Main Content */}
@@ -88,25 +69,21 @@ export const Layout = ({ children }: { children: ReactNode }) => {
 
         {/* Topbar */}
         <header className="min-h-[64px] py-4 md:py-0 md:h-16 border-b border-gray-800/60 bg-gray-900/50 backdrop-blur-md flex flex-col-reverse md:flex-row items-center justify-center md:justify-between px-4 md:px-6 shrink-0 md:sticky md:top-0 z-10 gap-4 md:gap-0">
-          <h1 className="text-lg font-semibold tracking-tight text-gray-100 text-center md:text-left mt-2 md:mt-0">
-            {role === 'contractor' ? 'Contractor Dashboard' : 'Customer Dashboard'}
-          </h1>
+          <div className="flex w-full md:w-64 bg-gray-950 p-1 rounded-lg border border-gray-800 shadow-inner mb-2 md:mb-0">
+            <button
+              onClick={() => setRole('contractor')}
+              className={`flex-1 text-xs py-1.5 rounded-md transition-all font-medium ${role === 'contractor' ? 'bg-gray-800 text-white shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}
+            >
+              Contractor
+            </button>
+            <button
+              onClick={() => setRole('customer')}
+              className={`flex-1 text-xs py-1.5 rounded-md transition-all font-medium ${role === 'customer' ? 'bg-gray-800 text-white shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}
+            >
+              Customer
+            </button>
+          </div>
           <div className="flex flex-wrap items-center justify-center gap-2 md:gap-4 w-full md:w-auto">
-            {/* Mobile-only Role Switcher for easier access */}
-            <div className="flex md:hidden w-full bg-gray-950 p-1 rounded-lg border border-gray-800 shadow-inner mb-2">
-              <button
-                onClick={() => setRole('contractor')}
-                className={`flex-1 text-xs py-1.5 rounded-md transition-all font-medium ${role === 'contractor' ? 'bg-gray-800 text-white shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}
-              >
-                Contractor
-              </button>
-              <button
-                onClick={() => setRole('customer')}
-                className={`flex-1 text-xs py-1.5 rounded-md transition-all font-medium ${role === 'customer' ? 'bg-gray-800 text-white shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}
-              >
-                Customer
-              </button>
-            </div>
             <style>
               {`
                 .wallet-adapter-button-trigger {
