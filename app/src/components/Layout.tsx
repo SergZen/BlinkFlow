@@ -1,7 +1,7 @@
-import { ReactNode } from 'react';
+import { ReactNode, useState } from 'react';
 import { useRole } from '../RoleContext';
 import { NavLink, Link } from 'react-router-dom';
-import { Zap, Wallet, Home, ScrollText, ShieldCheck, Shield } from 'lucide-react';
+import { Zap, Home, ScrollText, ShieldCheck, Shield, Menu, X } from 'lucide-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { NetworkControls } from './NetworkControls';
 import { BalanceDisplay } from './BalanceDisplay';
@@ -9,11 +9,35 @@ import { FaucetButton } from './FaucetButton';
 
 export const Layout = ({ children }: { children: ReactNode }) => {
   const { role, setRole } = useRole();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   return (
-    <div className="h-screen bg-gray-950 text-gray-100 flex flex-col md:flex-row font-sans selection:bg-purple-500/30 overflow-hidden">
+    <div className="h-screen bg-gray-950 text-gray-100 flex flex-col md:flex-row font-sans selection:bg-purple-500/30 overflow-hidden relative">
+      
+      {/* Mobile Topbar */}
+      <div className="md:hidden flex items-center justify-between p-4 bg-gray-900 border-b border-gray-800 shrink-0 z-40 relative">
+        <Link to="/" className="flex items-center gap-2">
+          <div className="relative bg-gradient-to-br from-purple-600 to-blue-600 rounded-lg shadow-lg shadow-purple-500/20 flex items-center justify-center w-8 h-8">
+            <Shield className="w-5 h-5 text-white absolute" strokeWidth={1.5} />
+            <Zap className="w-3 h-3 text-white absolute fill-white" />
+          </div>
+          <span className="font-bold text-xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">BlinkFlow</span>
+        </Link>
+        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="text-gray-400 hover:text-white p-1 z-50 relative">
+          {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+        </button>
+      </div>
+
+      {/* Mobile Menu Overlay */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 md:hidden" 
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="w-full md:w-64 shrink-0 bg-gray-900 border-b md:border-b-0 md:border-r border-gray-800 p-4 flex flex-col z-10 md:overflow-y-auto">
+      <aside className={`fixed inset-y-0 left-0 transform ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:relative md:translate-x-0 transition duration-200 ease-in-out w-64 shrink-0 bg-gray-900 border-r border-gray-800 p-4 flex flex-col z-50 md:z-10 md:overflow-y-auto`}>
         <Link to="/" className="flex items-center gap-2 mb-8 px-2 mt-2 hover:opacity-80 transition-opacity">
           <div className="relative bg-gradient-to-br from-purple-600 to-blue-600 rounded-lg shadow-lg shadow-purple-500/20 flex items-center justify-center w-9 h-9">
             <Shield className="w-6 h-6 text-white absolute" strokeWidth={1.5} />
@@ -22,49 +46,33 @@ export const Layout = ({ children }: { children: ReactNode }) => {
           <span className="font-bold text-xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">BlinkFlow</span>
         </Link>
 
-        <nav className="flex-1 space-y-1.5 hidden md:block">
-          <NavLink to="/" className={({isActive}) => `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all font-medium text-sm ${isActive ? 'bg-gray-800 text-white shadow-sm' : 'text-gray-400 hover:text-white hover:bg-gray-800/50'}`}>
+        <nav className="flex-1 space-y-1.5">
+          <NavLink to="/" onClick={() => setIsMobileMenuOpen(false)} className={({isActive}) => `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all font-medium text-sm ${isActive ? 'bg-gray-800 text-white shadow-sm' : 'text-gray-400 hover:text-white hover:bg-gray-800/50'}`}>
             <Home className="w-4 h-4" />
             Dashboard
           </NavLink>
-          <NavLink to="/profile" className={({isActive}) => `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all font-medium text-sm ${isActive ? 'bg-gray-800 text-white shadow-sm' : 'text-gray-400 hover:text-white hover:bg-gray-800/50'}`}>
+          <NavLink to="/profile" onClick={() => setIsMobileMenuOpen(false)} className={({isActive}) => `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all font-medium text-sm ${isActive ? 'bg-gray-800 text-white shadow-sm' : 'text-gray-400 hover:text-white hover:bg-gray-800/50'}`}>
             <ShieldCheck className="w-4 h-4" />
             Reputation Profile
           </NavLink>
-          <NavLink to="/log" className={({isActive}) => `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all font-medium text-sm ${isActive ? 'bg-gray-800 text-white shadow-sm' : 'text-gray-400 hover:text-white hover:bg-gray-800/50'}`}>
+          <NavLink to="/log" onClick={() => setIsMobileMenuOpen(false)} className={({isActive}) => `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all font-medium text-sm ${isActive ? 'bg-gray-800 text-white shadow-sm' : 'text-gray-400 hover:text-white hover:bg-gray-800/50'}`}>
             <ScrollText className="w-4 h-4" />
             Public Dispute Log
           </NavLink>
         </nav>
 
-        {/* Mobile Navigation */}
-        <nav className="flex items-center justify-between mt-2 md:hidden">
-          <NavLink to="/" className={({isActive}) => `flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-all font-medium text-[10px] ${isActive ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}>
-            <Home className="w-5 h-5" />
-            Dash
-          </NavLink>
-          <NavLink to="/profile" className={({isActive}) => `flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-all font-medium text-[10px] ${isActive ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}>
-            <ShieldCheck className="w-5 h-5" />
-            Profile
-          </NavLink>
-          <NavLink to="/log" className={({isActive}) => `flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-all font-medium text-[10px] ${isActive ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}>
-            <ScrollText className="w-5 h-5" />
-            Log
-          </NavLink>
-        </nav>
-
         {/* Demo Switcher */}
         <div className="mt-4 md:mt-auto pt-4 md:pt-6 border-t border-gray-800">
-          <div className="text-[10px] text-gray-500 mb-2 px-2 uppercase font-bold tracking-widest hidden md:block">Demo Role Switcher</div>
+          <div className="text-[10px] text-gray-500 mb-2 px-2 uppercase font-bold tracking-widest">Demo Role Switcher</div>
           <div className="flex bg-gray-950 p-1 rounded-lg border border-gray-800 shadow-inner">
             <button
-              onClick={() => setRole('contractor')}
+              onClick={() => { setRole('contractor'); setIsMobileMenuOpen(false); }}
               className={`flex-1 text-xs py-1.5 rounded-md transition-all font-medium ${role === 'contractor' ? 'bg-gray-800 text-white shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}
             >
               Contractor
             </button>
             <button
-              onClick={() => setRole('customer')}
+              onClick={() => { setRole('customer'); setIsMobileMenuOpen(false); }}
               className={`flex-1 text-xs py-1.5 rounded-md transition-all font-medium ${role === 'customer' ? 'bg-gray-800 text-white shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}
             >
               Customer
@@ -74,7 +82,7 @@ export const Layout = ({ children }: { children: ReactNode }) => {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col min-h-0 relative z-0">
+      <main className="flex-1 flex flex-col min-h-0 relative overflow-y-auto">
         <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-600/5 rounded-full blur-3xl pointer-events-none"></div>
         <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-600/5 rounded-full blur-3xl pointer-events-none"></div>
 
@@ -114,7 +122,7 @@ export const Layout = ({ children }: { children: ReactNode }) => {
         </header>
 
         {/* Page Content */}
-        <div className="flex-1 overflow-y-auto p-6 z-0">
+        <div className="flex-1 p-4 sm:p-6">
           <div className="max-w-5xl mx-auto pb-12">
             {children}
           </div>
