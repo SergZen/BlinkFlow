@@ -29,7 +29,7 @@ export const NetworkControls = () => {
       <button
         onClick={() => setNetwork(isTestMode ? 'mainnet-beta' : 'devnet')}
         title={isTestMode ? "Switch to Mainnet (Live)" : "Switch to Test Mode (Devnet)"}
-        className={`group flex items-center justify-center gap-2 w-[120px] px-3 py-1.5 rounded-full border font-mono text-[10px] font-bold tracking-wider cursor-pointer transition-all ${
+        className={`group flex items-center justify-center gap-1.5 sm:gap-2 w-[90px] sm:w-[120px] px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-full border font-mono text-[9px] sm:text-[10px] font-bold tracking-wider cursor-pointer transition-all ${
           isTestMode
             ? 'bg-amber-500/10 text-amber-400 border-amber-500/50 shadow-[0_0_12px_rgba(245,158,11,0.5)] hover:bg-amber-500/20'
             : 'bg-green-500/10 text-green-400 border-green-500/20 hover:bg-green-500/20'

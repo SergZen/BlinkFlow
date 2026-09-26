@@ -106,14 +106,14 @@ export const DealDetails = () => {
 
       <div className="flex flex-col md:flex-row justify-between items-start gap-4">
         <div>
-          <div className="flex items-center gap-3 mb-2">
-            <h2 className="text-2xl font-bold">{deal.title}</h2>
+          <div className="flex flex-wrap items-center gap-3 mb-2">
+            <h2 className="text-xl sm:text-2xl font-bold break-words">{deal.title}</h2>
             <Badge status={deal.status}>{getStatusLabel(deal.status)}</Badge>
           </div>
           <p className="text-gray-400 text-sm font-mono">{deal.id}</p>
         </div>
-        <div className="text-right">
-          <div className="text-3xl font-bold text-white">${deal.amount.toLocaleString()} <span className="text-lg text-gray-500 font-medium">{symbol}</span></div>
+        <div className="text-left md:text-right mt-2 md:mt-0">
+          <div className="text-2xl sm:text-3xl font-bold text-white">${deal.amount.toLocaleString()} <span className="text-base sm:text-lg text-gray-500 font-medium">{symbol}</span></div>
         </div>
       </div>
 

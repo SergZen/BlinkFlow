@@ -79,11 +79,11 @@ export const Layout = ({ children }: { children: ReactNode }) => {
         <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-600/5 rounded-full blur-3xl pointer-events-none"></div>
 
         {/* Topbar */}
-        <header className="h-16 border-b border-gray-800/60 bg-gray-900/50 backdrop-blur-md flex items-center justify-between px-6 shrink-0 sticky top-0 z-10">
-          <h1 className="text-lg font-semibold tracking-tight text-gray-100">
+        <header className="min-h-[64px] py-4 md:py-0 md:h-16 border-b border-gray-800/60 bg-gray-900/50 backdrop-blur-md flex flex-col md:flex-row items-center justify-center md:justify-between px-4 md:px-6 shrink-0 sticky top-0 z-10 gap-3 md:gap-0">
+          <h1 className="text-lg font-semibold tracking-tight text-gray-100 text-center md:text-left">
             {role === 'contractor' ? 'Contractor Dashboard' : 'Customer Dashboard'}
           </h1>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center justify-center gap-2 md:gap-4">
             <style>
               {`
                 .wallet-adapter-button-trigger {

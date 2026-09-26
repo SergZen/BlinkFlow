@@ -77,17 +77,17 @@ export const BalanceDisplay = () => {
   if (!publicKey) return null;
 
   return (
-    <div className="flex items-center gap-3 px-4 py-1.5 bg-gray-950/50 border border-gray-800 rounded-full text-sm font-mono text-gray-300">
+    <div className="flex items-center gap-2 sm:gap-3 px-2.5 sm:px-4 py-1 sm:py-1.5 bg-gray-950/50 border border-gray-800 rounded-lg sm:rounded-full text-[11px] sm:text-sm font-mono text-gray-300">
       {solBalance !== null ? (
-        <span>{solBalance.toFixed(2)} SOL</span>
+        <span className="whitespace-nowrap">{solBalance.toFixed(2)} SOL</span>
       ) : (
-        <span className="w-12 h-4 bg-gray-800 animate-pulse rounded"></span>
+        <span className="w-10 sm:w-12 h-3 sm:h-4 bg-gray-800 animate-pulse rounded"></span>
       )}
-      <div className="w-px h-4 bg-gray-800"></div>
+      <div className="w-px h-3 sm:h-4 bg-gray-800"></div>
       {tokenBalance !== null ? (
-        <span className="text-purple-400 font-medium">{tokenBalance.toLocaleString()} {symbol}</span>
+        <span className="text-purple-400 font-medium whitespace-nowrap">{tokenBalance.toLocaleString()} {symbol}</span>
       ) : (
-        <span className="w-16 h-4 bg-gray-800 animate-pulse rounded"></span>
+        <span className="w-12 sm:w-16 h-3 sm:h-4 bg-gray-800 animate-pulse rounded"></span>
       )}
     </div>
   );

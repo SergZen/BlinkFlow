@@ -179,11 +179,11 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
                 </div>
               </div>
 
-              <div className="flex w-full gap-3 mt-4">
-                <Button variant="outline" className="flex-1 border-blue-500/30 text-blue-400 hover:bg-blue-500/10">
+              <div className="flex flex-col sm:flex-row w-full gap-3 mt-4">
+                <Button variant="outline" className="flex-1 border-blue-500/30 text-blue-400 hover:bg-blue-500/10 flex items-center justify-center">
                   <Share2 className="w-4 h-4 mr-2" /> Telegram
                 </Button>
-                <Button variant="outline" className="flex-1 border-sky-500/30 text-sky-400 hover:bg-sky-500/10">
+                <Button variant="outline" className="flex-1 border-sky-500/30 text-sky-400 hover:bg-sky-500/10 flex items-center justify-center">
                   <Share2 className="w-4 h-4 mr-2" /> Twitter
                 </Button>
               </div>
