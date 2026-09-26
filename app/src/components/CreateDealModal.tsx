@@ -140,12 +140,12 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
             </form>
           ) : (
             <div className="py-2 flex flex-col items-center text-center space-y-5 animate-in zoom-in-95">
-              <div className="flex flex-col items-center gap-2 w-full">
-                <div className="flex items-center justify-center gap-2 w-full">
-                  <div className="w-6 h-6 bg-green-500/20 rounded-full flex items-center justify-center shrink-0">
-                    <Check className="w-4 h-4 text-green-400" strokeWidth={3} />
+              <div className="flex flex-col items-center gap-3 w-full">
+                <div className="flex items-center justify-center gap-3 w-full">
+                  <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(34,197,94,0.4)]">
+                    <Check className="w-5 h-5 text-gray-950" strokeWidth={4} />
                   </div>
-                  <h3 className="text-xl font-bold">
+                  <h3 className="text-2xl font-bold text-white tracking-tight">
                     {role === 'contractor' ? 'Deal Created!' : 'Deal Created & Funded!'}
                   </h3>
                 </div>
@@ -156,27 +156,30 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
                 </p>
               </div>
               
-              <div className="flex flex-col w-full gap-3 mt-2">
-                <Button 
-                  variant="gradient" 
-                  className="w-full py-3 text-base flex items-center justify-center shadow-lg shadow-purple-500/20"
-                  onClick={() => window.open(`https://t.me/share/url?url=${encodeURIComponent(rawActionUrl)}&text=${encodeURIComponent('Check out this BlinkFlow deal!')}`, '_blank')}
-                >
-                  <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.04.01.12 0 .18z"/>
-                  </svg>
-                  Share to Telegram
-                </Button>
-                <Button 
-                  variant="gradient" 
-                  className="w-full py-3 text-base flex items-center justify-center shadow-lg shadow-purple-500/20"
-                  onClick={() => window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(rawActionUrl)}&text=${encodeURIComponent('Check out this BlinkFlow deal!')}`, '_blank')}
-                >
-                  <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 22.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
-                  </svg>
-                  Share to X / Twitter
-                </Button>
+              <div className="w-full mt-6">
+                <p className="text-sm font-medium text-gray-400 mb-4 text-center uppercase tracking-wider">Share to</p>
+                <div className="flex justify-center gap-4">
+                  <Button 
+                    variant="gradient" 
+                    className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/20 p-0 hover:scale-105 transition-transform"
+                    onClick={() => window.open(`https://t.me/share/url?url=${encodeURIComponent(rawActionUrl)}&text=${encodeURIComponent('Check out this BlinkFlow deal!')}`, '_blank')}
+                    title="Share to Telegram"
+                  >
+                    <svg className="w-7 h-7" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.04.01.12 0 .18z"/>
+                    </svg>
+                  </Button>
+                  <Button 
+                    variant="gradient" 
+                    className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/20 p-0 hover:scale-105 transition-transform"
+                    onClick={() => window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(rawActionUrl)}&text=${encodeURIComponent('Check out this BlinkFlow deal!')}`, '_blank')}
+                    title="Share to X / Twitter"
+                  >
+                    <svg className="w-7 h-7" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 22.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                    </svg>
+                  </Button>
+                </div>
               </div>
 
               {/* Secondary actions */}
