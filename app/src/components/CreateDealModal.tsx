@@ -153,39 +153,34 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
                 </p>
               </div>
               
-              {/* Dial.to wrapped link */}
-              <div className="w-full text-left mt-2">
-                <label className="text-xs text-gray-400 font-medium ml-1">Dial.to Preview Link</label>
-                <div className="w-full p-1 bg-gray-950 rounded-lg border border-gray-800 flex items-center gap-2 mt-1">
-                  <div className="flex-1 overflow-hidden">
-                    <input type="text" readOnly value={blinkUrl} className="w-full bg-transparent text-sm text-gray-400 px-3 outline-none" />
-                  </div>
-                  <Button variant="secondary" onClick={() => handleCopy(blinkUrl)} className="shrink-0">
-                    <Copy className="w-4 h-4" /> Copy
-                  </Button>
-                </div>
-              </div>
-              
-              {/* Raw Action URL */}
-              <div className="w-full text-left mt-2">
-                <label className="text-xs text-gray-400 font-medium ml-1">Raw Action URL (for Telegram/X unfurling)</label>
-                <div className="w-full p-1 bg-gray-950 rounded-lg border border-gray-800 flex items-center gap-2 mt-1">
-                  <div className="flex-1 overflow-hidden">
-                    <input type="text" readOnly value={rawActionUrl} className="w-full bg-transparent text-sm text-gray-400 px-3 outline-none" />
-                  </div>
-                  <Button variant="secondary" onClick={() => handleCopy(rawActionUrl)} className="shrink-0">
-                    <Copy className="w-4 h-4" /> Copy
-                  </Button>
-                </div>
+              <div className="flex flex-col w-full gap-3 mt-6">
+                <Button 
+                  variant="gradient" 
+                  className="w-full py-3 text-base flex items-center justify-center shadow-lg shadow-purple-500/20"
+                  onClick={() => window.open(`https://t.me/share/url?url=${encodeURIComponent(rawActionUrl)}&text=${encodeURIComponent('Check out this BlinkFlow deal!')}`, '_blank')}
+                >
+                  <Share2 className="w-5 h-5 mr-2" /> Share to Telegram
+                </Button>
+                <Button 
+                  variant="gradient" 
+                  className="w-full py-3 text-base flex items-center justify-center shadow-lg shadow-purple-500/20"
+                  onClick={() => window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(rawActionUrl)}&text=${encodeURIComponent('Check out this BlinkFlow deal!')}`, '_blank')}
+                >
+                  <Share2 className="w-5 h-5 mr-2" /> Share to Twitter
+                </Button>
               </div>
 
-              <div className="flex flex-col sm:flex-row w-full gap-3 mt-4">
-                <Button variant="outline" className="flex-1 border-blue-500/30 text-blue-400 hover:bg-blue-500/10 flex items-center justify-center">
-                  <Share2 className="w-4 h-4 mr-2" /> Telegram
-                </Button>
-                <Button variant="outline" className="flex-1 border-sky-500/30 text-sky-400 hover:bg-sky-500/10 flex items-center justify-center">
-                  <Share2 className="w-4 h-4 mr-2" /> Twitter
-                </Button>
+              {/* Secondary actions */}
+              <div className="flex flex-col items-center gap-3 mt-6 pt-5 border-t border-gray-800/60 w-full">
+                <p className="text-xs text-gray-500">Or copy the link manually:</p>
+                <div className="flex justify-center w-full gap-6">
+                  <button onClick={() => handleCopy(blinkUrl)} className="text-sm text-gray-400 hover:text-white flex items-center gap-1.5 transition-colors">
+                    <Copy className="w-3.5 h-3.5" /> Dial.to Link
+                  </button>
+                  <button onClick={() => handleCopy(rawActionUrl)} className="text-sm text-gray-400 hover:text-white flex items-center gap-1.5 transition-colors">
+                    <Copy className="w-3.5 h-3.5" /> Raw Action URL
+                  </button>
+                </div>
               </div>
             </div>
           )}
