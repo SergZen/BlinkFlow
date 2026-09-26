@@ -4,8 +4,9 @@ import { Card } from '../components/Card';
 import { Badge, getStatusLabel } from '../components/Badge';
 import { Button } from '../components/Button';
 import { useRole } from '../RoleContext';
-import { ArrowLeft, CheckCircle2, History, Loader2 } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, History, Loader2, Share2, X } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { ShareDealPanel } from '../components/ShareDealPanel';
 import { useToken } from '../lib/constants';
 import { truncateAddress } from '../lib/utils';
 import { useSolBalance } from '../hooks/useSolBalance';
@@ -44,6 +45,7 @@ export const DealDetails = () => {
   const [deal, setDeal] = useState<Deal | null>(null);
   const [submission, setSubmission] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   
   const { isTestMode } = useNetwork();
   const { solBalance } = useSolBalance();
@@ -112,10 +114,35 @@ export const DealDetails = () => {
           </div>
           <p className="text-gray-400 text-sm font-mono">{deal.id}</p>
         </div>
-        <div className="text-left md:text-right mt-2 md:mt-0">
+        <div className="text-left md:text-right mt-2 md:mt-0 flex flex-col items-start md:items-end gap-3">
           <div className="text-2xl sm:text-3xl font-bold text-white">${deal.amount.toLocaleString()} <span className="text-base sm:text-lg text-gray-500 font-medium">{symbol}</span></div>
+          <Button variant="outline" className="border-gray-800 hover:bg-gray-800/50 flex items-center justify-center text-sm py-1.5" onClick={() => setIsShareModalOpen(true)}>
+            <Share2 className="w-4 h-4 mr-2" /> Share Deal
+          </Button>
         </div>
       </div>
+
+      {isShareModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-950/80 backdrop-blur-sm animate-in fade-in">
+          <Card className="w-full max-w-lg bg-gray-900 border-gray-800 shadow-2xl relative p-6">
+            <button onClick={() => setIsShareModalOpen(false)} aria-label="Close" className="absolute right-4 top-4 z-10 text-gray-400 hover:text-white transition-colors bg-gray-900/50 rounded-full p-1">
+              <X className="w-5 h-5" />
+            </button>
+            <h2 className="text-xl font-bold mb-1">Share Deal</h2>
+            <p className="text-sm text-gray-400 mb-2">Send this link to your partner.</p>
+            <ShareDealPanel 
+              rawActionUrl={`${import.meta.env.VITE_ACTIONS_API_URL || 'http://localhost:3001'}/deal/${deal.id}`}
+              dealId={deal.id}
+              onCopy={(url) => { 
+                navigator.clipboard.writeText(url); 
+                // Using alert just like in CreateDealModal for simplicity, though a toast would be better.
+                // It works for the Instagram fallback too.
+              }}
+              customClass="mt-2"
+            />
+          </Card>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
