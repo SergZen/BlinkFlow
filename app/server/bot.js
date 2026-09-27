@@ -1,4 +1,6 @@
-import TelegramBot from 'node-telegram-bot-api';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const TelegramBot = require('node-telegram-bot-api');
 
 // In-memory conversation state
 // Key: chatId, Value: { step: string, dealData: any, lastActive: number }
