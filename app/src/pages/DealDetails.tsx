@@ -12,18 +12,21 @@ import { truncateAddress } from '../lib/utils';
 import { useSolBalance } from '../hooks/useSolBalance';
 import { useNetwork } from '../NetworkContext';
 import type { Deal } from '../mockData';
-import { Blink, useBlink } from '@dialectlabs/blinks';
+import { Blink, useBlink, setProxyUrl } from '@dialectlabs/blinks';
 import { useBlinkSolanaWalletAdapter } from '@dialectlabs/blinks/hooks/solana';
 import '@dialectlabs/blinks/index.css';
 import { useConnection } from '@solana/wallet-adapter-react';
+
+// Disable dial.to proxy so the preview fetches directly from our backend
+setProxyUrl('');
 
 const BlinkPreview = ({ id }: { id: string }) => {
   const { connection } = useConnection();
   const { adapter } = useBlinkSolanaWalletAdapter(connection);
   
   const BLINK_SERVER_URL = import.meta.env.VITE_ACTIONS_API_URL || 'http://localhost:3001';
-  // Use direct API URL to avoid dial.to proxy
-  const actionUrl = `${BLINK_SERVER_URL}/api/deal/${id}`;
+  // Use solana-action: prefix so the SDK knows it's an API, and proxy is disabled above
+  const actionUrl = `solana-action:${BLINK_SERVER_URL}/api/deal/${id}`;
   
   const { blink, isLoading } = useBlink({ url: actionUrl });
 
