@@ -76,7 +76,7 @@ app.get('/deal/:id', (req, res) => {
   const title = foundDeal ? foundDeal.title : (req.query.title ? req.query.title : `BlinkFlow Deal: ${id}`);
 
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-  const localAppUrl = `${frontendUrl}/deal/${id}`;
+  const localAppUrl = `${frontendUrl}/deal/${id}${queryString}`;
   
   res.send(`<!DOCTYPE html>
 <html lang="en">
