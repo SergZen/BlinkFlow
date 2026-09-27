@@ -6,6 +6,7 @@ import fs from 'fs';
 import satori from 'satori';
 import { Resvg } from '@resvg/resvg-js';
 import { Connection, PublicKey, SystemProgram, Transaction, clusterApiUrl } from '@solana/web3.js';
+import { setupBot } from './bot.js';
 
 // Connection to devnet
 const connection = new Connection(clusterApiUrl('devnet'), 'confirmed');
@@ -14,9 +15,16 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
+app.use(express.json());
+
 const fontRegular = fs.readFileSync(path.join(__dirname, 'Roboto-Regular.ttf'));
 const fontBold = fs.readFileSync(path.join(__dirname, 'Roboto-Bold.ttf'));
 const logoData = 'data:image/jpeg;base64,' + fs.readFileSync(path.join(__dirname, 'blinkFlow.jpg')).toString('base64');
+const dealsData = JSON.parse(fs.readFileSync(path.join(__dirname, 'deals.json'), 'utf-8'));
+
+// Setup Telegram Bot
+const defaultBaseUrl = process.env.VITE_ACTIONS_API_URL || 'http://localhost:3001';
+setupBot(app, defaultBaseUrl, dealsData);
 
 // Solana Actions require specific CORS headers
 const corsOptions = {
@@ -64,7 +72,8 @@ app.get('/deal/:id', (req, res) => {
   const baseUrl = `${protocol}://${req.get('host')}`;
   
   const queryString = Object.keys(req.query).length > 0 ? '?' + new URLSearchParams(req.query).toString() : '';
-  const title = req.query.title ? req.query.title : `BlinkFlow Deal: ${id}`;
+  const foundDeal = dealsData.find(d => d.id === id);
+  const title = foundDeal ? foundDeal.title : (req.query.title ? req.query.title : `BlinkFlow Deal: ${id}`);
 
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
   const localAppUrl = `${frontendUrl}/deal/${id}`;
@@ -126,7 +135,27 @@ app.get('/deal/:id', (req, res) => {
 app.get('/api/deal/:id/og-image.png', async (req, res) => {
   try {
     const { id } = req.params;
-    const { title = 'Escrow Deal', amount = '', status = 'Pending', customerWallet = '', contractorWallet = '' } = req.query;
+    const foundDeal = dealsData.find(d => d.id === id);
+    
+    let title = 'Escrow Deal';
+    let amount = '';
+    let status = 'Pending';
+    let customerWallet = '';
+    let contractorWallet = '';
+
+    if (foundDeal) {
+      title = foundDeal.title;
+      amount = foundDeal.amount.toString();
+      status = foundDeal.status;
+      customerWallet = foundDeal.customer;
+      contractorWallet = foundDeal.contractor || '';
+    } else {
+      title = req.query.title || 'Escrow Deal';
+      amount = req.query.amount || '';
+      status = req.query.status || 'Pending';
+      customerWallet = req.query.customerWallet || '';
+      contractorWallet = req.query.contractorWallet || '';
+    }
 
     const shorten = (addr) => addr && addr.length > 8 ? `${addr.slice(0, 4)}...${addr.slice(-4)}` : addr;
 
@@ -277,11 +306,15 @@ app.get('/api/deal/:id/og-image.png', async (req, res) => {
 });
 
 app.get('/api/deal/:id', (req, res) => {
+  const { id } = req.params;
+  const foundDeal = dealsData.find(d => d.id === id);
+  const title = foundDeal ? foundDeal.title : (req.query.title || id);
+
   const protocol = req.hostname === 'localhost' ? 'http' : 'https';
   const baseUrl = `${protocol}://${req.get('host')}`;
   res.json({
     icon: `${baseUrl}/blinkFlow.jpg`,
-    title: `Fund Escrow: ${req.params.id}`,
+    title: `Fund Escrow: ${title}`,
     description: "Deposit funds into the BlinkFlow escrow to start the deal.",
     label: "Fund Escrow",
     links: {

@@ -1,4 +1,4 @@
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useLocation } from 'react-router-dom';
 import { mockDeals } from '../mockData';
 import { Card } from '../components/Card';
 import { Badge, getStatusLabel } from '../components/Badge';
@@ -74,8 +74,30 @@ export const DealDetails = () => {
     const timer = setTimeout(() => {
       try {
         const foundDeal = mockDeals.find(d => d.id === id);
-        if (!foundDeal) throw new Error("Deal not found");
-        setDeal(foundDeal);
+        if (foundDeal) {
+          setDeal(foundDeal);
+        } else {
+          // Fallback: try to construct deal from query parameters
+          const params = new URLSearchParams(location.search);
+          const title = params.get('title');
+          const amount = params.get('amount');
+          
+          if (title && amount) {
+            setDeal({
+              id: id || 'VIRTUAL',
+              title,
+              amount: parseFloat(amount),
+              status: (params.get('status') as any) || 'searching',
+              customer: params.get('customerWallet') || 'Customer (Pending)',
+              contractor: params.get('contractorWallet') || '',
+              deadline: 'TBD',
+              successCriteria: '',
+              history: []
+            });
+          } else {
+            throw new Error("Deal not found");
+          }
+        }
       } catch (err: any) {
         setError(err.message || "Failed to load deal");
       } finally {
@@ -83,7 +105,9 @@ export const DealDetails = () => {
       }
     }, 800);
     return () => clearTimeout(timer);
-  }, [id]);
+  }, [id, location.search]);
+
+  const isVirtualDeal = deal && !mockDeals.some(d => d.id === deal.id);
 
   if (loading) return <div className="p-12 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-purple-500" /></div>;
   if (error) return <div className="p-8 text-center text-red-400">{error}</div>;
@@ -162,90 +186,100 @@ export const DealDetails = () => {
               Success Criteria
             </h3>
             <div className="bg-gray-950 p-4 rounded-lg border border-gray-800 text-gray-300 leading-relaxed">
-              {deal.successCriteria}
+              {isVirtualDeal ? (
+                <span className="text-gray-500 italic">Details available once the counterparty opens this deal.</span>
+              ) : (
+                deal.successCriteria
+              )}
             </div>
           </Card>
 
           {/* Action Panel based on role and status */}
           <Card className="p-6 border-purple-500/20 bg-purple-500/5">
             <h3 className="text-lg font-medium mb-4">Action Panel</h3>
-            {role === 'contractor' && deal.status === 'in_progress' && (
-              <div className="space-y-4">
-                <p className="text-sm text-gray-400">Submit your work for review. The customer will be notified to release funds.</p>
-                <textarea 
-                  rows={3} 
-                  maxLength={500}
-                  value={submission}
-                  onChange={(e) => setSubmission(e.target.value)}
-                  placeholder="Link to deliverable (e.g. GitHub PR, Figma link)..." 
-                  className="w-full bg-gray-950 border border-gray-800 rounded-lg p-3 text-sm focus:outline-none focus:border-purple-500/50"
-                  disabled={actionLoading}
-                ></textarea>
-                {renderSolWarning()}
-                <Button 
-                  variant="primary" 
-                  onClick={handleSubmitWork} 
-                  disabled={actionLoading || !submission.trim() || !hasEnoughSol}
-                  className={!hasEnoughSol ? 'opacity-50 cursor-not-allowed' : ''}
-                >
-                  {actionLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2 inline" /> : null}
-                  Submit Work
-                </Button>
-              </div>
-            )}
-            
-            {role === 'customer' && deal.status === 'pending_approval' && (
-              <div className="space-y-4">
-                <div className="p-4 bg-gray-900 rounded-lg border border-gray-800">
-                  <p className="text-sm font-medium mb-1">Contractor's Submission:</p>
-                  <a href="#" className="text-sm text-blue-400 hover:underline">https://github.com/blinkflow/pr-12</a>
-                </div>
-                {renderSolWarning()}
-                <div className="flex gap-3">
-                  <Button 
-                    variant="primary" 
-                    className={`bg-green-600 hover:bg-green-500 ${!hasEnoughSol ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    disabled={!hasEnoughSol}
-                  >
-                    Approve & Release Payment
-                  </Button>
-                  <Button 
-                    variant="danger"
-                    className={!hasEnoughSol ? 'opacity-50 cursor-not-allowed' : ''}
-                    disabled={!hasEnoughSol}
-                  >
-                    Open Dispute
-                  </Button>
-                </div>
-              </div>
-            )}
+            {isVirtualDeal ? (
+              <p className="text-gray-500 italic text-sm">Actions available once the counterparty opens this deal.</p>
+            ) : (
+              <>
+                {role === 'contractor' && deal.status === 'in_progress' && (
+                  <div className="space-y-4">
+                    <p className="text-sm text-gray-400">Submit your work for review. The customer will be notified to release funds.</p>
+                    <textarea 
+                      rows={3} 
+                      maxLength={500}
+                      value={submission}
+                      onChange={(e) => setSubmission(e.target.value)}
+                      placeholder="Link to deliverable (e.g. GitHub PR, Figma link)..." 
+                      className="w-full bg-gray-950 border border-gray-800 rounded-lg p-3 text-sm focus:outline-none focus:border-purple-500/50"
+                      disabled={actionLoading}
+                    ></textarea>
+                    {renderSolWarning()}
+                    <Button 
+                      variant="primary" 
+                      onClick={handleSubmitWork} 
+                      disabled={actionLoading || !submission.trim() || !hasEnoughSol}
+                      className={!hasEnoughSol ? 'opacity-50 cursor-not-allowed' : ''}
+                    >
+                      {actionLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2 inline" /> : null}
+                      Submit Work
+                    </Button>
+                  </div>
+                )}
+                
+                {role === 'customer' && deal.status === 'pending_approval' && (
+                  <div className="space-y-4">
+                    <div className="p-4 bg-gray-900 rounded-lg border border-gray-800">
+                      <p className="text-sm font-medium mb-1">Contractor's Submission:</p>
+                      <a href="#" className="text-sm text-blue-400 hover:underline">https://github.com/blinkflow/pr-12</a>
+                    </div>
+                    {renderSolWarning()}
+                    <div className="flex gap-3">
+                      <Button 
+                        variant="primary" 
+                        className={`bg-green-600 hover:bg-green-500 ${!hasEnoughSol ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        disabled={!hasEnoughSol}
+                      >
+                        Approve & Release Payment
+                      </Button>
+                      <Button 
+                        variant="danger"
+                        className={!hasEnoughSol ? 'opacity-50 cursor-not-allowed' : ''}
+                        disabled={!hasEnoughSol}
+                      >
+                        Open Dispute
+                      </Button>
+                    </div>
+                  </div>
+                )}
 
-            {(deal.status === 'completed' || deal.status === 'cancelled') && (
-              <p className="text-gray-400 text-sm bg-gray-900/50 p-3 rounded-lg border border-gray-800">This deal is closed. No further actions can be taken.</p>
-            )}
-            
-            {deal.status === 'searching' && role === 'customer' && (
-              <p className="text-gray-400 text-sm bg-gray-900/50 p-3 rounded-lg border border-gray-800">Waiting for a contractor to accept the Blink.</p>
-            )}
-            
-            {deal.status === 'searching' && role === 'contractor' && (
-              <div>
-                {renderSolWarning()}
-                <Button 
-                  variant="gradient"
-                  className={!hasEnoughSol ? 'opacity-50 cursor-not-allowed' : ''}
-                  disabled={!hasEnoughSol}
-                >
-                  Accept Deal
-                </Button>
-              </div>
-            )}
-            
-            {deal.status === 'dispute' && (
-              <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
-                <p className="text-sm text-red-400 font-medium">This deal is currently under dispute resolution.</p>
-                <p className="text-xs text-red-400/80 mt-1">An arbitrator will review the case and make a decision.</p>
-              </div>
+                {(deal.status === 'completed' || deal.status === 'cancelled') && (
+                  <p className="text-gray-400 text-sm bg-gray-900/50 p-3 rounded-lg border border-gray-800">This deal is closed. No further actions can be taken.</p>
+                )}
+                
+                {deal.status === 'searching' && role === 'customer' && (
+                  <p className="text-gray-400 text-sm bg-gray-900/50 p-3 rounded-lg border border-gray-800">Waiting for a contractor to accept the Blink.</p>
+                )}
+                
+                {deal.status === 'searching' && role === 'contractor' && (
+                  <div>
+                    {renderSolWarning()}
+                    <Button 
+                      variant="gradient"
+                      className={!hasEnoughSol ? 'opacity-50 cursor-not-allowed' : ''}
+                      disabled={!hasEnoughSol}
+                    >
+                      Accept Deal
+                    </Button>
+                  </div>
+                )}
+                
+                {deal.status === 'dispute' && (
+                  <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
+                    <p className="text-sm text-red-400 font-medium">This deal is currently under dispute resolution.</p>
+                    <p className="text-xs text-red-400/80 mt-1">An arbitrator will review the case and make a decision.</p>
+                  </div>
+                )}
+              </>
             )}
           </Card>
         </div>
@@ -277,7 +311,7 @@ export const DealDetails = () => {
             </div>
           </Card>
 
-          {deal.history && (
+          {!isVirtualDeal && deal.history && (
             <Card className="p-6">
               <h3 className="font-medium mb-4 flex items-center gap-2">
                 <History className="w-4 h-4 text-gray-400" />
