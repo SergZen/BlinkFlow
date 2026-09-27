@@ -71,13 +71,11 @@ app.get('/deal/:id', (req, res) => {
     <!-- OpenGraph tags for Telegram & Twitter Unfurling -->
     <meta property="og:site_name" content="BlinkFlow">
     <meta property="og:title" content="${title}">
-    <meta property="og:description" content="Secure non-custodial escrow deal on Solana.">
     <meta property="og:image" content="${baseUrl}/api/deal/${id}/og-image.png${queryString}">
     <meta property="og:type" content="website">
     
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="${title}">
-    <meta name="twitter:description" content="Secure non-custodial escrow deal on Solana.">
     <meta name="twitter:image" content="${baseUrl}/api/deal/${id}/og-image.png${queryString}">
 
     <!-- CRITICAL: The Solana Action Tag -->
@@ -162,16 +160,30 @@ app.get('/api/deal/:id/og-image.png', async (req, res) => {
                       style: { display: 'flex', alignItems: 'center', gap: '20px' },
                       children: [
                         {
-                          type: 'img',
+                          type: 'div',
                           props: {
-                            src: logoData,
-                            style: { width: '110px', height: '110px', borderRadius: '50%' },
+                            style: { 
+                              width: '140px', 
+                              height: '140px', 
+                              borderRadius: '50%', 
+                              overflow: 'hidden',
+                              display: 'flex'
+                            },
+                            children: [
+                              {
+                                type: 'img',
+                                props: {
+                                  src: logoData,
+                                  style: { width: '100%', height: '100%', objectFit: 'cover' },
+                                },
+                              }
+                            ]
                           },
                         },
                         {
                           type: 'span',
                           props: {
-                            style: { fontSize: '60px', color: '#fff', fontWeight: 700 },
+                            style: { fontSize: '70px', color: '#fff', fontWeight: 700 },
                             children: 'BlinkFlow',
                           },
                         },
