@@ -128,7 +128,7 @@ app.get('/api/deal/:id/og-image.png', async (req, res) => {
 
     let walletText = null;
     if (customerWallet && contractorWallet) {
-      walletText = `Customer: ${shorten(customerWallet)}  →  Contractor: ${shorten(contractorWallet)}`;
+      walletText = `Customer: ${shorten(customerWallet)}  ->  Contractor: ${shorten(contractorWallet)}`;
     } else if (customerWallet) {
       walletText = `Customer: ${shorten(customerWallet)}`;
     } else if (contractorWallet) {
@@ -165,13 +165,13 @@ app.get('/api/deal/:id/og-image.png', async (req, res) => {
                           type: 'img',
                           props: {
                             src: logoData,
-                            style: { width: '60px', height: '60px', borderRadius: '50%' },
+                            style: { width: '110px', height: '110px', borderRadius: '50%' },
                           },
                         },
                         {
                           type: 'span',
                           props: {
-                            style: { fontSize: '48px', color: '#fff', fontWeight: 700 },
+                            style: { fontSize: '60px', color: '#fff', fontWeight: 700 },
                             children: 'BlinkFlow',
                           },
                         },
@@ -195,10 +195,15 @@ app.get('/api/deal/:id/og-image.png', async (req, res) => {
                       },
                       children: [
                         {
-                          type: 'span',
+                          type: 'div',
                           props: {
-                            style: { marginRight: '12px', fontSize: '24px' },
-                            children: '●',
+                            style: { 
+                              marginRight: '16px', 
+                              width: '16px', 
+                              height: '16px', 
+                              borderRadius: '50%', 
+                              backgroundColor: '#a855f7' 
+                            },
                           },
                         },
                         status
