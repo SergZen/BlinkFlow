@@ -61,7 +61,7 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
     const contractorWallet = role === 'contractor' ? walletAddr : '';
     
     const queryParams = new URLSearchParams({
-      title: title,
+      title: 'BlinkFlow Deal',
       amount: amount,
       token: 'USDC',
       status: 'Awaiting Funding',
