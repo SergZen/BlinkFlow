@@ -24,6 +24,7 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
 
   if (!isOpen) return null;
 
+  const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
   const [deadline, setDeadline] = useState('');
   const [error, setError] = useState('');
@@ -36,6 +37,11 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
     }
     
     // Basic validation
+    if (!title.trim()) {
+      setError('Deal Title is required');
+      return;
+    }
+    
     const parsedAmount = parseFloat(amount);
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
       setError('Amount must be a valid number greater than 0');
@@ -61,7 +67,7 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
     const contractorWallet = role === 'contractor' ? walletAddr : '';
     
     const queryParams = new URLSearchParams({
-      title: 'BlinkFlow Deal',
+      title: title.trim(),
       amount: amount,
       token: 'USDC',
       status: 'Awaiting Funding',
@@ -101,6 +107,11 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
                   {error}
                 </div>
               )}
+              <div>
+                <label htmlFor="deal-title" className="block text-sm font-medium text-gray-300 mb-1.5">Deal Title</label>
+                <input id="deal-title" type="text" required maxLength={100} placeholder="e.g. Website Redesign" value={title} onChange={(e) => setTitle(e.target.value)} className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-2.5 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all text-white" />
+              </div>
+
               <div>
                 <label htmlFor="deal-amount" className="block text-sm font-medium text-gray-300 mb-1.5">Amount ({symbol})</label>
                 <div className="relative">

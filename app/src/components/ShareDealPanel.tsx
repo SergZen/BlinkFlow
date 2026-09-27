@@ -2,12 +2,11 @@ import { Button } from './Button';
 import { Copy } from 'lucide-react';
 
 export const ShareDealPanel = ({ rawActionUrl, dealId, onCopy, customClass = '' }: { rawActionUrl: string, dealId: string, onCopy: (url: string) => void, customClass?: string }) => {
-  const text = encodeURIComponent('Check out this BlinkFlow deal!');
   const encodedUrl = encodeURIComponent(rawActionUrl);
 
   const handleShareTelegram = () => {
-    const deepLink = `tg://msg_url?url=${encodedUrl}&text=${text}`;
-    const fallbackLink = `https://t.me/share/url?url=${encodedUrl}&text=${text}`;
+    const deepLink = `tg://msg_url?url=${encodedUrl}`;
+    const fallbackLink = `https://t.me/share/url?url=${encodedUrl}`;
 
     window.location.href = deepLink;
     setTimeout(() => {
@@ -72,7 +71,7 @@ export const ShareDealPanel = ({ rawActionUrl, dealId, onCopy, customClass = '' 
         <Button 
           variant="gradient" 
           className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/20 p-0 hover:scale-105 transition-transform shrink-0"
-          onClick={() => window.open(`https://twitter.com/intent/tweet?url=${encodedUrl}&text=${text}`, '_blank')}
+          onClick={() => window.open(`https://twitter.com/intent/tweet?url=${encodedUrl}`, '_blank')}
           title="Share to X / Twitter"
         >
           <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">

@@ -66,16 +66,14 @@ app.get('/deal/:id', (req, res) => {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BlinkFlow Escrow: ${id}</title>
+    <title>BlinkFlow</title>
     
     <!-- OpenGraph tags for Telegram & Twitter Unfurling -->
     <meta property="og:site_name" content="BlinkFlow">
-    <meta property="og:title" content="${title}">
     <meta property="og:image" content="${baseUrl}/api/deal/${id}/og-image.png${queryString}">
     <meta property="og:type" content="website">
     
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="${title}">
     <meta name="twitter:image" content="${baseUrl}/api/deal/${id}/og-image.png${queryString}">
 
     <!-- CRITICAL: The Solana Action Tag -->
