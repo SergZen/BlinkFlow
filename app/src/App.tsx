@@ -15,7 +15,12 @@ import { NetworkProvider, useNetwork } from './NetworkContext';
 
 function InnerApp() {
   const { network } = useNetwork();
-  const endpoint = useMemo(() => clusterApiUrl(network), [network]);
+  const endpoint = useMemo(() => {
+    if (network === 'devnet' && import.meta.env.VITE_SOLANA_RPC_URL) {
+      return import.meta.env.VITE_SOLANA_RPC_URL;
+    }
+    return clusterApiUrl(network);
+  }, [network]);
   const wallets = useMemo(() => [], []);
 
   return (

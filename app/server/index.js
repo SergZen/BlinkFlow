@@ -9,7 +9,7 @@ import { Connection, PublicKey, SystemProgram, Transaction, clusterApiUrl } from
 import { setupBot } from './bot.js';
 
 // Connection to devnet
-const connection = new Connection(clusterApiUrl('devnet'), 'confirmed');
+const connection = new Connection(process.env.SOLANA_RPC_URL || clusterApiUrl('devnet'), 'confirmed');
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
