@@ -50,6 +50,11 @@ app.get('/logo.jpg', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/logo.jpg'));
 });
 
+// Serve the BlinkFlow logo for Blink previews
+app.get('/blinkFlow.jpg', (req, res) => {
+  res.sendFile(path.join(__dirname, 'blinkFlow.jpg'));
+});
+
 app.get('/deal/:id', (req, res) => {
   const { id } = req.params;
   const protocol = req.hostname === 'localhost' ? 'http' : 'https';
@@ -264,7 +269,7 @@ app.get('/api/deal/:id/og-image.png', async (req, res) => {
     res.send(pngBuffer);
   } catch (error) {
     console.error('OG Image generation error:', error);
-    res.sendFile(path.join(__dirname, '../public/logo.jpg'));
+    res.sendFile(path.join(__dirname, 'blinkFlow.jpg'));
   }
 });
 
@@ -272,7 +277,7 @@ app.get('/api/deal/:id', (req, res) => {
   const protocol = req.hostname === 'localhost' ? 'http' : 'https';
   const baseUrl = `${protocol}://${req.get('host')}`;
   res.json({
-    icon: `${baseUrl}/logo.jpg`,
+    icon: `${baseUrl}/blinkFlow.jpg`,
     title: `Fund Escrow: ${req.params.id}`,
     description: "Deposit funds into the BlinkFlow escrow to start the deal.",
     label: "Fund Escrow",

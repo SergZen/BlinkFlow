@@ -22,8 +22,8 @@ const BlinkPreview = ({ id }: { id: string }) => {
   const { adapter } = useBlinkSolanaWalletAdapter(connection);
   
   const BLINK_SERVER_URL = import.meta.env.VITE_ACTIONS_API_URL || 'http://localhost:3001';
-  // Use solana-action: prefix to force direct API resolution without interstitial fallback
-  const actionUrl = `solana-action:${BLINK_SERVER_URL}/api/deal/${id}`;
+  // Use direct API URL to avoid dial.to proxy
+  const actionUrl = `${BLINK_SERVER_URL}/api/deal/${id}`;
   
   const { blink, isLoading } = useBlink({ url: actionUrl });
 
