@@ -5,7 +5,10 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 import satori from 'satori';
 import { Resvg } from '@resvg/resvg-js';
+import { Connection, PublicKey, SystemProgram, Transaction, clusterApiUrl } from '@solana/web3.js';
 
+// Connection to devnet
+const connection = new Connection(clusterApiUrl('devnet'), 'confirmed');
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -292,12 +295,45 @@ app.get('/api/deal/:id', (req, res) => {
   });
 });
 
-app.post('/api/deal/:id/tx', (req, res) => {
-  // In a real blink, this returns the base64 encoded transaction and message
-  res.json({
-    transaction: "mock_base64_transaction_data",
-    message: "Escrow funded successfully via Blink!"
-  });
+app.post('/api/deal/:id/tx', async (req, res) => {
+  try {
+    const { account } = req.body;
+    if (!account) {
+      return res.status(400).json({ error: "No account provided" });
+    }
+
+    const userPubkey = new PublicKey(account);
+
+    // TODO: replace with real escrow instruction once Anchor program is deployed
+    // For now, this is a mock transaction that transfers 0 SOL to the user themselves
+    // so it's structurally valid for devnet without losing funds.
+    const ix = SystemProgram.transfer({
+      fromPubkey: userPubkey,
+      toPubkey: userPubkey,
+      lamports: 0,
+    });
+
+    const tx = new Transaction();
+    tx.add(ix);
+    tx.feePayer = userPubkey;
+    
+    const { blockhash } = await connection.getLatestBlockhash('confirmed');
+    tx.recentBlockhash = blockhash;
+
+    // Serialize unsigned transaction
+    const serializedTx = tx.serialize({
+      requireAllSignatures: false,
+      verifySignatures: false
+    });
+
+    res.json({
+      transaction: serializedTx.toString('base64'),
+      message: "Escrow funded successfully via Blink!"
+    });
+  } catch (error) {
+    console.error("Error creating transaction:", error);
+    res.status(500).json({ error: "Internal server error building transaction" });
+  }
 });
 
 app.options('*', cors(corsOptions));

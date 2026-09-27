@@ -7,6 +7,7 @@
   },
   "dependencies": {
     "@resvg/resvg-js": "^2.6.2",
+    "@solana/web3.js": "^1.99.0",
     "cors": "^2.8.5",
     "express": "^4.21.0",
     "satori": "^0.33.5"
