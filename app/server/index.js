@@ -141,12 +141,12 @@ app.get('/api/deal/:id/og-image.png', async (req, res) => {
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
-            backgroundColor: '#030712',
+            backgroundImage: 'linear-gradient(135deg, #0F172A 0%, #020617 100%)',
             padding: '80px',
             fontFamily: 'Roboto',
           },
           children: [
-            // Top row: Logo + BlinkFlow (left), Status Badge (right)
+            // Top row
             {
               type: 'div',
               props: {
@@ -160,136 +160,82 @@ app.get('/api/deal/:id/og-image.png', async (req, res) => {
                         {
                           type: 'div',
                           props: {
-                            style: { 
-                              width: '140px', 
-                              height: '140px', 
-                              borderRadius: '50%', 
-                              overflow: 'hidden',
-                              display: 'flex'
+                            style: {
+                              width: '140px', height: '140px', borderRadius: '50%', overflow: 'hidden', display: 'flex',
+                              border: '2px solid rgba(255,255,255,0.15)'
                             },
-                            children: [
-                              {
-                                type: 'img',
-                                props: {
-                                  src: logoData,
-                                  style: { width: '100%', height: '100%', objectFit: 'cover' },
-                                },
-                              }
-                            ]
-                          },
+                            children: [{ type: 'img', props: { src: logoData, style: { width: '100%', height: '100%', objectFit: 'cover' } } }]
+                          }
                         },
                         {
                           type: 'span',
-                          props: {
-                            style: { fontSize: '70px', color: '#fff', fontWeight: 700 },
-                            children: 'BlinkFlow',
-                          },
-                        },
-                      ],
-                    },
+                          props: { 
+                            style: { 
+                              fontSize: '70px', color: '#38bdf8', fontWeight: 700, 
+                              letterSpacing: '4px', textShadow: '0 0 20px rgba(56, 189, 248, 0.5)'
+                            }, 
+                            children: 'BlinkFlow' 
+                          }
+                        }
+                      ]
+                    }
                   },
                   {
                     type: 'div',
                     props: {
                       style: {
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        padding: '12px 24px',
-                        borderRadius: '30px',
-                        backgroundColor: 'rgba(168, 85, 247, 0.1)',
-                        border: '2px solid rgba(168, 85, 247, 0.5)',
-                        color: '#a855f7',
-                        fontSize: '32px',
-                        fontWeight: 700,
+                        display: 'flex', alignItems: 'center', padding: '16px 32px', borderRadius: '40px',
+                        border: '2px solid rgba(255,255,255,0.15)',
+                        color: '#fff', fontSize: '32px', fontWeight: 700,
                       },
                       children: [
-                        {
-                          type: 'div',
-                          props: {
-                            style: { 
-                              marginRight: '16px', 
-                              width: '16px', 
-                              height: '16px', 
-                              borderRadius: '50%', 
-                              backgroundColor: '#a855f7' 
-                            },
-                          },
-                        },
+                        { type: 'div', props: { style: { marginRight: '16px', width: '16px', height: '16px', borderRadius: '50%', backgroundColor: '#fff' } } },
                         status
-                      ],
-                    },
+                      ]
+                    }
                   }
-                ],
-              },
+                ]
+              }
             },
-            
-            // Middle: Title + ID (left) and Amount (right)
+            // Middle
             {
               type: 'div',
               props: {
-                style: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%' },
+                style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginTop: '40px' },
                 children: [
                   {
                     type: 'div',
                     props: {
-                      style: { display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: amount ? '65%' : '100%' },
+                      style: { display: 'flex', flexDirection: 'column', maxWidth: '65%' },
                       children: [
-                        {
-                          type: 'h1',
-                          props: {
-                            style: { 
-                              fontSize: '64px', 
-                              color: '#fff', 
-                              margin: 0, 
-                              fontWeight: 700,
-                              lineHeight: 1.1,
-                            },
-                            children: title,
-                          },
-                        },
-                        {
-                          type: 'span',
-                          props: {
-                            style: { fontSize: '36px', color: '#6b7280', margin: 0 },
-                            children: `ID: ${id}`,
-                          },
-                        },
-                      ],
-                    },
+                        { type: 'span', props: { style: { color: '#94a3b8', fontSize: '28px', fontWeight: 700, marginBottom: '16px', textTransform: 'uppercase', letterSpacing: '2px' }, children: 'Escrow Deal' } },
+                        { type: 'span', props: { style: { fontSize: '64px', color: '#f8fafc', fontWeight: 700, lineHeight: 1.1 }, children: title } },
+                        { type: 'span', props: { style: { fontSize: '32px', color: '#64748b', marginTop: '16px' }, children: `ID: ${id}` } }
+                      ]
+                    }
                   },
                   amount ? {
                     type: 'div',
                     props: {
-                      style: { fontSize: '64px', color: '#a855f7', fontWeight: 700, whiteSpace: 'nowrap' },
-                      children: `${amount} USDC`,
-                    },
-                  } : null,
-                ].filter(Boolean),
-              },
+                      style: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end' },
+                      children: [
+                        { type: 'span', props: { style: { fontSize: '32px', color: '#94a3b8', marginBottom: '8px' }, children: 'Amount' } },
+                        { type: 'span', props: { style: { fontSize: '80px', color: '#38bdf8', fontWeight: 700, lineHeight: 1 }, children: amount } },
+                        { type: 'span', props: { style: { fontSize: '36px', color: '#e0f2fe', fontWeight: 400, marginTop: '8px' }, children: 'USDC' } }
+                      ]
+                    }
+                  } : null
+                ].filter(Boolean)
+              }
             },
-            
             // Bottom
             {
               type: 'div',
               props: {
-                style: { display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', marginTop: '40px' },
+                style: { display: 'flex', justifyContent: 'center', width: '100%', borderTop: '2px solid rgba(255,255,255,0.1)', paddingTop: '32px' },
                 children: [
-                  walletText ? {
-                    type: 'div',
-                    props: {
-                      style: { fontSize: '32px', color: '#9ca3af', fontFamily: 'monospace' },
-                      children: walletText,
-                    },
-                  } : null,
-                  {
-                    type: 'p',
-                    props: {
-                      style: { fontSize: '32px', color: '#6b7280', margin: 0 },
-                      children: 'Secure non-custodial escrow on Solana',
-                    },
-                  }
-                ].filter(Boolean),
+                  walletText ? { type: 'span', props: { style: { fontSize: '28px', color: '#94a3b8', fontFamily: 'monospace' }, children: walletText } } : null
+                ].filter(Boolean)
               }
             }
           ],
