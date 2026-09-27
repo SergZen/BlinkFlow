@@ -132,6 +132,21 @@ app.get('/deal/:id', (req, res) => {
 
 
 
+app.get('/api/shorten', async (req, res) => {
+  const { url } = req.query;
+  if (!url) return res.status(400).json({ error: 'Missing url' });
+  try {
+    const response = await fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(url)}`);
+    if (response.ok) {
+      const shortUrl = await response.text();
+      return res.json({ shortUrl, shortened: true });
+    }
+  } catch (error) {
+    console.error('TinyURL error:', error);
+  }
+  return res.json({ shortUrl: url, shortened: false });
+});
+
 app.get('/api/deal/:id/og-image.png', async (req, res) => {
   try {
     const { id } = req.params;
