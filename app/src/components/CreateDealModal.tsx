@@ -20,7 +20,7 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
   const [blinkUrl, setBlinkUrl] = useState('');
   const [rawActionUrl, setRawActionUrl] = useState('');
   const { role } = useRole();
-  const { connected } = useWallet();
+  const { connected, publicKey } = useWallet();
 
   if (!isOpen) return null;
 
@@ -55,10 +55,25 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
     // TODO: replace with real transaction once Anchor program is deployed
     const baseUrl = import.meta.env.VITE_ACTIONS_API_URL || 'http://localhost:3001';
     
+    const dealId = `ESC-${Math.floor(1000 + Math.random() * 9000)}`;
+    const walletAddr = connected && publicKey ? publicKey.toBase58() : '';
+    const customerWallet = role === 'customer' ? walletAddr : '';
+    const contractorWallet = role === 'contractor' ? walletAddr : '';
+    
+    const queryParams = new URLSearchParams({
+      title: title,
+      amount: amount,
+      token: 'USDC',
+      status: 'Awaiting Funding',
+      ...(customerWallet && { customerWallet }),
+      ...(contractorWallet && { contractorWallet })
+    });
+    const queryString = `?${queryParams.toString()}`;
+    
     // The Dial.to wrapped link
-    setBlinkUrl(`https://dial.to/?action=solana-action:${encodeURIComponent(`${baseUrl}/api/deal/ESC-1006`)}`);
+    setBlinkUrl(`https://dial.to/?action=solana-action:${encodeURIComponent(`${baseUrl}/api/deal/${dealId}`)}`);
     // The HTML wrapper URL format expected by X/Telegram unfurling bots
-    setRawActionUrl(`${baseUrl}/deal/ESC-1006`);
+    setRawActionUrl(`${baseUrl}/deal/${dealId}${queryString}`);
     
     setStep(2);
   };

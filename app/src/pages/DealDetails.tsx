@@ -131,7 +131,14 @@ export const DealDetails = () => {
             <h2 className="text-xl font-bold mb-1">Share Deal</h2>
             <p className="text-sm text-gray-400 mb-2">Send this link to your partner.</p>
             <ShareDealPanel 
-              rawActionUrl={`${import.meta.env.VITE_ACTIONS_API_URL || 'http://localhost:3001'}/deal/${deal.id}`}
+              rawActionUrl={`${import.meta.env.VITE_ACTIONS_API_URL || 'http://localhost:3001'}/deal/${deal.id}?${new URLSearchParams({
+                title: deal.title,
+                amount: deal.amount.toString(),
+                token: 'USDC',
+                status: getStatusLabel(deal.status),
+                ...(deal.customer && { customerWallet: deal.customer }),
+                ...(deal.contractor && { contractorWallet: deal.contractor })
+              }).toString()}`}
               dealId={deal.id}
               onCopy={(url) => { 
                 navigator.clipboard.writeText(url); 

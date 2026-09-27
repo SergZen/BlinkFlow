@@ -13,6 +13,7 @@ const app = express();
 
 const fontRegular = fs.readFileSync(path.join(__dirname, 'Roboto-Regular.ttf'));
 const fontBold = fs.readFileSync(path.join(__dirname, 'Roboto-Bold.ttf'));
+const logoData = 'data:image/jpeg;base64,' + fs.readFileSync(path.join(__dirname, 'blinkFlow.jpg')).toString('base64');
 
 // Solana Actions require specific CORS headers
 const corsOptions = {
@@ -53,6 +54,10 @@ app.get('/deal/:id', (req, res) => {
   const { id } = req.params;
   const protocol = req.hostname === 'localhost' ? 'http' : 'https';
   const baseUrl = `${protocol}://${req.get('host')}`;
+  
+  const queryString = Object.keys(req.query).length > 0 ? '?' + new URLSearchParams(req.query).toString() : '';
+  const title = req.query.title ? req.query.title : `BlinkFlow Deal: ${id}`;
+
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
   const localAppUrl = `${frontendUrl}/deal/${id}`;
   
@@ -65,15 +70,15 @@ app.get('/deal/:id', (req, res) => {
     
     <!-- OpenGraph tags for Telegram & Twitter Unfurling -->
     <meta property="og:site_name" content="BlinkFlow">
-    <meta property="og:title" content="BlinkFlow Deal: ${id}">
+    <meta property="og:title" content="${title}">
     <meta property="og:description" content="Secure non-custodial escrow deal on Solana.">
-    <meta property="og:image" content="${baseUrl}/api/deal/${id}/og-image.png">
+    <meta property="og:image" content="${baseUrl}/api/deal/${id}/og-image.png${queryString}">
     <meta property="og:type" content="website">
     
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="BlinkFlow Deal: ${id}">
+    <meta name="twitter:title" content="${title}">
     <meta name="twitter:description" content="Secure non-custodial escrow deal on Solana.">
-    <meta name="twitter:image" content="${baseUrl}/api/deal/${id}/og-image.png">
+    <meta name="twitter:image" content="${baseUrl}/api/deal/${id}/og-image.png${queryString}">
 
     <!-- CRITICAL: The Solana Action Tag -->
     <meta name="solana:action" content="${baseUrl}/api/deal/${id}">
@@ -117,7 +122,19 @@ app.get('/deal/:id', (req, res) => {
 app.get('/api/deal/:id/og-image.png', async (req, res) => {
   try {
     const { id } = req.params;
-    
+    const { title = 'Escrow Deal', amount = '', status = 'Pending', customerWallet = '', contractorWallet = '' } = req.query;
+
+    const shorten = (addr) => addr && addr.length > 8 ? `${addr.slice(0, 4)}...${addr.slice(-4)}` : addr;
+
+    let walletText = null;
+    if (customerWallet && contractorWallet) {
+      walletText = `Customer: ${shorten(customerWallet)}  →  Contractor: ${shorten(contractorWallet)}`;
+    } else if (customerWallet) {
+      walletText = `Customer: ${shorten(customerWallet)}`;
+    } else if (contractorWallet) {
+      walletText = `Contractor: ${shorten(contractorWallet)}`;
+    }
+
     const svg = await satori(
       {
         type: 'div',
@@ -127,67 +144,138 @@ app.get('/api/deal/:id/og-image.png', async (req, res) => {
             width: '100%',
             display: 'flex',
             flexDirection: 'column',
-            alignItems: 'flex-start',
             justifyContent: 'space-between',
             backgroundColor: '#030712',
             padding: '80px',
             fontFamily: 'Roboto',
           },
           children: [
+            // Top row: Logo + BlinkFlow (left), Status Badge (right)
             {
               type: 'div',
               props: {
-                style: { display: 'flex', alignItems: 'center', gap: '20px' },
+                style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' },
                 children: [
                   {
                     type: 'div',
                     props: {
-                      style: {
-                        width: '60px',
-                        height: '60px',
-                        borderRadius: '16px',
-                        background: 'linear-gradient(135deg, #a855f7, #3b82f6)',
-                      },
+                      style: { display: 'flex', alignItems: 'center', gap: '20px' },
+                      children: [
+                        {
+                          type: 'img',
+                          props: {
+                            src: logoData,
+                            style: { width: '60px', height: '60px', borderRadius: '50%' },
+                          },
+                        },
+                        {
+                          type: 'span',
+                          props: {
+                            style: { fontSize: '48px', color: '#fff', fontWeight: 700 },
+                            children: 'BlinkFlow',
+                          },
+                        },
+                      ],
                     },
                   },
                   {
-                    type: 'span',
+                    type: 'div',
                     props: {
-                      style: { fontSize: '48px', color: '#fff', fontWeight: 700 },
-                      children: 'BlinkFlow',
+                      style: {
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '12px 24px',
+                        borderRadius: '30px',
+                        backgroundColor: 'rgba(168, 85, 247, 0.1)',
+                        border: '2px solid rgba(168, 85, 247, 0.5)',
+                        color: '#a855f7',
+                        fontSize: '32px',
+                        fontWeight: 700,
+                      },
+                      children: [
+                        {
+                          type: 'span',
+                          props: {
+                            style: { marginRight: '12px', fontSize: '24px' },
+                            children: '●',
+                          },
+                        },
+                        status
+                      ],
                     },
-                  },
+                  }
                 ],
               },
             },
+            
+            // Middle: Title + ID (left) and Amount (right)
             {
               type: 'div',
               props: {
-                style: { display: 'flex', flexDirection: 'column', gap: '20px' },
+                style: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%' },
                 children: [
                   {
-                    type: 'h1',
+                    type: 'div',
                     props: {
-                      style: { fontSize: '72px', color: '#fff', margin: 0, fontWeight: 700 },
-                      children: `Escrow Deal`,
+                      style: { display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: amount ? '65%' : '100%' },
+                      children: [
+                        {
+                          type: 'h1',
+                          props: {
+                            style: { 
+                              fontSize: '64px', 
+                              color: '#fff', 
+                              margin: 0, 
+                              fontWeight: 700,
+                              lineHeight: 1.1,
+                            },
+                            children: title,
+                          },
+                        },
+                        {
+                          type: 'span',
+                          props: {
+                            style: { fontSize: '36px', color: '#6b7280', margin: 0 },
+                            children: `ID: ${id}`,
+                          },
+                        },
+                      ],
                     },
                   },
+                  amount ? {
+                    type: 'div',
+                    props: {
+                      style: { fontSize: '64px', color: '#a855f7', fontWeight: 700, whiteSpace: 'nowrap' },
+                      children: `${amount} USDC`,
+                    },
+                  } : null,
+                ].filter(Boolean),
+              },
+            },
+            
+            // Bottom
+            {
+              type: 'div',
+              props: {
+                style: { display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', marginTop: '40px' },
+                children: [
+                  walletText ? {
+                    type: 'div',
+                    props: {
+                      style: { fontSize: '32px', color: '#9ca3af', fontFamily: 'monospace' },
+                      children: walletText,
+                    },
+                  } : null,
                   {
                     type: 'p',
                     props: {
-                      style: { fontSize: '48px', color: '#a855f7', margin: 0, fontWeight: 700 },
-                      children: `ID: ${id}`,
+                      style: { fontSize: '32px', color: '#6b7280', margin: 0 },
+                      children: 'Secure non-custodial escrow on Solana',
                     },
-                  },
-                ],
-              },
-            },
-            {
-              type: 'p',
-              props: {
-                style: { fontSize: '32px', color: '#9ca3af', margin: 0 },
-                children: 'Secure non-custodial escrow on Solana',
-              },
+                  }
+                ].filter(Boolean),
+              }
             }
           ],
         },

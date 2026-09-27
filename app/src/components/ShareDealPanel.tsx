@@ -20,7 +20,9 @@ export const ShareDealPanel = ({ rawActionUrl, dealId, onCopy, customClass = '' 
   const copyForInstagram = async () => {
     try {
       const baseUrl = import.meta.env.VITE_ACTIONS_API_URL || 'http://localhost:3001';
-      const response = await fetch(`${baseUrl}/api/deal/${dealId}/og-image.png`);
+      const urlObj = new URL(rawActionUrl);
+      const queryString = urlObj.search;
+      const response = await fetch(`${baseUrl}/api/deal/${dealId}/og-image.png${queryString}`);
       const blob = await response.blob();
       
       if (navigator.clipboard && window.ClipboardItem) {
