@@ -17,7 +17,6 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
   const hasEnoughSol = solBalance !== null && solBalance >= MIN_SOL_REQUIRED;
 
   const [step, setStep] = useState<1 | 2>(1);
-  const [blinkUrl, setBlinkUrl] = useState('');
   const [rawActionUrl, setRawActionUrl] = useState('');
   const { role } = useRole();
   const { connected, publicKey } = useWallet();
@@ -76,8 +75,6 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
     });
     const queryString = `?${queryParams.toString()}`;
     
-    // The Dial.to wrapped link
-    setBlinkUrl(`https://dial.to/?action=solana-action:${encodeURIComponent(`${baseUrl}/api/deal/${dealId}`)}`);
     // The HTML wrapper URL format expected by X/Telegram unfurling bots
     setRawActionUrl(`${baseUrl}/deal/${dealId}${queryString}`);
     
