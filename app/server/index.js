@@ -317,7 +317,7 @@ app.post('/api/deal/:id/tx', async (req, res) => {
     tx.add(ix);
     tx.feePayer = userPubkey;
     
-    const { blockhash } = await connection.getLatestBlockhash('confirmed');
+    const { blockhash } = await connection.getLatestBlockhash('finalized');
     tx.recentBlockhash = blockhash;
 
     // Serialize unsigned transaction
@@ -331,7 +331,7 @@ app.post('/api/deal/:id/tx', async (req, res) => {
       message: "Escrow funded successfully via Blink!"
     });
   } catch (error) {
-    console.error("Error creating transaction:", error);
+    console.error("Error creating transaction in /api/deal/:id/tx:", error);
     res.status(500).json({ error: "Internal server error building transaction" });
   }
 });
