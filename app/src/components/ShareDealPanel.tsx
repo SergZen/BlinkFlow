@@ -23,16 +23,7 @@ export const ShareDealPanel = ({ rawActionUrl, dealId, onCopy, customClass = '' 
     setIsShortening('telegram');
     const shortUrl = await getShortUrl();
     setIsShortening(null);
-    const finalEncodedUrl = encodeURIComponent(shortUrl);
-    const deepLink = `tg://msg_url?url=${finalEncodedUrl}`;
-    const fallbackLink = `https://t.me/share/url?url=${finalEncodedUrl}`;
-
-    window.location.href = deepLink;
-    setTimeout(() => {
-      if (!document.hidden) {
-        window.open(fallbackLink, '_blank');
-      }
-    }, 1500);
+    window.open(`https://t.me/share/url?url=${encodeURIComponent(shortUrl)}`, '_blank');
   };
 
   const handleShareTwitter = async () => {
