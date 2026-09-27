@@ -23,7 +23,7 @@ const logoData = 'data:image/jpeg;base64,' + fs.readFileSync(path.join(__dirname
 const dealsData = JSON.parse(fs.readFileSync(path.join(__dirname, 'deals.json'), 'utf-8'));
 
 // Setup Telegram Bot
-const defaultBaseUrl = process.env.VITE_ACTIONS_API_URL || 'http://localhost:3001';
+const defaultBaseUrl = process.env.PUBLIC_BASE_URL || 'http://localhost:3001';
 setupBot(app, defaultBaseUrl, dealsData);
 
 // Solana Actions require specific CORS headers

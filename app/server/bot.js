@@ -41,7 +41,7 @@ function setupBot(app, baseUrl, dealsData) {
     const dealId = match[1];
 
     if (!dealId) {
-      bot.sendMessage(chatId, "Please provide a deal ID. Usage: /deal ESC-1001");
+      bot.sendMessage(chatId, "Please provide a deal ID. Usage: /deal ESC-1001").catch(err => console.error("Telegram API Error:", err));
       return;
     }
 
@@ -68,10 +68,10 @@ function setupBot(app, baseUrl, dealsData) {
         bot.sendMessage(chatId, caption + "\n\nLink: " + rawActionUrl, {
           parse_mode: 'Markdown',
           reply_markup: { inline_keyboard: [[ { text: "Open Deal", url: rawActionUrl } ]] }
-        });
+        }).catch(err => console.error("Telegram API Error:", err));
       });
     } else {
-      bot.sendMessage(chatId, `Deal not found. This might be a deal created after this bot session — try opening it on the website instead:\n${baseUrl}/deal/${dealId}`);
+      bot.sendMessage(chatId, `Deal not found. This might be a deal created after this bot session — try opening it on the website instead:\n${baseUrl}/deal/${dealId}`).catch(err => console.error("Telegram API Error:", err));
     }
   });
 
@@ -83,7 +83,7 @@ function setupBot(app, baseUrl, dealsData) {
       "I can help you create a secure escrow deal via Solana Blinks right here. " +
       "Use /newdeal to get started, or visit our website for more info.",
       { parse_mode: 'Markdown', reply_markup: { inline_keyboard: [[ { text: "Visit Website", url: baseUrl } ]] } }
-    );
+    ).catch(err => console.error("Telegram API Error:", err));
   });
 
   bot.onText(/^\/newdeal/, (msg) => {
@@ -94,7 +94,7 @@ function setupBot(app, baseUrl, dealsData) {
       lastActive: Date.now()
     });
 
-    bot.sendMessage(chatId, "Let's create a new deal! What is the title of the deal?");
+    bot.sendMessage(chatId, "Let's create a new deal! What is the title of the deal?").catch(err => console.error("Telegram API Error:", err));
   });
 
   bot.on('message', (msg) => {
@@ -114,29 +114,29 @@ function setupBot(app, baseUrl, dealsData) {
     switch (session.step) {
       case 'AWAITING_TITLE':
         if (!text) {
-          bot.sendMessage(chatId, "Title cannot be empty. Please enter a valid title:");
+          bot.sendMessage(chatId, "Title cannot be empty. Please enter a valid title:").catch(err => console.error("Telegram API Error:", err));
           return;
         }
         session.dealData.title = text;
         session.step = 'AWAITING_AMOUNT';
-        bot.sendMessage(chatId, "Great! Now, what is the amount in USDC-Dev? (e.g. 100)");
+        bot.sendMessage(chatId, "Great! Now, what is the amount in USDC-Dev? (e.g. 100)").catch(err => console.error("Telegram API Error:", err));
         break;
 
       case 'AWAITING_AMOUNT':
         const amount = parseFloat(text);
         if (isNaN(amount) || amount <= 0) {
-          bot.sendMessage(chatId, "Please enter a valid positive number for the amount:");
+          bot.sendMessage(chatId, "Please enter a valid positive number for the amount:").catch(err => console.error("Telegram API Error:", err));
           return;
         }
         session.dealData.amount = amount;
         session.step = 'AWAITING_DEADLINE_DAYS';
-        bot.sendMessage(chatId, "Got it. How many days until the deadline? (e.g. 7 for a week)");
+        bot.sendMessage(chatId, "Got it. How many days until the deadline? (e.g. 7 for a week)").catch(err => console.error("Telegram API Error:", err));
         break;
 
       case 'AWAITING_DEADLINE_DAYS':
         const days = parseInt(text, 10);
         if (isNaN(days) || days <= 0) {
-          bot.sendMessage(chatId, "Please enter a valid positive whole number of days:");
+          bot.sendMessage(chatId, "Please enter a valid positive whole number of days:").catch(err => console.error("Telegram API Error:", err));
           return;
         }
         
@@ -163,7 +163,7 @@ function setupBot(app, baseUrl, dealsData) {
           // Fallback if image fails to generate/send
           bot.sendMessage(chatId, "✅ Deal created!\n\nLink: " + rawActionUrl, {
             reply_markup: { inline_keyboard: [[ { text: "Open Deal", url: rawActionUrl } ]] }
-          });
+          }).catch(err => console.error("Telegram API Error:", err));
         });
 
         // End conversation
