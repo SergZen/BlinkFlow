@@ -14,7 +14,6 @@ import { useNetwork } from '../NetworkContext';
 import type { Deal } from '../mockData';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { Transaction } from '@solana/web3.js';
-import { Buffer } from 'buffer';
 
 const EscrowActionCard = ({ id }: { id: string }) => {
   const { connection } = useConnection();
@@ -67,7 +66,8 @@ const EscrowActionCard = ({ id }: { id: string }) => {
       }
       const { transaction, message } = await res.json();
 
-      const txBuf = Buffer.from(transaction, 'base64');
+      const binaryString = atob(transaction);
+      const txBuf = Uint8Array.from(binaryString, c => c.charCodeAt(0));
       const tx = Transaction.from(txBuf);
 
       const signature = await sendTransaction(tx, connection);
