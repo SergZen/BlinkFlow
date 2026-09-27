@@ -136,13 +136,17 @@ app.get('/api/shorten', async (req, res) => {
   const { url } = req.query;
   if (!url) return res.status(400).json({ error: 'Missing url' });
   try {
-    const response = await fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(url)}`);
+    const response = await fetch(`https://ulvis.net/api.php?url=${encodeURIComponent(url)}`);
     if (response.ok) {
       const shortUrl = await response.text();
-      return res.json({ shortUrl, shortened: true });
+      if (shortUrl.trim().startsWith('http')) {
+        return res.json({ shortUrl: shortUrl.trim(), shortened: true });
+      } else {
+        console.error('ulvis.net API returned an error string:', shortUrl);
+      }
     }
   } catch (error) {
-    console.error('TinyURL error:', error);
+    console.error('ulvis.net error:', error);
   }
   return res.json({ shortUrl: url, shortened: false });
 });
