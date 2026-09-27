@@ -171,8 +171,8 @@ app.get('/api/deal/:id/og-image.png', async (req, res) => {
                           type: 'span',
                           props: { 
                             style: { 
-                              fontSize: '70px', color: '#38bdf8', fontWeight: 700, 
-                              letterSpacing: '4px', textShadow: '0 0 20px rgba(56, 189, 248, 0.5)'
+                              fontSize: '70px', color: '#e9d5ff', fontWeight: 700, 
+                              letterSpacing: '4px', textShadow: '0 0 20px rgba(168, 85, 247, 0.6)'
                             }, 
                             children: 'BlinkFlow' 
                           }
