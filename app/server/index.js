@@ -68,8 +68,71 @@ app.get('/blinkFlow.jpg', (req, res) => {
   res.sendFile(path.join(__dirname, 'blinkFlow.jpg'));
 });
 
+function detectNetwork(ua) {
+  if (!ua) return 'default';
+  if (/telegrambot/i.test(ua)) return 'telegram';
+  if (/twitterbot/i.test(ua)) return 'twitter';
+  if (/facebookexternalhit|facebot/i.test(ua)) return 'facebook';
+  if (/linkedinbot/i.test(ua)) return 'linkedin';
+  if (/discordbot/i.test(ua)) return 'discord';
+  if (/whatsapp/i.test(ua)) return 'whatsapp';
+  if (/slackbot/i.test(ua)) return 'slack';
+  return 'default';
+}
+
+const networkProfiles = {
+  telegram: { title: false, description: false, imageSize: false },
+  twitter: { title: true, description: false, imageSize: true },
+  facebook: { title: true, description: false, imageSize: true },
+  linkedin: { title: true, description: false, imageSize: true },
+  discord: { title: true, description: false, imageSize: true },
+  whatsapp: { title: true, description: false, imageSize: true },
+  slack: { title: true, description: false, imageSize: true },
+  default: { title: true, description: false, imageSize: true }
+};
+
+function buildMetaTags(profile, { safeTitle, safeId, imageUrl, baseUrl }) {
+  let tags = `
+    <!-- OpenGraph tags for unfurling -->
+    <meta property="og:site_name" content="BlinkFlow">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="${imageUrl}">
+    
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:image" content="${imageUrl}">
+
+    <!-- CRITICAL: The Solana Action Tag -->
+    <meta name="solana:action" content="${baseUrl}/api/deal/${safeId}">`;
+
+  if (profile.title) {
+    tags += `
+    <meta property="og:title" content="${safeTitle}">
+    <meta name="twitter:title" content="${safeTitle}">`;
+  }
+  
+  if (profile.imageSize) {
+    tags += `
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:type" content="image/png">`;
+  }
+  
+  return tags;
+}
+
 app.get('/deal/:id', (req, res) => {
   const { id } = req.params;
+  const ua = req.get('user-agent') || '';
+  const network = detectNetwork(ua);
+  
+  if (network === 'default' && /bot|crawler|spider|preview/i.test(ua)) {
+    console.log(`[Deal ${id}] Crawler detected (default profile): ${ua.substring(0, 80)}`);
+  } else {
+    console.log(`[Deal ${id}] Detected network: ${network}, UA: ${ua.substring(0, 80)}`);
+  }
+  
+  res.setHeader('Vary', 'User-Agent');
+
   const protocol = req.hostname === 'localhost' ? 'http' : 'https';
   const baseUrl = `${protocol}://${req.get('host')}`;
   
@@ -81,6 +144,12 @@ app.get('/deal/:id', (req, res) => {
   const localAppUrl = `${frontendUrl}/deal/${id}${queryString}`;
   const safeId = escapeHtml(id);
   const safeQueryString = escapeHtml(queryString);
+  const titleParam = req.query.title ? req.query.title : 'BlinkFlow';
+  const safeTitle = escapeHtml(titleParam);
+  const imageUrl = `${baseUrl}/api/deal/${safeId}/og-image.png${safeQueryString}`;
+  
+  const profile = networkProfiles[network] || networkProfiles.default;
+  const metaTags = buildMetaTags(profile, { safeTitle, safeId, imageUrl, baseUrl });
   
   res.send(`<!DOCTYPE html>
 <html lang="en">
@@ -88,17 +157,7 @@ app.get('/deal/:id', (req, res) => {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BlinkFlow</title>
-    
-    <!-- OpenGraph tags for Telegram & Twitter Unfurling -->
-    <meta property="og:site_name" content="BlinkFlow">
-    <meta property="og:image" content="${baseUrl}/api/deal/${safeId}/og-image.png${safeQueryString}">
-    <meta property="og:type" content="website">
-    
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:image" content="${baseUrl}/api/deal/${safeId}/og-image.png${safeQueryString}">
-
-    <!-- CRITICAL: The Solana Action Tag -->
-    <meta name="solana:action" content="${baseUrl}/api/deal/${safeId}">
+    ${metaTags}
     
     <style>
         body { font-family: system-ui, sans-serif; background: #030712; color: #fff; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; }
