@@ -3,6 +3,7 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import crypto from 'crypto';
 import satori from 'satori';
 import { Resvg } from '@resvg/resvg-js';
 import escapeHtml from 'escape-html';
@@ -143,19 +144,59 @@ try {
   shortLinks = {};
 }
 
+function isAllowedUrl(urlString) {
+  try {
+    const parsedUrl = new URL(urlString);
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const publicBaseUrl = process.env.PUBLIC_BASE_URL || 'http://localhost:3001';
+    
+    const allowedOrigins = [
+      new URL(frontendUrl).origin,
+      new URL(publicBaseUrl).origin
+    ];
+    
+    return allowedOrigins.includes(parsedUrl.origin);
+  } catch (e) {
+    return false;
+  }
+}
+
 app.get('/api/shorten', (req, res) => {
   const { url } = req.query;
-  if (!url) return res.status(400).json({ error: 'Missing url' });
+  if (!url || typeof url !== 'string') return res.status(400).json({ error: 'Missing or invalid url parameter' });
+  
+  if (url.length > 2000) {
+    return res.status(400).json({ error: 'URL too long' });
+  }
+
+  if (!isAllowedUrl(url)) {
+    return res.status(400).json({ error: 'URL origin not allowed for shortening' });
+  }
+
+  const protocol = req.hostname === 'localhost' ? 'http' : 'https';
+  const baseUrl = `${protocol}://${req.get('host')}`;
+
+  // De-duplicate: check if url already shortened
+  for (const [existingCode, existingUrl] of Object.entries(shortLinks)) {
+    if (existingUrl === url) {
+      return res.json({ shortUrl: `${baseUrl}/s/${existingCode}`, shortened: true });
+    }
+  }
+
+  if (Object.keys(shortLinks).length >= 5000) {
+    return res.status(400).json({ error: 'Shortlink database full' });
+  }
   
   try {
-    const code = Math.random().toString(36).substring(2, 8);
+    let code;
+    do {
+      code = crypto.randomBytes(4).toString('hex').slice(0, 6);
+    } while (shortLinks[code]);
+    
     shortLinks[code] = url;
     fs.writeFileSync(shortlinksPath, JSON.stringify(shortLinks, null, 2));
     
-    const protocol = req.hostname === 'localhost' ? 'http' : 'https';
-    const baseUrl = `${protocol}://${req.get('host')}`;
     const shortUrl = `${baseUrl}/s/${code}`;
-    
     return res.json({ shortUrl, shortened: true });
   } catch (error) {
     console.error('Local shortener error:', error);
@@ -166,10 +207,10 @@ app.get('/api/shorten', (req, res) => {
 app.get('/s/:code', (req, res) => {
   const { code } = req.params;
   const targetUrl = shortLinks[code];
-  if (targetUrl) {
+  if (targetUrl && isAllowedUrl(targetUrl)) {
     res.redirect(301, targetUrl);
   } else {
-    res.status(404).send('Short URL not found or expired');
+    res.status(404).send('Short URL not found, expired, or invalid');
   }
 });
 
