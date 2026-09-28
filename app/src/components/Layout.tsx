@@ -68,7 +68,7 @@ export const Layout = ({ children }: { children: ReactNode }) => {
         <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-600/5 rounded-full blur-3xl pointer-events-none"></div>
 
         {/* Topbar */}
-        <header className="min-h-[64px] py-4 md:py-0 md:h-16 border-b border-gray-800/60 bg-gray-900/50 backdrop-blur-md flex flex-col-reverse md:flex-row items-center justify-center md:justify-between px-4 md:px-6 shrink-0 md:sticky md:top-0 z-10 gap-4 md:gap-0">
+        <header className="min-h-[64px] py-4 md:py-3 border-b border-gray-800/60 bg-gray-900/50 backdrop-blur-md flex flex-col-reverse md:flex-row flex-wrap items-center justify-center md:justify-between px-4 md:px-6 shrink-0 md:sticky md:top-0 z-10 gap-4 md:gap-4">
           <div className="flex w-full md:w-64 bg-gray-950 p-1 rounded-lg border border-gray-800 shadow-inner mb-2 md:mb-0">
             <button
               onClick={() => setRole('contractor')}

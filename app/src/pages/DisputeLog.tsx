@@ -66,32 +66,32 @@ export const DisputeLog = () => {
             </div>
           ) : (
             <>
-            {/* Mobile Card Layout */}
-            <div className="flex flex-col gap-3 p-4 sm:hidden">
+            {/* Mobile/Tablet Card Layout */}
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4 p-4 xl:hidden">
               {logs.map((d) => (
                 <div key={d.id} className="bg-gray-900/40 border border-gray-800/60 rounded-lg p-4 space-y-3">
                   <div className="flex justify-between items-start">
-                    <div className="font-mono text-gray-300 font-medium">{d.id}</div>
-                    <div className="text-xs text-gray-500">{d.date}</div>
+                    <div className="font-mono text-gray-300 font-medium truncate">{d.id}</div>
+                    <div className="text-xs text-gray-500 shrink-0 ml-2">{d.date}</div>
                   </div>
                   <div className="flex justify-between items-center text-sm">
-                    <span className="text-gray-500">Amount:</span>
-                    <span className="font-medium text-gray-300">{d.amount}</span>
+                    <span className="text-gray-500 shrink-0">Amount:</span>
+                    <span className="font-medium text-gray-300 truncate ml-2">{d.amount}</span>
                   </div>
                   <div className="flex justify-between items-center text-sm">
-                    <span className="text-gray-500">Category:</span>
-                    <span className="px-2.5 py-1 rounded-md bg-gray-800 text-xs text-gray-300">{d.category}</span>
+                    <span className="text-gray-500 shrink-0">Category:</span>
+                    <span className="px-2.5 py-1 rounded-md bg-gray-800 text-xs text-gray-300 truncate ml-2">{d.category}</span>
                   </div>
                   <div className="flex flex-col text-sm mt-1 border-t border-gray-800/50 pt-2">
                     <span className="text-gray-500 mb-1">Resolution Split:</span>
-                    <div className="font-medium text-purple-400">{d.ratio}</div>
+                    <div className="font-medium text-purple-400 truncate">{d.ratio}</div>
                   </div>
                 </div>
               ))}
             </div>
 
             {/* Desktop Table Layout */}
-            <table className="w-full text-sm text-left whitespace-nowrap hidden sm:table">
+            <table className="w-full text-sm text-left whitespace-nowrap hidden xl:table">
               <thead className="text-[11px] text-gray-500 uppercase tracking-wider bg-gray-950/40">
                 <tr>
                   <th className="px-5 py-3 font-semibold">Dispute ID</th>

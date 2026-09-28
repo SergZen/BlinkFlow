@@ -156,20 +156,20 @@ export const Dashboard = () => {
             </div>
           ) : (
             <>
-            {/* Mobile Card Layout */}
-            <div className="flex flex-col gap-3 p-4 sm:hidden">
+            {/* Mobile/Tablet Card Layout */}
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4 p-4 xl:hidden">
               {deals.map(deal => (
                 <div key={deal.id} className="bg-gray-900/40 border border-gray-800/60 rounded-lg p-4 space-y-3">
                   <div className="flex justify-between items-start gap-2">
-                    <div>
-                      <div className="font-medium text-gray-200">{deal.title}</div>
+                    <div className="min-w-0">
+                      <div className="font-medium text-gray-200 truncate">{deal.title}</div>
                       <div className="text-[11px] text-gray-500 mt-0.5">{deal.id}</div>
                     </div>
-                    <Badge status={deal.status}>{getStatusLabel(deal.status)}</Badge>
+                    <Badge status={deal.status} className="shrink-0">{getStatusLabel(deal.status)}</Badge>
                   </div>
                   <div className="flex justify-between items-center text-sm">
-                    <span className="text-gray-500">{role === 'contractor' ? 'Customer' : 'Contractor'}:</span>
-                    <span className="font-mono text-gray-400 text-xs">
+                    <span className="text-gray-500 shrink-0">{role === 'contractor' ? 'Customer' : 'Contractor'}:</span>
+                    <span className="font-mono text-gray-400 text-xs truncate ml-2">
                       {role === 'contractor' ? truncateAddress(deal.customer) : (deal.contractor ? truncateAddress(deal.contractor) : <span className="italic">Unassigned</span>)}
                     </span>
                   </div>
@@ -191,7 +191,7 @@ export const Dashboard = () => {
             </div>
             
             {/* Desktop Table Layout */}
-            <table className="w-full text-sm text-left whitespace-nowrap hidden sm:table">
+            <table className="w-full text-sm text-left whitespace-nowrap hidden xl:table">
               <thead className="text-[11px] text-gray-500 uppercase tracking-wider bg-gray-950/40">
                 <tr>
                   <th className="px-5 py-3 font-semibold">Deal</th>
