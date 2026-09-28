@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 import satori from 'satori';
 import { Resvg } from '@resvg/resvg-js';
+import escapeHtml from 'escape-html';
 import { Connection, PublicKey, SystemProgram, Transaction, clusterApiUrl } from '@solana/web3.js';
 import { setupBot } from './bot.js';
 
@@ -77,6 +78,8 @@ app.get('/deal/:id', (req, res) => {
 
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
   const localAppUrl = `${frontendUrl}/deal/${id}${queryString}`;
+  const safeId = escapeHtml(id);
+  const safeQueryString = escapeHtml(queryString);
   
   res.send(`<!DOCTYPE html>
 <html lang="en">
@@ -87,14 +90,14 @@ app.get('/deal/:id', (req, res) => {
     
     <!-- OpenGraph tags for Telegram & Twitter Unfurling -->
     <meta property="og:site_name" content="BlinkFlow">
-    <meta property="og:image" content="${baseUrl}/api/deal/${id}/og-image.png${queryString}">
+    <meta property="og:image" content="${baseUrl}/api/deal/${safeId}/og-image.png${safeQueryString}">
     <meta property="og:type" content="website">
     
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:image" content="${baseUrl}/api/deal/${id}/og-image.png${queryString}">
+    <meta name="twitter:image" content="${baseUrl}/api/deal/${safeId}/og-image.png${safeQueryString}">
 
     <!-- CRITICAL: The Solana Action Tag -->
-    <meta name="solana:action" content="${baseUrl}/api/deal/${id}">
+    <meta name="solana:action" content="${baseUrl}/api/deal/${safeId}">
     
     <style>
         body { font-family: system-ui, sans-serif; background: #030712; color: #fff; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; }
@@ -111,14 +114,14 @@ app.get('/deal/:id', (req, res) => {
     <div class="card">
         <div class="spinner"></div>
         <h1>Opening BlinkFlow...</h1>
-        <p>Redirecting you to the secure payment page for deal <strong>${id}</strong>.</p>
+        <p>Redirecting you to the secure payment page for deal <strong>${safeId}</strong>.</p>
         <a id="fallback-link" href="#" class="btn">Click here if not redirected</a>
     </div>
 
     <script>
         // dial.to is currently down globally (Vercel 503).
         // Redirecting to the local BlinkFlow React app instead.
-        const localAppUrl = "${localAppUrl}";
+        const localAppUrl = ${JSON.stringify(localAppUrl).replace(/</g, '\\u003c')};
         
         document.getElementById('fallback-link').href = localAppUrl;
         
