@@ -320,7 +320,7 @@ app.get('/api/deal/:id/og-image.png', async (req, res) => {
             flexDirection: 'column',
             justifyContent: 'space-between',
             backgroundImage: 'linear-gradient(135deg, #0F172A 0%, #020617 100%)',
-            padding: '80px',
+            padding: '80px 80px 115px',
             fontFamily: 'Roboto',
           },
           children: [
