@@ -1,17 +1,21 @@
 import { Button } from './Button';
-import { Copy, Loader2 } from 'lucide-react';
+import { Copy, Loader2, X, CheckCircle2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
 export const ShareDealPanel = ({ rawActionUrl, dealId, onCopy, customClass = '' }: { rawActionUrl: string, dealId: string, onCopy: (url: string) => void, customClass?: string }) => {
   const [isShortening, setIsShortening] = useState<'telegram' | 'twitter' | 'instagram' | null>(null);
   const [isShorteningCopy, setIsShorteningCopy] = useState(false);
-  const [instagramHint, setInstagramHint] = useState<string | null>(null);
+  const [instagramHint, setInstagramHint] = useState<{ type: 'copied' | 'manual', url: string } | null>(null);
 
   useEffect(() => {
-    if (instagramHint) {
-      const timer = setTimeout(() => setInstagramHint(null), 4000);
-      return () => clearTimeout(timer);
-    }
+    if (!instagramHint) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setInstagramHint(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, [instagramHint]);
   const encodedUrl = encodeURIComponent(rawActionUrl);
 
@@ -55,10 +59,10 @@ export const ShareDealPanel = ({ rawActionUrl, dealId, onCopy, customClass = '' 
     setIsShortening(null);
     try {
       await navigator.clipboard.writeText(shortUrl);
-      setInstagramHint('✓ Посилання скопійовано. Відкрийте чат в Instagram і вставте його: картка з\'явиться сама.');
+      setInstagramHint({ type: 'copied', url: shortUrl });
     } catch (e) {
       console.error('Failed to copy to clipboard:', e);
-      setInstagramHint(shortUrl);
+      setInstagramHint({ type: 'manual', url: shortUrl });
     }
   };
 
@@ -134,10 +138,36 @@ export const ShareDealPanel = ({ rawActionUrl, dealId, onCopy, customClass = '' 
       </div>
 
       {instagramHint && (
-        <div className="mt-4 text-center px-4 w-full">
-          <p className="text-xs text-pink-400 font-medium break-all select-all">
-            {instagramHint}
-          </p>
+        <div className="mt-4 w-full bg-gray-900 border border-gray-700 rounded-xl p-4 relative text-left">
+          <button 
+            onClick={() => setInstagramHint(null)}
+            className="absolute top-3 right-3 text-gray-400 hover:text-white transition-colors"
+            aria-label="Close"
+          >
+            <X className="w-4 h-4" />
+          </button>
+          
+          <div className="flex items-start gap-3">
+            <CheckCircle2 className="w-5 h-5 text-green-400 shrink-0 mt-0.5" />
+            <div className="flex-1 pr-6">
+              <p className="text-gray-200 text-sm font-bold mb-1">
+                {instagramHint.type === 'copied' ? 'Посилання скопійовано' : 'Скопіюйте посилання вручну'}
+              </p>
+              <p className="text-gray-400 text-xs leading-relaxed">
+                Відкрийте чат в Instagram і вставте його: картка з'явиться сама.
+              </p>
+              {instagramHint.type === 'manual' && (
+                <input 
+                  type="text" 
+                  readOnly 
+                  value={instagramHint.url} 
+                  className="mt-3 w-full bg-gray-950 border border-gray-800 rounded-lg py-2 px-3 text-xs text-gray-300 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  onFocus={(e) => e.target.select()}
+                  onClick={(e) => (e.target as HTMLInputElement).select()}
+                />
+              )}
+            </div>
+          </div>
         </div>
       )}
 
