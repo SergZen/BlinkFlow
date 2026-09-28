@@ -1,10 +1,18 @@
 import { Button } from './Button';
 import { Copy, Loader2 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export const ShareDealPanel = ({ rawActionUrl, dealId, onCopy, customClass = '' }: { rawActionUrl: string, dealId: string, onCopy: (url: string) => void, customClass?: string }) => {
   const [isShortening, setIsShortening] = useState<'telegram' | 'twitter' | 'instagram' | null>(null);
   const [isShorteningCopy, setIsShorteningCopy] = useState(false);
+  const [instagramHint, setInstagramHint] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (instagramHint) {
+      const timer = setTimeout(() => setInstagramHint(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [instagramHint]);
   const encodedUrl = encodeURIComponent(rawActionUrl);
 
   const getShortUrl = async () => {
@@ -44,54 +52,14 @@ export const ShareDealPanel = ({ rawActionUrl, dealId, onCopy, customClass = '' 
   const handleShareInstagram = async () => {
     setIsShortening('instagram');
     const shortUrl = await getShortUrl();
-    try {
-      const baseUrl = import.meta.env.VITE_ACTIONS_API_URL || 'http://localhost:3001';
-      const urlObj = new URL(rawActionUrl);
-      const queryString = urlObj.search;
-      const response = await fetch(`${baseUrl}/api/deal/${dealId}/og-image.png${queryString}`);
-      const blob = await response.blob();
-      const file = new File([blob], `deal-${dealId}.png`, { type: blob.type });
-      
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        try {
-          await navigator.share({
-            files: [file],
-            text: shortUrl
-          });
-        } catch (e) {
-          if (e instanceof Error && e.name !== 'AbortError') {
-            console.error('Share failed:', e);
-          }
-        }
-      } else {
-        if (navigator.clipboard && window.ClipboardItem) {
-          await navigator.clipboard.write([
-            new ClipboardItem({
-              [blob.type]: blob,
-              'text/plain': new Blob([shortUrl], { type: 'text/plain' })
-            })
-          ]);
-          alert('Картку скопійовано, вставте її в Instagram');
-        } else {
-          // Fallback: download the image
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `deal-${dealId}.png`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-          
-          navigator.clipboard.writeText(shortUrl);
-          alert('Картинку завантажено, а посилання скопійовано!\n\nВідправ картинку в Instagram, а потім встав посилання.');
-        }
-      }
-    } catch (e) {
-      console.error('Failed to prepare Instagram share:', e);
-      alert('Failed to generate image for Instagram.');
-    }
     setIsShortening(null);
+    try {
+      await navigator.clipboard.writeText(shortUrl);
+      setInstagramHint('✓ Посилання скопійовано. Відкрийте чат в Instagram і вставте його: картка з\'явиться сама.');
+    } catch (e) {
+      console.error('Failed to copy to clipboard:', e);
+      setInstagramHint(shortUrl);
+    }
   };
 
   return (
@@ -153,7 +121,7 @@ export const ShareDealPanel = ({ rawActionUrl, dealId, onCopy, customClass = '' 
           className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg shadow-pink-500/20 p-0 hover:scale-105 transition-transform shrink-0 bg-gradient-to-tr from-yellow-500 via-pink-500 to-purple-600 relative border-none"
           onClick={handleShareInstagram}
           disabled={isShortening !== null}
-          title="Share to Instagram"
+          title="Copy link for Instagram chat"
         >
           {isShortening === 'instagram' ? (
             <Loader2 className="w-6 h-6 animate-spin text-white" />
@@ -164,6 +132,14 @@ export const ShareDealPanel = ({ rawActionUrl, dealId, onCopy, customClass = '' 
           )}
         </Button>
       </div>
+
+      {instagramHint && (
+        <div className="mt-4 text-center px-4 w-full">
+          <p className="text-xs text-pink-400 font-medium break-all select-all">
+            {instagramHint}
+          </p>
+        </div>
+      )}
 
       <div className="flex flex-col items-center gap-4 mt-8 pt-6 border-t border-gray-800/60 w-full">
         <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">More options</p>
