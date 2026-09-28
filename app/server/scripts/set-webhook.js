@@ -22,7 +22,7 @@ const bot = new TelegramBot(token);
 const WEBHOOK_URL = process.env.VITE_ACTIONS_API_URL || 'https://blinkflow-server-production.up.railway.app';
 const fullUrl = `${WEBHOOK_URL}/webhook`;
 
-bot.setWebHook(fullUrl)
+bot.setWebHook(fullUrl, { allowed_updates: ['message', 'callback_query'] })
   .then(() => {
     console.log(`Webhook successfully set to: ${fullUrl}`);
     process.exit(0);

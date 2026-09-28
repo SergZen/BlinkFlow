@@ -19,7 +19,11 @@ function cleanupSessions() {
   }
 }
 
-function setupBot(app, baseUrl, dealsData) {
+function escapeMarkdown(text) {
+  return text.replace(/([_*`\[\]])/g, '\\$1');
+}
+
+function setupBot(app, baseUrl, frontendUrl, dealsData) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   
   if (!token) {
@@ -36,22 +40,69 @@ function setupBot(app, baseUrl, dealsData) {
     res.sendStatus(200);
   });
 
+  try {
+    bot.setMyCommands([
+      { command: 'start', description: 'Main menu' },
+      { command: 'newdeal', description: 'Create a deal' },
+      { command: 'deal', description: 'Find a deal by ID' },
+      { command: 'cancel', description: 'Cancel' }
+    ]).catch(err => console.error("Failed to set commands:", err));
+  } catch (e) {
+    console.error(e);
+  }
+
+  const showMenu = (chatId) => {
+    bot.sendMessage(
+      chatId, 
+      "Welcome to *BlinkFlow* — the trust layer for deals made in chat.\n\n" +
+      "I can help you create a secure escrow deal via Solana Blinks right here. " +
+      "Use /newdeal to get started, or visit our website for more info.",
+      { 
+        parse_mode: 'Markdown', 
+        reply_markup: { 
+          inline_keyboard: [
+            [{ text: "➕ New deal", callback_data: "nd" }, { text: "📂 Demo deals", callback_data: "demo" }],
+            [{ text: "🌐 Website", url: frontendUrl }, { text: "ℹ️ How it works", callback_data: "how" }]
+          ] 
+        } 
+      }
+    ).catch(err => console.error("Telegram API Error:", err));
+  };
+
+  bot.onText(/^\/start/, (msg) => {
+    showMenu(msg.chat.id);
+  });
+
+  bot.onText(/^\/cancel/, (msg) => {
+    const chatId = msg.chat.id;
+    conversations.delete(chatId);
+    showMenu(chatId);
+  });
+
   bot.onText(/^\/deal(?: (.+))?/, (msg, match) => {
     const chatId = msg.chat.id;
     const dealId = match[1];
 
     if (!dealId) {
-      bot.sendMessage(chatId, "Please provide a deal ID. Usage: /deal ESC-1001").catch(err => console.error("Telegram API Error:", err));
+      // Show demo deals list
+      const keyboard = dealsData.map(d => ([{ text: `${d.title} · ${d.id}`, callback_data: `dl:${d.id}` }]));
+      bot.sendMessage(chatId, "Select a demo deal:", {
+        reply_markup: { inline_keyboard: keyboard }
+      }).catch(err => console.error("Telegram API Error:", err));
       return;
     }
 
+    sendDealCard(chatId, dealId);
+  });
+
+  const sendDealCard = (chatId, dealId) => {
     const foundDeal = dealsData.find(d => d.id === dealId);
 
     if (foundDeal) {
       const rawActionUrl = `${baseUrl}/deal/${dealId}`;
       const ogImageUrl = `${baseUrl}/api/deal/${dealId}/og-image.png`;
       
-      const caption = `*${foundDeal.title}*\n\n` +
+      const caption = `*${escapeMarkdown(foundDeal.title)}*\n\n` +
                       `💰 Amount: ${foundDeal.amount} USDC\n` +
                       `📊 Status: ${foundDeal.status}\n` +
                       `📅 Deadline: ${foundDeal.deadline}\n\n` +
@@ -73,32 +124,25 @@ function setupBot(app, baseUrl, dealsData) {
     } else {
       bot.sendMessage(chatId, `Deal not found. This might be a deal created after this bot session — try opening it on the website instead:\n${baseUrl}/deal/${dealId}`).catch(err => console.error("Telegram API Error:", err));
     }
-  });
+  };
 
-  bot.onText(/^\/start/, (msg) => {
-    const chatId = msg.chat.id;
-    bot.sendMessage(
-      chatId, 
-      "Welcome to **BlinkFlow** — the trust layer for deals made in chat.\n\n" +
-      "I can help you create a secure escrow deal via Solana Blinks right here. " +
-      "Use /newdeal to get started, or visit our website for more info.",
-      { parse_mode: 'Markdown', reply_markup: { inline_keyboard: [[ { text: "Visit Website", url: baseUrl } ]] } }
-    ).catch(err => console.error("Telegram API Error:", err));
-  });
-
-  bot.onText(/^\/newdeal/, (msg) => {
-    const chatId = msg.chat.id;
+  const startNewDeal = (chatId) => {
     conversations.set(chatId, {
       step: 'AWAITING_TITLE',
       dealData: {},
       lastActive: Date.now()
     });
 
-    bot.sendMessage(chatId, "Let's create a new deal! What is the title of the deal?").catch(err => console.error("Telegram API Error:", err));
+    bot.sendMessage(chatId, "Let's create a new deal! What is the title of the deal?", {
+      reply_markup: { inline_keyboard: [[ { text: "❌ Cancel", callback_data: "cancel" } ]] }
+    }).catch(err => console.error("Telegram API Error:", err));
+  };
+
+  bot.onText(/^\/newdeal/, (msg) => {
+    startNewDeal(msg.chat.id);
   });
 
   bot.on('message', (msg) => {
-    // Ignore commands
     if (msg.text && msg.text.startsWith('/')) return;
 
     const chatId = msg.chat.id;
@@ -117,32 +161,51 @@ function setupBot(app, baseUrl, dealsData) {
           bot.sendMessage(chatId, "Title cannot be empty. Please enter a valid title:").catch(err => console.error("Telegram API Error:", err));
           return;
         }
+        if (text.length > 100) {
+          bot.sendMessage(chatId, "Title is too long (max 100 characters). Please try again:").catch(err => console.error("Telegram API Error:", err));
+          return;
+        }
         session.dealData.title = text;
         session.step = 'AWAITING_AMOUNT';
-        bot.sendMessage(chatId, "Great! Now, what is the amount in USDC-Dev? (e.g. 100)").catch(err => console.error("Telegram API Error:", err));
+        bot.sendMessage(chatId, "Great! Now, what is the amount in USDC-Dev? (e.g. 100)", {
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: "50", callback_data: "amt:50" }, { text: "100", callback_data: "amt:100" }],
+              [{ text: "250", callback_data: "amt:250" }, { text: "500", callback_data: "amt:500" }],
+              [{ text: "❌ Cancel", callback_data: "cancel" }]
+            ]
+          }
+        }).catch(err => console.error("Telegram API Error:", err));
         break;
 
       case 'AWAITING_AMOUNT':
         const amount = parseFloat(text);
-        if (isNaN(amount) || amount <= 0) {
-          bot.sendMessage(chatId, "Please enter a valid positive number for the amount:").catch(err => console.error("Telegram API Error:", err));
+        if (isNaN(amount) || amount <= 0 || amount > 1000000) {
+          bot.sendMessage(chatId, "Please enter a valid amount between 0 and 1,000,000:").catch(err => console.error("Telegram API Error:", err));
           return;
         }
         session.dealData.amount = amount;
         session.step = 'AWAITING_DEADLINE_DAYS';
-        bot.sendMessage(chatId, "Got it. How many days until the deadline? (e.g. 7 for a week)").catch(err => console.error("Telegram API Error:", err));
+        bot.sendMessage(chatId, "Got it. How many days until the deadline?", {
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: "3 days", callback_data: "days:3" }, { text: "7 days", callback_data: "days:7" }],
+              [{ text: "14 days", callback_data: "days:14" }, { text: "30 days", callback_data: "days:30" }],
+              [{ text: "❌ Cancel", callback_data: "cancel" }]
+            ]
+          }
+        }).catch(err => console.error("Telegram API Error:", err));
         break;
 
       case 'AWAITING_DEADLINE_DAYS':
         const days = parseInt(text, 10);
-        if (isNaN(days) || days <= 0) {
-          bot.sendMessage(chatId, "Please enter a valid positive whole number of days:").catch(err => console.error("Telegram API Error:", err));
+        if (isNaN(days) || days < 1 || days > 365) {
+          bot.sendMessage(chatId, "Please enter a valid number of days between 1 and 365:").catch(err => console.error("Telegram API Error:", err));
           return;
         }
         
         const dealId = `ESC-${Math.floor(1000 + Math.random() * 9000)}`;
         
-        // Build the raw action URL for the Deal Details page with virtual deal query parameters
         const queryParams = new URLSearchParams({
           title: session.dealData.title,
           amount: session.dealData.amount.toString(),
@@ -156,19 +219,132 @@ function setupBot(app, baseUrl, dealsData) {
         bot.sendPhoto(chatId, ogImageUrl, {
           caption: "✅ Deal created! Share this Blink with your counterparty by forwarding this message, or by sending them the link below.",
           reply_markup: {
-            inline_keyboard: [[ { text: "Open Deal", url: rawActionUrl } ]]
+            inline_keyboard: [
+              [{ text: "🔗 Open deal", url: rawActionUrl }],
+              [{ text: "➕ New deal", callback_data: "nd" }, { text: "🏠 Menu", callback_data: "menu" }]
+            ]
           }
         }).catch(err => {
           console.error("Failed to send photo in Telegram:", err);
-          // Fallback if image fails to generate/send
           bot.sendMessage(chatId, "✅ Deal created!\n\nLink: " + rawActionUrl, {
-            reply_markup: { inline_keyboard: [[ { text: "Open Deal", url: rawActionUrl } ]] }
+            reply_markup: { 
+              inline_keyboard: [
+                [{ text: "🔗 Open deal", url: rawActionUrl }],
+                [{ text: "➕ New deal", callback_data: "nd" }, { text: "🏠 Menu", callback_data: "menu" }]
+              ] 
+            }
           }).catch(err => console.error("Telegram API Error:", err));
         });
 
-        // End conversation
         conversations.delete(chatId);
         break;
+    }
+  });
+
+  bot.on('callback_query', (query) => {
+    const chatId = query.message.chat.id;
+    const data = query.data;
+
+    bot.answerCallbackQuery(query.id).catch(err => console.error(err));
+
+    if (data === 'menu') {
+      showMenu(chatId);
+      return;
+    }
+
+    if (data === 'nd') {
+      startNewDeal(chatId);
+      return;
+    }
+
+    if (data === 'cancel') {
+      conversations.delete(chatId);
+      showMenu(chatId);
+      return;
+    }
+
+    if (data === 'demo') {
+      const keyboard = dealsData.map(d => ([{ text: `${d.title} · ${d.id}`, callback_data: `dl:${d.id}` }]));
+      bot.sendMessage(chatId, "Select a demo deal:", {
+        reply_markup: { inline_keyboard: keyboard }
+      }).catch(err => console.error("Telegram API Error:", err));
+      return;
+    }
+
+    if (data === 'how') {
+      bot.sendMessage(chatId, "ℹ️ *How it works*\n1. Create a deal and set the terms.\n2. Forward the Blink to your client.\n3. They deposit funds securely into the smart contract.\n4. Funds are released when the work is done.", { parse_mode: 'Markdown' }).catch(err => console.error(err));
+      return;
+    }
+
+    if (data.startsWith('dl:')) {
+      const dealId = data.substring(3);
+      sendDealCard(chatId, dealId);
+      return;
+    }
+
+    const session = conversations.get(chatId);
+    if (!session) {
+      bot.sendMessage(chatId, "Session expired, start again.").catch(err => console.error(err));
+      showMenu(chatId);
+      return;
+    }
+
+    if (data.startsWith('amt:') && session.step === 'AWAITING_AMOUNT') {
+      const amount = parseFloat(data.substring(4));
+      if (!isNaN(amount) && amount > 0 && amount <= 1000000) {
+        session.dealData.amount = amount;
+        session.step = 'AWAITING_DEADLINE_DAYS';
+        bot.sendMessage(chatId, "Got it. How many days until the deadline?", {
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: "3 days", callback_data: "days:3" }, { text: "7 days", callback_data: "days:7" }],
+              [{ text: "14 days", callback_data: "days:14" }, { text: "30 days", callback_data: "days:30" }],
+              [{ text: "❌ Cancel", callback_data: "cancel" }]
+            ]
+          }
+        }).catch(err => console.error("Telegram API Error:", err));
+      }
+      return;
+    }
+
+    if (data.startsWith('days:') && session.step === 'AWAITING_DEADLINE_DAYS') {
+      const days = parseInt(data.substring(5), 10);
+      if (!isNaN(days) && days >= 1 && days <= 365) {
+        const dealId = `ESC-${Math.floor(1000 + Math.random() * 9000)}`;
+        
+        const queryParams = new URLSearchParams({
+          title: session.dealData.title,
+          amount: session.dealData.amount.toString(),
+          token: 'USDC-Dev',
+          status: 'Awaiting Funding'
+        }).toString();
+
+        const rawActionUrl = `${baseUrl}/deal/${dealId}?${queryParams}`;
+        const ogImageUrl = `${baseUrl}/api/deal/${dealId}/og-image.png?${queryParams}`;
+
+        bot.sendPhoto(chatId, ogImageUrl, {
+          caption: "✅ Deal created! Share this Blink with your counterparty by forwarding this message, or by sending them the link below.",
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: "🔗 Open deal", url: rawActionUrl }],
+              [{ text: "➕ New deal", callback_data: "nd" }, { text: "🏠 Menu", callback_data: "menu" }]
+            ]
+          }
+        }).catch(err => {
+          console.error("Failed to send photo in Telegram:", err);
+          bot.sendMessage(chatId, "✅ Deal created!\n\nLink: " + rawActionUrl, {
+            reply_markup: { 
+              inline_keyboard: [
+                [{ text: "🔗 Open deal", url: rawActionUrl }],
+                [{ text: "➕ New deal", callback_data: "nd" }, { text: "🏠 Menu", callback_data: "menu" }]
+              ] 
+            }
+          }).catch(err => console.error("Telegram API Error:", err));
+        });
+
+        conversations.delete(chatId);
+      }
+      return;
     }
   });
 }
