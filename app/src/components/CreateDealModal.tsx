@@ -169,7 +169,7 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
                     type="submit"
                     disabled={!hasEnoughSol && role === 'customer'}
                   >
-                    Generate Blink Link
+                    Generate Blink Link ({isTestMode ? 'Devnet' : 'Live'})
                   </Button>
                 )}
               </div>

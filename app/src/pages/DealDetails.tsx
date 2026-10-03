@@ -18,6 +18,7 @@ import { Transaction } from '@solana/web3.js';
 const EscrowActionCard = ({ id }: { id: string }) => {
   const { connection } = useConnection();
   const { publicKey, sendTransaction } = useWallet();
+  const { isTestMode } = useNetwork();
   const [data, setData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isExecuting, setIsExecuting] = useState(false);
@@ -113,7 +114,7 @@ const EscrowActionCard = ({ id }: { id: string }) => {
               disabled={isExecuting}
             >
               {isExecuting ? <Loader2 className="w-4 h-4 animate-spin mr-2 inline" /> : null}
-              {action.label}
+              {action.label} ({isTestMode ? 'Devnet' : 'Live'})
             </Button>
           ))}
           {(!data.links || !data.links.actions || data.links.actions.length === 0) && (
@@ -233,7 +234,12 @@ export const DealDetails = () => {
           <p className="text-gray-400 text-sm font-mono">{deal.id}</p>
         </div>
         <div className="text-left md:text-right mt-2 md:mt-0 flex flex-col items-start md:items-end gap-3">
-          <div className="text-2xl sm:text-3xl font-bold text-white">${deal.amount.toLocaleString()} <span className="text-base sm:text-lg text-gray-500 font-medium">{symbol}</span></div>
+          <div className="flex flex-col md:items-end gap-1">
+            <div className="text-2xl sm:text-3xl font-bold text-white">${deal.amount.toLocaleString()} <span className="text-base sm:text-lg text-gray-500 font-medium">{symbol}</span></div>
+            <div className={`text-xs px-2 py-1 rounded-md border font-medium ${isTestMode ? 'bg-gray-800 text-gray-300 border-gray-700' : 'bg-orange-500/10 text-orange-400 border-orange-500/20'}`}>
+              {isTestMode ? 'TEST MODE — devnet funds, no real money' : '⚠ LIVE — real funds'}
+            </div>
+          </div>
           <Button variant="outline" className="border-gray-800 hover:bg-gray-800/50 flex items-center justify-center text-sm py-1.5" onClick={() => setIsShareModalOpen(true)}>
             <Share2 className="w-4 h-4 mr-2" /> Share Deal
           </Button>
@@ -312,7 +318,7 @@ export const DealDetails = () => {
                       className={!hasEnoughSol ? 'opacity-50 cursor-not-allowed' : ''}
                     >
                       {actionLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2 inline" /> : null}
-                      Submit Work
+                      Submit Work ({isTestMode ? 'Devnet' : 'Live'})
                     </Button>
                   </div>
                 )}
@@ -324,20 +330,20 @@ export const DealDetails = () => {
                       <a href="#" className="text-sm text-blue-400 hover:underline">https://github.com/blinkflow/pr-12</a>
                     </div>
                     {renderSolWarning()}
-                    <div className="flex gap-3">
+                    <div className="flex flex-col sm:flex-row gap-3">
                       <Button 
                         variant="primary" 
-                        className={`bg-green-600 hover:bg-green-500 ${!hasEnoughSol ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        className={`bg-green-600 hover:bg-green-500 w-full sm:w-auto ${!hasEnoughSol ? 'opacity-50 cursor-not-allowed' : ''}`}
                         disabled={!hasEnoughSol}
                       >
-                        Approve & Release Payment
+                        Approve & Release ({isTestMode ? 'Devnet' : 'Live'})
                       </Button>
                       <Button 
                         variant="danger"
-                        className={!hasEnoughSol ? 'opacity-50 cursor-not-allowed' : ''}
+                        className={`w-full sm:w-auto ${!hasEnoughSol ? 'opacity-50 cursor-not-allowed' : ''}`}
                         disabled={!hasEnoughSol}
                       >
-                        Open Dispute
+                        Open Dispute ({isTestMode ? 'Devnet' : 'Live'})
                       </Button>
                     </div>
                   </div>
@@ -359,7 +365,7 @@ export const DealDetails = () => {
                       className={!hasEnoughSol ? 'opacity-50 cursor-not-allowed' : ''}
                       disabled={!hasEnoughSol}
                     >
-                      Accept Deal
+                      Accept Deal ({isTestMode ? 'Devnet' : 'Live'})
                     </Button>
                   </div>
                 )}

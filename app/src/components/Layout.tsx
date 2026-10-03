@@ -1,18 +1,40 @@
-import { ReactNode, useState } from 'react';
+import { ReactNode, useState, useEffect } from 'react';
 import { useRole } from '../RoleContext';
 import { NavLink, Link } from 'react-router-dom';
 import { Zap, Home, ScrollText, ShieldCheck, Shield, Menu, X } from 'lucide-react';
-import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
+import { WalletMultiButton, useWalletModal } from '@solana/wallet-adapter-react-ui';
+import { useWallet } from '@solana/wallet-adapter-react';
 import { NetworkControls } from './NetworkControls';
 import { BalanceDisplay } from './BalanceDisplay';
 import { FaucetButton } from './FaucetButton';
+import { useNetwork } from '../NetworkContext';
 
 export const Layout = ({ children }: { children: ReactNode }) => {
   const { role, setRole } = useRole();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { connected } = useWallet();
+  const { isTestMode } = useNetwork();
+  const [showToast, setShowToast] = useState(false);
+
+  useEffect(() => {
+    if (connected) {
+      setShowToast(true);
+      const timer = setTimeout(() => setShowToast(false), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [connected]);
 
   return (
     <div className="h-screen bg-gray-950 text-gray-100 flex flex-col md:flex-row font-sans selection:bg-purple-500/30 overflow-hidden relative">
+      
+      {showToast && (
+        <div className="fixed bottom-4 right-4 z-[100] animate-in slide-in-from-bottom-5">
+          <div className="bg-gray-800 text-white px-4 py-3 rounded-lg shadow-xl border border-gray-700 flex items-center gap-2">
+            <Zap className={`w-4 h-4 ${isTestMode ? 'text-gray-400' : 'text-orange-400'}`} />
+            <span className="font-medium">Connected &middot; {isTestMode ? 'Devnet' : 'Mainnet (Live)'}</span>
+          </div>
+        </div>
+      )}
       
       {/* Mobile Topbar */}
       <div className="md:hidden flex items-center justify-between p-4 bg-gray-900 border-b border-gray-800 shrink-0 z-40 relative">

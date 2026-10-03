@@ -10,9 +10,11 @@ import { CreateDealModal } from '../components/CreateDealModal';
 import { truncateAddress } from '../lib/utils';
 import type { Deal } from '../mockData';
 import { useToken } from '../lib/constants';
+import { useNetwork } from '../NetworkContext';
 
 export const Dashboard = () => {
   const { role } = useRole();
+  const { isTestMode } = useNetwork();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -106,11 +108,11 @@ export const Dashboard = () => {
                     {deal.status === 'pending_approval' ? 'Contractor submitted work for review.' : 'Waiting to assign a contractor.'}
                   </div>
                 </div>
-                <div className="flex gap-2 w-full sm:w-auto">
+                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                   {deal.status === 'pending_approval' ? (
                     <>
-                      <Button variant="danger" className="flex-1 sm:flex-none">Open Dispute</Button>
-                      <Button variant="primary" className="flex-1 sm:flex-none bg-orange-500 hover:bg-orange-600 text-white">Release Payment ${deal.amount}</Button>
+                      <Button variant="danger" className="w-full sm:flex-none">Open Dispute ({isTestMode ? 'Devnet' : 'Live'})</Button>
+                      <Button variant="primary" className="w-full sm:flex-none bg-orange-500 hover:bg-orange-600 text-white">Release Payment ${deal.amount} ({isTestMode ? 'Devnet' : 'Live'})</Button>
                     </>
                   ) : (
                     <Button variant="outline" className="w-full sm:w-auto border-orange-500/30 text-orange-400 hover:bg-orange-500/10">Assign Contractor</Button>
