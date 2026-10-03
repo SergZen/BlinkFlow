@@ -24,7 +24,7 @@ export const LpFreelancerEscrow = () => {
           You agreed directly — lock the payment in a smart contract
         </h1>
         <p className="text-lg md:text-xl text-slate-400 mb-12 max-w-2xl leading-relaxed">
-          For freelancers and clients working without a marketplace. 0.5% fee instead of 10-20% — funds release the moment both sides confirm.
+          For freelancers and clients working without a marketplace. 0.5% fee instead of 10-20% — funds are designed to release the moment both sides confirm.
         </p>
 
         {/* Three Pillars */}
@@ -40,7 +40,7 @@ export const LpFreelancerEscrow = () => {
             <div className="bg-slate-800/50 p-3 rounded-full shrink-0">
               <Lock className="w-6 h-6 text-blue-400" />
             </div>
-            <p className="text-slate-300 font-medium">Funds live in the contract, not with us</p>
+            <p className="text-slate-300 font-medium">Funds will live in the contract, not with us</p>
           </div>
           
           <div className="flex md:flex-col items-center gap-4 flex-1">
@@ -54,7 +54,7 @@ export const LpFreelancerEscrow = () => {
         {/* CTA */}
         <div className="flex flex-col items-center">
           <p className="text-sm text-slate-500 mb-4 font-medium uppercase tracking-wider">
-            Try it now — on devnet funds, no risk
+            Try the demo flow — devnet, no real funds
           </p>
           <Link 
             to="/" 
@@ -62,6 +62,9 @@ export const LpFreelancerEscrow = () => {
           >
             Create your first deal
           </Link>
+          <p className="text-xs text-slate-500 mt-3 font-medium">
+            Demo: the escrow contract is in active development.
+          </p>
         </div>
 
       </div>
