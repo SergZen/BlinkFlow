@@ -9,6 +9,7 @@ import { Dashboard } from './pages/Dashboard';
 import { DealDetails } from './pages/DealDetails';
 import { Profile } from './pages/Profile';
 import { DisputeLog } from './pages/DisputeLog';
+import { LpFreelancerEscrow } from './pages/LpFreelancerEscrow';
 
 import '@solana/wallet-adapter-react-ui/styles.css';
 import { NetworkProvider, useNetwork } from './NetworkContext';
@@ -29,14 +30,19 @@ function InnerApp() {
         <WalletModalProvider>
           <RoleProvider>
             <Router>
-              <Layout>
-                <Routes>
-                  <Route path="/" element={<Dashboard />} />
-                  <Route path="/deal/:id" element={<DealDetails />} />
-                  <Route path="/profile" element={<Profile />} />
-                  <Route path="/log" element={<DisputeLog />} />
-                </Routes>
-              </Layout>
+              <Routes>
+                <Route path="/lp/freelancer-escrow" element={<LpFreelancerEscrow />} />
+                <Route path="/*" element={
+                  <Layout>
+                    <Routes>
+                      <Route path="/" element={<Dashboard />} />
+                      <Route path="/deal/:id" element={<DealDetails />} />
+                      <Route path="/profile" element={<Profile />} />
+                      <Route path="/log" element={<DisputeLog />} />
+                    </Routes>
+                  </Layout>
+                } />
+              </Routes>
             </Router>
           </RoleProvider>
         </WalletModalProvider>

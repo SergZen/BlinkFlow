@@ -5,6 +5,7 @@ import { X, Link2, Check } from 'lucide-react';
 import { ShareDealPanel } from './ShareDealPanel';
 import { useRole } from '../RoleContext';
 import { useWallet } from '@solana/wallet-adapter-react';
+import { useWalletModal } from '@solana/wallet-adapter-react-ui';
 import { useToken } from '../lib/constants';
 import { useSolBalance } from '../hooks/useSolBalance';
 import { useNetwork } from '../NetworkContext';
@@ -20,6 +21,7 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
   const [rawActionUrl, setRawActionUrl] = useState('');
   const { role } = useRole();
   const { connected, publicKey } = useWallet();
+  const { setVisible } = useWalletModal();
 
   if (!isOpen) return null;
 
@@ -151,15 +153,25 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
                     )}
                   </div>
                 )}
-                
-                <Button 
-                  variant="gradient" 
-                  className={`w-full py-2.5 text-base ${(!hasEnoughSol && role === 'customer') ? 'opacity-50 cursor-not-allowed' : ''}`} 
-                  type="submit"
-                  disabled={!hasEnoughSol && role === 'customer'}
-                >
-                  Generate Blink Link
-                </Button>
+                {!connected ? (
+                  <Button 
+                    variant="gradient" 
+                    className="w-full py-2.5 text-base" 
+                    type="button"
+                    onClick={() => setVisible(true)}
+                  >
+                    Connect Wallet
+                  </Button>
+                ) : (
+                  <Button 
+                    variant="gradient" 
+                    className={`w-full py-2.5 text-base ${(!hasEnoughSol && role === 'customer') ? 'opacity-50 cursor-not-allowed' : ''}`} 
+                    type="submit"
+                    disabled={!hasEnoughSol && role === 'customer'}
+                  >
+                    Generate Blink Link
+                  </Button>
+                )}
               </div>
             </form>
           ) : (
