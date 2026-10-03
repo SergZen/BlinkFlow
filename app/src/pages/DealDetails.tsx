@@ -354,7 +354,7 @@ export const DealDetails = () => {
                 )}
                 
                 {deal.status === 'searching' && role === 'customer' && (
-                  <p className="text-gray-400 text-sm bg-gray-900/50 p-3 rounded-lg border border-gray-800">Waiting for a contractor to accept the Blink.</p>
+                  <p className="text-gray-400 text-sm bg-gray-900/50 p-3 rounded-lg border border-gray-800">Waiting for a contractor to accept the deal.</p>
                 )}
                 
                 {deal.status === 'searching' && role === 'contractor' && (
@@ -385,7 +385,7 @@ export const DealDetails = () => {
           <Card className="p-6 border-purple-500/20 bg-purple-500/5">
             <h3 className="font-medium mb-4 text-purple-400 flex items-center gap-2">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
-              Live Blink Preview
+              Live Deal Preview
             </h3>
             <EscrowActionCard id={deal.id} />
           </Card>

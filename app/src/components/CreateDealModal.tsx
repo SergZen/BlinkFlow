@@ -99,7 +99,7 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
             <form onSubmit={handleGenerate} className="space-y-4">
               <div>
                 <h2 className="text-xl font-bold mb-1">Create New Deal</h2>
-                <p className="text-sm text-gray-400 mb-6">Set escrow terms and generate a Blink for your partner.</p>
+                <p className="text-sm text-gray-400 mb-6">Set escrow terms and generate a link for your partner.</p>
               </div>
               {error && (
                 <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-3 py-2 rounded-lg text-sm mb-4">
@@ -191,7 +191,7 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
                     type="submit"
                     disabled={!hasEnoughSol && role === 'customer'}
                   >
-                    Generate Blink Link ({isTestMode ? 'Devnet' : 'Live'})
+                    Create Deal Link ({isTestMode ? 'Devnet' : 'Live'})
                   </Button>
                 )}
               </div>
@@ -209,8 +209,8 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
                 </div>
                 <p className="text-sm text-gray-400">
                   {role === 'contractor' 
-                    ? 'Send this Blink to the customer so they can fund the escrow.' 
-                    : 'Send this Blink to potential contractors.'}
+                    ? 'Send this link to the customer so they can fund the escrow.' 
+                    : 'Send this link to potential contractors.'}
                 </p>
               </div>
               
