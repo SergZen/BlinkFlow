@@ -12,7 +12,7 @@ import { useNetwork } from '../NetworkContext';
 
 export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) => {
   const { symbol } = useToken();
-  const { isTestMode } = useNetwork();
+  const { network, setNetwork, isTestMode } = useNetwork();
   const { solBalance } = useSolBalance();
   const MIN_SOL_REQUIRED = 0.01; // Estimate for rent + network fees
   const hasEnoughSol = solBalance !== null && solBalance >= MIN_SOL_REQUIRED;
@@ -142,7 +142,29 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
                 />
               </div>
 
-              <div className="pt-4">
+              <div className="pt-4 space-y-4">
+                <div className="flex items-center justify-between bg-gray-950 p-3 rounded-lg border border-gray-800">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-gray-300">Network Mode</span>
+                  </div>
+                  <div className="flex bg-gray-900 p-1 rounded-md border border-gray-800">
+                    <button
+                      type="button"
+                      onClick={() => setNetwork('devnet')}
+                      className={`text-xs px-3 py-1.5 rounded transition-all font-medium ${isTestMode ? 'bg-gray-800 text-white shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}
+                    >
+                      Devnet
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNetwork('mainnet-beta')}
+                      className={`text-xs px-3 py-1.5 rounded transition-all font-medium ${!isTestMode ? 'bg-orange-500/20 text-orange-400 shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}
+                    >
+                      Live
+                    </button>
+                  </div>
+                </div>
+
                 {!hasEnoughSol && role === 'customer' && (
                   <div className="mb-4 bg-orange-500/10 border border-orange-500/20 rounded-lg p-3 text-sm text-orange-400">
                     You need a small amount of SOL (~0.01) to cover network fees and account rent.
