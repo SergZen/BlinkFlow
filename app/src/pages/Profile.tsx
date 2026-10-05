@@ -52,12 +52,13 @@ export const Profile = () => {
               {publicKey ? 'No reputation badge yet' : 'Connect your wallet to see your reputation'}
             </p>
             
-            <div className="flex items-center gap-2 text-sm text-gray-400 mt-4 bg-gray-950/50 px-3 py-1.5 rounded-lg border border-gray-800">
-              <Calendar className="w-4 h-4" />
+            <div className="flex flex-wrap justify-center items-center gap-2 text-sm text-gray-400 mt-4 bg-gray-950/50 px-3 py-1.5 rounded-lg border border-gray-800">
+              <Calendar className="w-4 h-4 shrink-0" />
               <span>Joined: Aug 12, 2026</span>
+              <span className="text-[10px] font-normal bg-orange-500/10 text-orange-400 px-1.5 py-0.5 rounded border border-orange-500/20">Demo data</span>
             </div>
 
-            <Button variant="outline" className="w-full mt-6 flex items-center justify-center gap-2">
+            <Button variant="outline" className="w-full mt-6 flex items-center justify-center gap-2" disabled={!publicKey}>
               <RefreshCw className="w-4 h-4" />
               Update Badge
             </Button>

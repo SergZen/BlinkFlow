@@ -19,6 +19,7 @@ export const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deals, setDeals] = useState<Deal[]>([]);
+  const [filter, setFilter] = useState<string>('all');
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -39,11 +40,20 @@ export const Dashboard = () => {
     ? activeDeals.filter(d => d.status === 'pending_approval' || d.status === 'searching')
     : activeDeals.filter(d => d.status === 'in_progress');
 
+  const filteredDeals = deals.filter(deal => {
+    if (filter === 'all') return true;
+    if (filter === 'attention') return deal.status === 'pending_approval' || deal.status === 'dispute' || pendingActions.some(p => p.id === deal.id);
+    return deal.status === filter;
+  });
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Overview</h2>
+          <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+            Overview
+            <span className="text-xs font-normal bg-orange-500/10 text-orange-400 px-2 py-1 rounded border border-orange-500/20">Demo data</span>
+          </h2>
           <p className="text-gray-400 text-sm mt-1">Manage your escrow agreements and release payments securely.</p>
         </div>
         <Button variant="gradient" onClick={() => setIsModalOpen(true)} className="px-5">
@@ -80,7 +90,10 @@ export const Dashboard = () => {
             </div>
             <div className="text-2xl sm:text-3xl font-bold tracking-tight">{activeDeals.length}</div>
           </Card>
-          <Card className="p-5 bg-gray-900/40 backdrop-blur-sm border-gray-800/60 hover:bg-gray-900/60 transition-colors">
+          <Card 
+            className={`p-5 backdrop-blur-sm transition-all cursor-pointer ${filter === 'attention' ? 'bg-gray-800/60 border-orange-500/50 shadow-[0_0_15px_rgba(249,115,22,0.1)]' : 'bg-gray-900/40 border-gray-800/60 hover:bg-gray-900/60'}`}
+            onClick={() => setFilter(filter === 'attention' ? 'all' : 'attention')}
+          >
             <div className="flex items-center gap-3 text-gray-400 mb-3">
               <div className="p-2 bg-orange-500/10 rounded-lg">
                 <Clock className="w-4 h-4 text-orange-400" />
@@ -109,7 +122,7 @@ export const Dashboard = () => {
                     {deal.status === 'pending_approval' ? 'Contractor submitted work for review.' : 'Waiting to assign a contractor.'}
                   </div>
                 </div>
-                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                <div className="flex flex-col sm:flex-row flex-wrap gap-2 w-full md:w-auto md:justify-end">
                   {deal.status === 'pending_approval' ? (
                     <>
                       <Button variant="danger" className="w-full sm:flex-none">Open Dispute ({isTestMode ? 'Devnet' : 'Live'})</Button>
@@ -141,6 +154,21 @@ export const Dashboard = () => {
             />
           </div>
         </div>
+        <div className="px-4 py-3 bg-gray-900/40 border-b border-gray-800/60 flex gap-2 overflow-x-auto hide-scrollbar">
+            {['all', 'in_progress', 'pending_approval', 'dispute', 'completed'].map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
+                  filter === f 
+                    ? 'bg-gray-700 text-white' 
+                    : 'bg-gray-800/30 text-gray-400 hover:text-gray-200 hover:bg-gray-800'
+                }`}
+              >
+                {f === 'all' ? 'All' : f === 'in_progress' ? 'In progress' : f === 'pending_approval' ? 'Pending approval' : f === 'dispute' ? 'Dispute' : 'Completed'}
+              </button>
+            ))}
+        </div>
         <div className="overflow-x-auto">
           {loading ? (
             <div className="flex justify-center items-center py-12">
@@ -148,7 +176,7 @@ export const Dashboard = () => {
             </div>
           ) : error ? (
             <div className="p-12 text-center text-red-400 font-medium">{error}</div>
-          ) : deals.length === 0 ? (
+          ) : filteredDeals.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <div className="w-16 h-16 bg-gray-900/80 rounded-full flex items-center justify-center mb-4 border border-gray-800">
                 <Inbox className="w-8 h-8 text-gray-500" />
@@ -164,7 +192,7 @@ export const Dashboard = () => {
             <>
             {/* Mobile/Tablet Card Layout */}
             <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4 p-4 xl:hidden">
-              {deals.map(deal => (
+              {filteredDeals.map(deal => (
                 <div key={deal.id} className="bg-gray-900/40 border border-gray-800/60 rounded-lg p-4 space-y-3">
                   <div className="flex justify-between items-start gap-2">
                     <div className="min-w-0">
@@ -209,7 +237,7 @@ export const Dashboard = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-800/60 bg-gray-900/20">
-                {deals.map((deal) => (
+                {filteredDeals.map((deal) => (
                   <tr key={deal.id} className="hover:bg-gray-800/40 transition-colors group">
                     <td className="px-5 py-4">
                       <div className="font-medium text-gray-200 group-hover:text-purple-400 transition-colors">{deal.title}</div>
