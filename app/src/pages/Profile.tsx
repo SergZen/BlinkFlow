@@ -58,7 +58,7 @@ export const Profile = () => {
               <span className="text-[10px] font-normal bg-orange-500/10 text-orange-400 px-1.5 py-0.5 rounded border border-orange-500/20">Demo data</span>
             </div>
 
-            <Button variant="outline" className="w-full mt-6 flex items-center justify-center gap-2" disabled={!publicKey}>
+            <Button variant="outline" className="w-full mt-6 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-300" disabled={!publicKey}>
               <RefreshCw className="w-4 h-4" />
               Update Badge
             </Button>

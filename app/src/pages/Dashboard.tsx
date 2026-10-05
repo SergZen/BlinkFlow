@@ -91,8 +91,9 @@ export const Dashboard = () => {
             <div className="text-2xl sm:text-3xl font-bold tracking-tight">{activeDeals.length}</div>
           </Card>
           <Card 
-            className={`p-5 backdrop-blur-sm transition-all cursor-pointer ${filter === 'attention' ? 'bg-gray-800/60 border-orange-500/50 shadow-[0_0_15px_rgba(249,115,22,0.1)]' : 'bg-gray-900/40 border-gray-800/60 hover:bg-gray-900/60'}`}
+            className={`p-5 backdrop-blur-sm transition-all cursor-pointer relative ${filter === 'attention' ? 'bg-gray-800/60 border-orange-500/50 shadow-[0_0_15px_rgba(249,115,22,0.1)]' : 'bg-gray-900/40 border-gray-800/60 hover:bg-gray-900/60'}`}
             onClick={() => setFilter(filter === 'attention' ? 'all' : 'attention')}
+            title="Show deals that need your attention"
           >
             <div className="flex items-center gap-3 text-gray-400 mb-3">
               <div className="p-2 bg-orange-500/10 rounded-lg">
@@ -101,6 +102,9 @@ export const Dashboard = () => {
               <span className="text-sm font-medium">Needs Attention</span>
             </div>
             <div className="text-2xl sm:text-3xl font-bold tracking-tight">{pendingActions.length}</div>
+            <div className="absolute bottom-4 right-5 text-xs font-medium text-orange-500/80">
+              {filter === 'attention' ? '✓ Filtered · click to clear' : 'View →'}
+            </div>
           </Card>
         </div>
       </div>
