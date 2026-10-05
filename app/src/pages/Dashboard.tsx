@@ -98,6 +98,7 @@ export const Dashboard = () => {
           <h3 className="text-lg font-medium flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse shadow-[0_0_8px_rgba(249,115,22,0.6)]"></div>
             Awaiting Your Action
+            <span className="text-xs font-normal bg-orange-500/10 text-orange-400 px-2 py-1 rounded border border-orange-500/20 ml-2">Demo data</span>
           </h3>
           <div className="grid grid-cols-1 gap-3">
             {pendingActions.map(deal => (
@@ -127,7 +128,10 @@ export const Dashboard = () => {
       {/* Deal List */}
       <Card className="overflow-hidden border-gray-800/60 shadow-lg">
         <div className="p-4 border-b border-gray-800/60 flex flex-col sm:flex-row items-start sm:items-center justify-between bg-gray-900/60 gap-4">
-          <h3 className="font-medium text-lg">All Deals</h3>
+          <h3 className="font-medium text-lg flex items-center gap-2">
+            All Deals
+            <span className="text-xs font-normal bg-orange-500/10 text-orange-400 px-2 py-1 rounded border border-orange-500/20">Demo data</span>
+          </h3>
           <div className="relative w-full sm:w-auto">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
             <input 

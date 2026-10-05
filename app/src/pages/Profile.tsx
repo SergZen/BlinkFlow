@@ -35,7 +35,7 @@ export const Profile = () => {
     <div className="space-y-6 animate-in fade-in duration-500">
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Reputation Profile (SBT)</h2>
-        <p className="text-gray-400 text-sm mt-1">Your on-chain verified track record.</p>
+        <p className="text-gray-400 text-sm mt-1">Reputation badge (demo data)</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -48,7 +48,9 @@ export const Profile = () => {
             <h3 className="font-mono text-lg font-bold text-gray-200">
               {publicKey ? truncateAddress(publicKey.toString(), 6) : 'Not Connected'}
             </h3>
-            <p className="text-sm text-purple-400 font-medium mt-1">Verified User</p>
+            <p className="text-sm text-purple-400 font-medium mt-1">
+              {publicKey ? 'No reputation badge yet' : 'Connect your wallet to see your reputation'}
+            </p>
             
             <div className="flex items-center gap-2 text-sm text-gray-400 mt-4 bg-gray-950/50 px-3 py-1.5 rounded-lg border border-gray-800">
               <Calendar className="w-4 h-4" />
@@ -64,7 +66,10 @@ export const Profile = () => {
 
         <div className="md:col-span-2 space-y-6">
           <Card className="p-6 bg-gray-900/40 backdrop-blur-sm border-gray-800/60">
-            <h3 className="text-lg font-medium mb-6">Historical Track Record</h3>
+            <h3 className="text-lg font-medium mb-6">
+              Historical Track Record
+              <span className="text-xs font-normal bg-orange-500/10 text-orange-400 px-2 py-1 rounded ml-2 border border-orange-500/20">Demo data</span>
+            </h3>
             
             <div className="space-y-8">
               {/* As Contractor */}

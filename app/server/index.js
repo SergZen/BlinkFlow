@@ -503,7 +503,7 @@ app.post('/api/deal/:id/tx', async (req, res) => {
 
     res.json({
       transaction: serializedTx.toString('base64'),
-      message: "Escrow funded successfully via Blink!"
+      message: "Demo transaction: no funds were moved. The escrow contract is in development."
     });
   } catch (error) {
     console.error("Error creating transaction in /api/deal/:id/tx:", error);

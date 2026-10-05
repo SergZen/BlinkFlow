@@ -391,7 +391,10 @@ export const DealDetails = () => {
           </Card>
 
           <Card className="p-6">
-            <h3 className="font-medium mb-4">Deal Details</h3>
+            <h3 className="font-medium mb-4 flex items-center gap-2">
+              Deal Details
+              <span className="text-xs font-normal bg-orange-500/10 text-orange-400 px-2 py-1 rounded border border-orange-500/20">Demo data</span>
+            </h3>
             <div className="space-y-4 text-sm">
               <div>
                 <div className="text-gray-500 mb-1">Customer</div>
@@ -413,6 +416,7 @@ export const DealDetails = () => {
               <h3 className="font-medium mb-4 flex items-center gap-2">
                 <History className="w-4 h-4 text-gray-400" />
                 History Log
+                <span className="text-xs font-normal bg-orange-500/10 text-orange-400 px-2 py-1 rounded border border-orange-500/20 ml-2">Demo data</span>
               </h3>
               <div className="space-y-4">
                 {deal.history.map((h, i) => (
