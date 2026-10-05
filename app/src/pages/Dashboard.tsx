@@ -42,7 +42,7 @@ export const Dashboard = () => {
 
   const filteredDeals = deals.filter(deal => {
     if (filter === 'all') return true;
-    if (filter === 'attention') return deal.status === 'pending_approval' || deal.status === 'dispute' || pendingActions.some(p => p.id === deal.id);
+    if (filter === 'attention') return pendingActions.some(p => p.id === deal.id);
     return deal.status === filter;
   });
 
