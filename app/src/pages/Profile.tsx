@@ -1,6 +1,5 @@
 import { Card } from '../components/Card';
-import { Button } from '../components/Button';
-import { ShieldCheck, Calendar, Trophy, AlertTriangle, XCircle, RefreshCw, Loader2 } from 'lucide-react';
+import { ShieldCheck, Calendar, Loader2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { truncateAddress } from '../lib/utils';
@@ -31,6 +30,65 @@ export const Profile = () => {
     return <div className="p-12 text-center text-red-400 font-medium">{error}</div>;
   }
 
+  const mockStats = {
+    contractor: { won: 11, arbitratedWon: 1, lost: 1, volume: 4500 },
+    customer: { won: 5, arbitratedWon: 0, lost: 0, volume: 1200 }
+  };
+
+  const renderRoleStats = (title: string, stats: { won: number, arbitratedWon: number, lost: number, volume: number }) => {
+    const { won, arbitratedWon, lost, volume } = stats;
+    const total = won + arbitratedWon + lost;
+    const rate = total > 0 ? Math.round(((won + arbitratedWon) / total) * 100) : 0;
+    const avgDeal = total > 0 ? Math.round(volume / total) : 0;
+
+    const wSuccess = total > 0 ? (won / total) * 100 : 0;
+    const wArbitrated = total > 0 ? (arbitratedWon / total) * 100 : 0;
+    const wLost = total > 0 ? (lost / total) * 100 : 0;
+
+    return (
+      <div>
+        <div className="flex justify-between items-end mb-3">
+          <div>
+            <div className="text-sm text-gray-400">{title}</div>
+            <div className="text-xl font-bold text-gray-200">{total} Deals</div>
+          </div>
+          <div className="flex flex-col items-end">
+            <div className="text-green-400 font-medium text-sm bg-green-500/10 px-2 py-1 rounded">{total > 0 ? `${rate}% Success` : 'New'}</div>
+            <div className="text-[11px] text-gray-500 whitespace-nowrap mt-1">avg {avgDeal} USDC</div>
+          </div>
+        </div>
+        
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-3 mb-3 text-sm">
+          <div className="flex items-center gap-1.5" title="Total Volume">
+            <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Vol:</span>
+            <span className="font-bold text-blue-400">{volume.toLocaleString()} USDC</span>
+          </div>
+          <div className="w-px h-3 bg-gray-800 hidden sm:block"></div>
+          <div className="flex items-center gap-2" title="Won">
+            <div className="w-2 h-2 rounded-full bg-green-500/80 shadow-[0_0_8px_rgba(34,197,94,0.4)]"></div>
+            <span className="font-semibold text-green-400">{won}</span>
+          </div>
+          <div className="w-px h-3 bg-gray-800 hidden sm:block"></div>
+          <div className="flex items-center gap-2" title="Won (Arbitrated)">
+            <div className="w-2 h-2 rounded-full bg-yellow-500/80 shadow-[0_0_8px_rgba(234,179,8,0.4)]"></div>
+            <span className="font-semibold text-yellow-500">{arbitratedWon}</span>
+          </div>
+          <div className="w-px h-3 bg-gray-800 hidden sm:block"></div>
+          <div className="flex items-center gap-2" title="Lost (Arbitrated)">
+            <div className="w-2 h-2 rounded-full bg-red-500/80 shadow-[0_0_8px_rgba(239,68,68,0.4)]"></div>
+            <span className="font-semibold text-red-400">{lost}</span>
+          </div>
+        </div>
+
+        <div className="h-4 w-full flex rounded-full overflow-hidden bg-gray-950 border border-gray-800 shadow-inner">
+          <div className="bg-green-500/80 hover:bg-green-500 transition-colors" style={{ width: `${wSuccess}%` }}></div>
+          <div className="bg-yellow-500/80 hover:bg-yellow-500 transition-colors" style={{ width: `${wArbitrated}%` }}></div>
+          <div className="bg-red-500/80 hover:bg-red-500 transition-colors" style={{ width: `${wLost}%` }}></div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div>
@@ -52,16 +110,23 @@ export const Profile = () => {
               {publicKey ? 'No reputation badge yet' : 'Connect your wallet to see your reputation'}
             </p>
             
-            <div className="flex flex-wrap justify-center items-center gap-2 text-sm text-gray-400 mt-4 bg-gray-950/50 px-3 py-1.5 rounded-lg border border-gray-800">
-              <Calendar className="w-4 h-4 shrink-0" />
-              <span>Joined: Aug 12, 2026</span>
-              <span className="text-[10px] font-normal bg-orange-500/10 text-orange-400 px-1.5 py-0.5 rounded border border-orange-500/20">Demo data</span>
+            <div className="flex flex-col gap-2 w-full text-sm text-gray-400 mt-4 bg-gray-950/50 p-3 rounded-lg border border-gray-800">
+              <div className="flex justify-center mb-1">
+                <span className="text-[10px] font-normal bg-orange-500/10 text-orange-400 px-1.5 py-0.5 rounded border border-orange-500/20">Demo data</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-x-2">
+                <span className="flex items-center gap-1.5"><Calendar className="w-4 h-4 shrink-0" />First seen:</span>
+                <span className="whitespace-nowrap">Jul 01, 2026</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-x-2">
+                <span className="flex items-center gap-1.5"><Calendar className="w-4 h-4 shrink-0" />Last seen:</span>
+                <span className="whitespace-nowrap">Oct 07, 2026</span>
+              </div>
             </div>
 
-            <Button variant="outline" className="w-full mt-6 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-300" disabled={!publicKey}>
-              <RefreshCw className="w-4 h-4" />
-              Update Badge
-            </Button>
+            <p className="text-xs text-gray-500 mt-6 leading-relaxed text-left w-full">
+              Reputation badge is created automatically on your first deal (a one-time ~0.002 SOL network fee). Every completed deal and every lost dispute is recorded permanently.
+            </p>
           </Card>
         </div>
 
@@ -73,54 +138,23 @@ export const Profile = () => {
             </h3>
             
             <div className="space-y-8">
-              {/* As Contractor */}
-              <div>
-                <div className="flex justify-between items-end mb-3">
-                  <div>
-                    <div className="text-sm text-gray-400">As Contractor</div>
-                    <div className="text-xl font-bold text-gray-200">13 Deals</div>
-                  </div>
-                  <div className="text-green-400 font-medium text-sm bg-green-500/10 px-2 py-1 rounded">92% Success</div>
-                </div>
-                {/* Stacked bar */}
-                <div className="h-4 w-full flex rounded-full overflow-hidden bg-gray-950 border border-gray-800 shadow-inner">
-                  <div className="bg-green-500/80 hover:bg-green-500 transition-colors cursor-pointer" style={{ width: '92%' }} title="12 Success"></div>
-                  <div className="bg-yellow-500/80 hover:bg-yellow-500 transition-colors cursor-pointer" style={{ width: '8%' }} title="1 Arbitrated"></div>
-                  <div className="bg-red-500/80 hover:bg-red-500 transition-colors cursor-pointer" style={{ width: '0%' }} title="0 Lost"></div>
-                </div>
-              </div>
-
-              {/* As Customer */}
-              <div>
-                <div className="flex justify-between items-end mb-3">
-                  <div>
-                    <div className="text-sm text-gray-400">As Customer</div>
-                    <div className="text-xl font-bold text-gray-200">5 Deals</div>
-                  </div>
-                  <div className="text-green-400 font-medium text-sm bg-green-500/10 px-2 py-1 rounded">100% Success</div>
-                </div>
-                {/* Stacked bar */}
-                <div className="h-4 w-full flex rounded-full overflow-hidden bg-gray-950 border border-gray-800 shadow-inner">
-                  <div className="bg-green-500/80 hover:bg-green-500 transition-colors cursor-pointer" style={{ width: '100%' }} title="5 Success"></div>
-                  <div className="bg-yellow-500/80 hover:bg-yellow-500 transition-colors cursor-pointer" style={{ width: '0%' }} title="0 Arbitrated"></div>
-                  <div className="bg-red-500/80 hover:bg-red-500 transition-colors cursor-pointer" style={{ width: '0%' }} title="0 Lost"></div>
-                </div>
-              </div>
+              {renderRoleStats("As Contractor", mockStats.contractor)}
+              {renderRoleStats("As Customer", mockStats.customer)}
             </div>
 
             {/* Shared Legend */}
             <div className="flex flex-wrap gap-4 md:gap-6 mt-8 pt-6 border-t border-gray-800/60 text-xs sm:text-sm text-gray-400 justify-center">
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full bg-green-500/80 shadow-[0_0_8px_rgba(34,197,94,0.4)]"></div> 
-                <span>Completed</span>
+                <span>Won</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full bg-yellow-500/80 shadow-[0_0_8px_rgba(234,179,8,0.4)]"></div> 
-                <span>Settled (Arbitration)</span>
+                <span>Won (Arbitrated)</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full bg-red-500/80 shadow-[0_0_8px_rgba(239,68,68,0.4)]"></div> 
-                <span>Lost (Disputed)</span>
+                <span>Lost (Arbitrated)</span>
               </div>
             </div>
           </Card>
