@@ -26,7 +26,7 @@ export const FaucetButton = () => {
       </Button>
 
       {showUsdcModal && (
-        <div className="fixed inset-x-4 top-1/4 sm:absolute sm:inset-auto sm:top-full sm:right-0 mt-3 sm:w-[340px] bg-gray-900 border border-gray-800 shadow-2xl rounded-xl p-5 z-[60] animate-in fade-in slide-in-from-top-2">
+        <div className="fixed inset-x-4 top-1/4 sm:absolute sm:inset-auto sm:top-full sm:left-0 sm:right-auto mt-3 sm:w-[340px] max-w-[calc(100vw-2rem)] bg-gray-900 border border-gray-800 shadow-2xl rounded-xl p-5 z-[60] animate-in fade-in slide-in-from-top-2">
           <button onClick={() => setShowUsdcModal(false)} className="absolute right-3 top-3 text-gray-400 hover:text-white transition-colors">
             <X className="w-4 h-4" />
           </button>
