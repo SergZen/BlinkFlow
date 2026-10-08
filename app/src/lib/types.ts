@@ -1,6 +1,6 @@
 export type TaskStatus = 'CustomerCreated' | 'ContractorCreated' | 'Started' | 'Finished' | 'Disputed' | 'Resolved' | 'Completed' | 'Cancelled';
 
-export type DealStatus = 'searching' | 'in_progress' | 'pending_approval' | 'dispute' | 'completed' | 'cancelled';
+export type DealStatus = 'searching' | 'in_progress' | 'pending_approval' | 'dispute' | 'completed' | 'cancelled' | 'awaiting_funding';
 
 export interface TaskMeta {
   title: string;

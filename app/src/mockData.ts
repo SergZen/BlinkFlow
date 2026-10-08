@@ -13,18 +13,23 @@ const mapStatus = (old: string): TaskStatus => {
   }
 };
 
-const createMockTask = (title: string, amount: number, oldStatus: string, deadline: string, successCriteria: string): Task => ({
-  taskIndex: 0,
-  amount,
-  status: mapStatus(oldStatus),
-  taskHash: 'mock-hash',
-  solutionHash: null,
-  solutionNote: null,
-  deadline,
-  createdAt: '2026-08-01',
-  deposited: oldStatus !== 'searching',
-  meta: { title, successCriteria }
-});
+const isDeposited = (status: TaskStatus) => ['Started', 'Finished', 'Disputed', 'Completed', 'Resolved'].includes(status);
+
+const createMockTask = (title: string, amount: number, oldStatus: string, deadline: string, successCriteria: string): Task => {
+  const mappedStatus = mapStatus(oldStatus);
+  return {
+    taskIndex: 0,
+    amount,
+    status: mappedStatus,
+    taskHash: 'mock-hash',
+    solutionHash: null,
+    solutionNote: null,
+    deadline,
+    createdAt: '2026-08-01',
+    deposited: isDeposited(mappedStatus),
+    meta: { title, successCriteria }
+  };
+};
 
 export const seedDeals: Deal[] = [
   {
