@@ -17,10 +17,11 @@ import { NetworkProvider, useNetwork } from './NetworkContext';
 function InnerApp() {
   const { network } = useNetwork();
   const endpoint = useMemo(() => {
-    if (network === 'devnet' && import.meta.env.VITE_SOLANA_RPC_URL) {
-      return import.meta.env.VITE_SOLANA_RPC_URL;
+    if (network === 'devnet') {
+      return import.meta.env.VITE_SOLANA_RPC_URL_DEVNET || clusterApiUrl('devnet');
+    } else {
+      return import.meta.env.VITE_SOLANA_RPC_URL_MAINNET || clusterApiUrl('mainnet-beta');
     }
-    return clusterApiUrl(network);
   }, [network]);
   const wallets = useMemo(() => [], []);
 

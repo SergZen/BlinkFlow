@@ -12,8 +12,9 @@ import { useToken } from '../lib/constants';
 import { truncateAddress } from '../lib/utils';
 import { useSolBalance } from '../hooks/useSolBalance';
 import { useNetwork } from '../NetworkContext';
-import type { Deal } from '../lib/types';
+import type { Deal, Task } from '../lib/types';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
+import { useWalletModal } from '@solana/wallet-adapter-react-ui';
 import { Transaction } from '@solana/web3.js';
 
 const EscrowActionCard = ({ id }: { id: string }) => {
@@ -139,10 +140,13 @@ export const DealDetails = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deal, setDeal] = useState<Deal | null>(null);
-  const [submission, setSubmission] = useState('');
+  const [taskSubmissions, setTaskSubmissions] = useState<Record<number, string>>({});
+  const [taskActionLoading, setTaskActionLoading] = useState<Record<number, boolean>>({});
+  const [taskErrors, setTaskErrors] = useState<Record<number, string>>({});
+  const [globalError, setGlobalError] = useState<string | null>(null);
+  const [globalLoading, setGlobalLoading] = useState(false);
   // TEMP: virtual deals go away in stage B.
   const [virtualStatusLabel, setVirtualStatusLabel] = useState<string | null>(null);
-  const [actionLoading, setActionLoading] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [expandedTasks, setExpandedTasks] = useState<number[]>([]);
 
@@ -161,6 +165,8 @@ export const DealDetails = () => {
     );
   };
   
+  const { connected, publicKey } = useWallet();
+  const { setVisible } = useWalletModal();
   const { isTestMode } = useNetwork();
   const { solBalance } = useSolBalance();
   const { symbol } = useToken();
@@ -236,18 +242,179 @@ export const DealDetails = () => {
   if (error) return <div className="p-8 text-center text-red-400">{error}</div>;
   if (!deal) return <div className="p-8 text-center text-gray-400">Deal not found</div>;
 
-  const handleSubmitWork = () => {
-    if (!submission.trim()) {
-      alert("Please provide a link or description of your work.");
-      return;
+  // deleted handleSubmitWork
+
+  const handleTaskAction = async (taskIndex: number, action: () => Promise<any>) => {
+    setTaskErrors(prev => ({...prev, [taskIndex]: ''}));
+    setTaskActionLoading(prev => ({...prev, [taskIndex]: true}));
+    try {
+      await action();
+    } catch (err: any) {
+      setTaskErrors(prev => ({...prev, [taskIndex]: err.message || 'Action failed'}));
+    } finally {
+      setTaskActionLoading(prev => ({...prev, [taskIndex]: false}));
     }
-    setActionLoading(true);
-    setTimeout(() => {
-      setActionLoading(false);
-      setSubmission('');
-      // In a real app, this would refresh the deal state
-      alert("Work submitted successfully!");
-    }, 1000);
+  };
+
+  const handleGlobalAction = async (action: () => Promise<any>) => {
+    setGlobalError(null);
+    setGlobalLoading(true);
+    try {
+      await action();
+    } catch (err: any) {
+      setGlobalError(err.message || 'Action failed');
+    } finally {
+      setGlobalLoading(false);
+    }
+  };
+
+  const renderTaskActions = (task: Task, index: number) => {
+    if (isVirtualDeal) return null;
+
+    if ((role === 'contractor' && !deal.contractor) || (role === 'customer' && !deal.customer)) {
+      return <p className="text-gray-500 text-sm italic mt-4 pt-4 border-t border-gray-800/50">Accept the deal to continue</p>;
+    }
+    
+    const loading = taskActionLoading[index];
+    const err = taskErrors[index];
+    const submissionText = taskSubmissions[index] || '';
+    
+    if (task.status === 'Completed' || task.status === 'Resolved' || task.status === 'Cancelled') {
+      return <p className="text-gray-500 text-sm italic mt-4 pt-4 border-t border-gray-800/50">Task is closed.</p>;
+    }
+    
+    if (task.status === 'Disputed') {
+      return (
+        <div className="mt-4 pt-4 border-t border-gray-800/50 space-y-3">
+          <p className="text-yellow-500/80 text-sm">Awaiting arbiter decision.</p>
+          {isTestMode && (
+             <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+               <p className="text-xs text-yellow-500 mb-2 font-medium">Demo: arbiter decision {/* TEMP: real arbiter UI is a separate page */}</p>
+               <div className="flex flex-col sm:flex-row gap-2">
+                 <Button variant="outline" onClick={() => handleTaskAction(index, () => client.resolveDispute(deal.id, index, true))} disabled={loading}>Customer wins</Button>
+                 <Button variant="outline" onClick={() => handleTaskAction(index, () => client.resolveDispute(deal.id, index, false))} disabled={loading}>Contractor wins</Button>
+               </div>
+             </div>
+          )}
+          {err && <p className="text-red-400 text-xs">{err}</p>}
+        </div>
+      );
+    }
+
+    if (role === 'customer') {
+      if (!deal.contractor) {
+        return <p className="text-gray-500 text-sm italic mt-4 pt-4 border-t border-gray-800/50">Waiting for a contractor to accept this deal</p>;
+      }
+      
+      if (!task.deposited && (task.status === 'CustomerCreated' || task.status === 'ContractorCreated')) {
+        return (
+          <div className="mt-4 pt-4 border-t border-gray-800/50 space-y-3">
+            <p className="text-sm text-gray-400">Fund this task in escrow to allow the contractor to start.</p>
+            {renderSolWarning()}
+            {!connected ? (
+              <Button onClick={() => setVisible(true)}>Connect Wallet to Deposit</Button>
+            ) : (
+              <Button onClick={() => handleTaskAction(index, () => client.depositTask(deal.id, index, publicKey!.toBase58()))} disabled={loading || !hasEnoughSol} className={!hasEnoughSol ? 'opacity-50' : ''}>
+                {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> : null}
+                Deposit ({isTestMode ? 'Devnet' : 'Live'})
+              </Button>
+            )}
+            {err && <p className="text-red-400 text-xs">{err}</p>}
+          </div>
+        );
+      }
+      
+      if (task.status === 'Started') {
+        return <p className="text-gray-500 text-sm italic mt-4 pt-4 border-t border-gray-800/50">Waiting for the contractor to submit work</p>;
+      }
+      
+      if (task.status === 'Finished') {
+        return (
+          <div className="mt-4 pt-4 border-t border-gray-800/50 space-y-3">
+            <p className="text-sm text-gray-400">Review the contractor's submission above.</p>
+            {renderSolWarning()}
+            <div className="flex flex-col sm:flex-row gap-2 items-center">
+               {!connected ? (
+                 <Button onClick={() => setVisible(true)}>Connect Wallet to Act</Button>
+               ) : (
+                 <>
+                   <Button variant="primary" className="bg-green-600 hover:bg-green-500" onClick={() => handleTaskAction(index, () => client.completeTask(deal.id, index, true))} disabled={loading || !hasEnoughSol} >
+                      {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> : null}
+                      Approve & Release ({isTestMode ? 'Devnet' : 'Live'})
+                   </Button>
+                   <Button variant="danger" onClick={() => handleTaskAction(index, () => client.completeTask(deal.id, index, false))} disabled={loading || !hasEnoughSol} >
+                      Open Dispute ({isTestMode ? 'Devnet' : 'Live'})
+                   </Button>
+                   {/* ASSUMPTION: confirm with the contract author */}
+                 </>
+               )}
+            </div>
+            {err && <p className="text-red-400 text-xs">{err}</p>}
+          </div>
+        );
+      }
+    }
+    
+    if (role === 'contractor') {
+      const isPendingDeposit = task.status === 'CustomerCreated' || task.status === 'ContractorCreated';
+
+      if (!task.deposited && isPendingDeposit) {
+        return (
+          <div className="mt-4 pt-4 border-t border-gray-800/50 space-y-3">
+            <p className="text-gray-500 text-sm italic">Waiting for the customer to fund this task</p>
+            {renderSolWarning()}
+            <div className="flex">
+              {!connected ? (
+                 <Button variant="outline" onClick={() => setVisible(true)}>Connect Wallet to Cancel</Button>
+              ) : (
+                <Button variant="outline" onClick={() => handleTaskAction(index, () => client.cancelTask(deal.id, index))} disabled={loading || !hasEnoughSol}>
+                  Cancel Task ({isTestMode ? 'Devnet' : 'Live'})
+                </Button>
+              )}
+            </div>
+            {err && <p className="text-red-400 text-xs">{err}</p>}
+          </div>
+        );
+      }
+      
+      if (task.status === 'Started') {
+         return (
+          <div className="mt-4 pt-4 border-t border-gray-800/50 space-y-3">
+            <textarea 
+              rows={2} 
+              value={submissionText}
+              onChange={(e) => setTaskSubmissions(prev => ({...prev, [index]: e.target.value}))}
+              placeholder="Link to deliverable (e.g. GitHub PR, Figma link)..." 
+              className="w-full bg-gray-950 border border-gray-800 rounded-lg p-3 text-sm focus:outline-none focus:border-purple-500/50"
+              disabled={loading}
+            />
+            {renderSolWarning()}
+            <div className="flex flex-col sm:flex-row gap-2">
+              {!connected ? (
+                 <Button onClick={() => setVisible(true)}>Connect Wallet to Submit</Button>
+              ) : (
+                <Button variant="primary" onClick={() => handleTaskAction(index, () => client.finishTask(deal.id, index, submissionText))} disabled={loading || !submissionText.trim() || !hasEnoughSol}>
+                  {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> : null}
+                  Submit Work ({isTestMode ? 'Devnet' : 'Live'})
+                </Button>
+              )}
+              {!connected ? null : (
+                <Button variant="outline" onClick={() => handleTaskAction(index, () => client.cancelTask(deal.id, index))} disabled={loading || !hasEnoughSol}>
+                  Cancel Task ({isTestMode ? 'Devnet' : 'Live'})
+                </Button>
+              )}
+            </div>
+            {err && <p className="text-red-400 text-xs">{err}</p>}
+          </div>
+        );
+      }
+      
+      if (task.status === 'Finished') {
+        return <p className="text-gray-500 text-sm italic mt-4 pt-4 border-t border-gray-800/50">Waiting for the customer's review</p>;
+      }
+    }
+    
+    return null;
   };
 
   return (
@@ -317,6 +484,30 @@ export const DealDetails = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
+          {!isVirtualDeal && ((role === 'contractor' && !deal.contractor) || (role === 'customer' && !deal.customer)) && (
+            <Card className="p-6 border-purple-500/20 bg-purple-500/5">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-lg font-medium mb-1">Accept Deal</h3>
+                  <p className="text-sm text-gray-400">
+                    {/* DEMO: role toggle decides who acts; real client checks wallet */}
+                    Join this deal as a {role} to proceed.
+                  </p>
+                </div>
+                <div>
+                  {!connected ? (
+                    <Button onClick={() => setVisible(true)}>Connect Wallet to Accept</Button>
+                  ) : (
+                    <Button variant="gradient" onClick={() => handleGlobalAction(() => client.acceptDeal(deal.id, publicKey!.toBase58()))} disabled={globalLoading}>
+                      {globalLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> : null}
+                      Accept Deal ({isTestMode ? 'Devnet' : 'Live'})
+                    </Button>
+                  )}
+                </div>
+              </div>
+              {globalError && <p className="text-red-400 text-xs mt-2">{globalError}</p>}
+            </Card>
+          )}
           <Card className="p-6">
             <h3 className="text-lg font-medium mb-4 flex items-center gap-2">
               <CheckCircle2 className="w-5 h-5 text-purple-400" />
@@ -359,6 +550,7 @@ export const DealDetails = () => {
                               <p className="whitespace-pre-wrap">{task.solutionNote}</p>
                             </div>
                           )}
+                          {renderTaskActions(task, i)}
                         </div>
                       )}
                     </div>
@@ -368,95 +560,7 @@ export const DealDetails = () => {
             </div>
           </Card>
 
-          {/* Action Panel based on role and status */}
-          <Card className="p-6 border-purple-500/20 bg-purple-500/5">
-            {/* TODO B4: move into task rows */}
-            <h3 className="text-lg font-medium mb-4">Action Panel</h3>
-            {isVirtualDeal ? (
-              <p className="text-gray-500 italic text-sm">Actions available once the counterparty opens this deal.</p>
-            ) : (
-              <>
-                {role === 'contractor' && deriveDealStatus(deal) === 'in_progress' && (
-                  <div className="space-y-4">
-                    <p className="text-sm text-gray-400">Submit your work for review. The customer will be notified to release funds.</p>
-                    <textarea 
-                      rows={3} 
-                      maxLength={500}
-                      value={submission}
-                      onChange={(e) => setSubmission(e.target.value)}
-                      placeholder="Link to deliverable (e.g. GitHub PR, Figma link)..." 
-                      className="w-full bg-gray-950 border border-gray-800 rounded-lg p-3 text-sm focus:outline-none focus:border-purple-500/50"
-                      disabled={actionLoading}
-                    ></textarea>
-                    {renderSolWarning()}
-                    <Button 
-                      variant="primary" 
-                      onClick={handleSubmitWork} 
-                      disabled={actionLoading || !submission.trim() || !hasEnoughSol}
-                      className={!hasEnoughSol ? 'opacity-50 cursor-not-allowed' : ''}
-                    >
-                      {actionLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2 inline" /> : null}
-                      Submit Work ({isTestMode ? 'Devnet' : 'Live'})
-                    </Button>
-                  </div>
-                )}
-                
-                {role === 'customer' && deriveDealStatus(deal) === 'pending_approval' && (
-                  <div className="space-y-4">
-                    <div className="p-4 bg-gray-900 rounded-lg border border-gray-800">
-                      <p className="text-sm font-medium mb-1">Contractor's Submission:</p>
-                      <a href="#" className="text-sm text-blue-400 hover:underline">https://github.com/blinkflow/pr-12</a>
-                    </div>
-                    {renderSolWarning()}
-                    <div className="flex flex-col sm:flex-row gap-3">
-                      <Button 
-                        variant="primary" 
-                        className={`bg-green-600 hover:bg-green-500 w-full sm:w-auto ${!hasEnoughSol ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        disabled={!hasEnoughSol}
-                      >
-                        Approve & Release ({isTestMode ? 'Devnet' : 'Live'})
-                      </Button>
-                      <Button 
-                        variant="danger"
-                        className={`w-full sm:w-auto ${!hasEnoughSol ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        disabled={!hasEnoughSol}
-                      >
-                        Open Dispute ({isTestMode ? 'Devnet' : 'Live'})
-                      </Button>
-                    </div>
-                  </div>
-                )}
 
-                {(deriveDealStatus(deal) === 'completed' || deriveDealStatus(deal) === 'cancelled') && (
-                  <p className="text-gray-400 text-sm bg-gray-900/50 p-3 rounded-lg border border-gray-800">This deal is closed. No further actions can be taken.</p>
-                )}
-                
-                {deriveDealStatus(deal) === 'searching' && role === 'customer' && (
-                  <p className="text-gray-400 text-sm bg-gray-900/50 p-3 rounded-lg border border-gray-800">Waiting for a contractor to accept the deal.</p>
-                )}
-                
-                {deriveDealStatus(deal) === 'searching' && role === 'contractor' && (
-                  <div>
-                    {renderSolWarning()}
-                    <Button 
-                      variant="gradient"
-                      className={!hasEnoughSol ? 'opacity-50 cursor-not-allowed' : ''}
-                      disabled={!hasEnoughSol}
-                    >
-                      Accept Deal ({isTestMode ? 'Devnet' : 'Live'})
-                    </Button>
-                  </div>
-                )}
-                
-                {deriveDealStatus(deal) === 'dispute' && (
-                  <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
-                    <p className="text-sm text-red-400 font-medium">This deal is currently under dispute resolution.</p>
-                    <p className="text-xs text-red-400/80 mt-1">An arbitrator will review the case and make a decision.</p>
-                  </div>
-                )}
-              </>
-            )}
-          </Card>
         </div>
 
         <div className="space-y-6">

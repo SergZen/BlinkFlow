@@ -13,7 +13,7 @@ const NetworkContext = createContext<NetworkContextType | undefined>(undefined);
 export const NetworkProvider = ({ children }: { children: ReactNode }) => {
   const [network, setNetwork] = useState<NetworkType>(() => {
     const saved = localStorage.getItem('blinkflow_network');
-    return (saved as NetworkType) || 'mainnet-beta';
+    return (saved as NetworkType) || 'devnet';
   });
 
   useEffect(() => {

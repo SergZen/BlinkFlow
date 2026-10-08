@@ -105,10 +105,10 @@ export const mockClient: BlinkflowClient = {
     const deal = deals.find(d => d.id === dealId);
     if (!deal) throw new Error("Deal not found");
     
-    if (!deal.contractor && deal.customer !== wallet) {
+    if (!deal.contractor) {
       deal.contractor = wallet;
       deal.history.push({ date: getNow(), action: 'Contractor Assigned' });
-    } else if (!deal.customer && deal.contractor !== wallet) {
+    } else if (!deal.customer) {
       deal.customer = wallet;
       deal.history.push({ date: getNow(), action: 'Customer Assigned' });
     }
