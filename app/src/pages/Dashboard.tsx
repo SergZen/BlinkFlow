@@ -2,13 +2,14 @@ import { useRole } from '../RoleContext';
 import { Card } from '../components/Card';
 import { Badge, getStatusLabel } from '../components/Badge';
 import { Button } from '../components/Button';
-import { mockDeals } from '../mockData';
+import { client } from '../lib/client';
+import { dealTotal, deriveDealStatus } from '../lib/dealStatus';
 import { Plus, ArrowRight, DollarSign, Briefcase, Clock, Search, Loader2, Inbox } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { CreateDealModal } from '../components/CreateDealModal';
 import { truncateAddress } from '../lib/utils';
-import type { Deal } from '../mockData';
+import type { Deal } from '../lib/types';
 import { useToken } from '../lib/constants';
 import { useNetwork } from '../NetworkContext';
 
@@ -22,28 +23,28 @@ export const Dashboard = () => {
   const [filter, setFilter] = useState<string>('all');
 
   useEffect(() => {
-    const timer = setTimeout(() => {
+    const loadDeals = async () => {
       try {
-        setDeals(mockDeals);
+        setDeals(await client.listDeals());
       } catch (err: any) {
         setError("Failed to fetch deals");
       } finally {
         setLoading(false);
       }
-    }, 800);
-    return () => clearTimeout(timer);
+    };
+    loadDeals();
   }, []);
 
-  const activeDeals = deals.filter(d => d.status !== 'completed' && d.status !== 'cancelled');
+  const activeDeals = deals.filter(d => deriveDealStatus(d) !== 'completed' && deriveDealStatus(d) !== 'cancelled');
   
   const pendingActions = role === 'customer' 
-    ? activeDeals.filter(d => d.status === 'pending_approval' || d.status === 'searching')
-    : activeDeals.filter(d => d.status === 'in_progress');
+    ? activeDeals.filter(d => deriveDealStatus(d) === 'pending_approval' || deriveDealStatus(d) === 'searching')
+    : activeDeals.filter(d => deriveDealStatus(d) === 'in_progress');
 
   const filteredDeals = deals.filter(deal => {
     if (filter === 'all') return true;
     if (filter === 'attention') return pendingActions.some(p => p.id === deal.id);
-    return deal.status === filter;
+    return deriveDealStatus(deal) === filter;
   });
 
   return (
@@ -74,7 +75,7 @@ export const Dashboard = () => {
               <span className="text-sm font-medium">Funds in Escrow</span>
             </div>
             <div className="text-3xl font-bold tracking-tight">
-              ${activeDeals.reduce((acc, deal) => acc + deal.amount, 0).toLocaleString()}
+              ${activeDeals.reduce((acc, deal) => acc + dealTotal(deal), 0).toLocaleString()}
             </div>
           </Card>
         </div>
@@ -121,16 +122,16 @@ export const Dashboard = () => {
             {pendingActions.map(deal => (
               <Card key={deal.id} className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between border-orange-500/20 bg-orange-500/5 gap-4">
                 <div>
-                  <div className="font-semibold text-gray-200">{deal.title}</div>
+                  <div className="font-semibold text-gray-200">{deal.tasks[0]?.meta.title /* TODO stage B */}</div>
                   <div className="text-sm text-gray-400 mt-1">
-                    {deal.status === 'pending_approval' ? 'Contractor submitted work for review.' : 'Waiting to assign a contractor.'}
+                    {deriveDealStatus(deal) === 'pending_approval' ? 'Contractor submitted work for review.' : 'Waiting to assign a contractor.'}
                   </div>
                 </div>
                 <div className="flex flex-col sm:flex-row flex-wrap gap-2 w-full md:w-auto md:justify-end">
-                  {deal.status === 'pending_approval' ? (
+                  {deriveDealStatus(deal) === 'pending_approval' ? (
                     <>
                       <Button variant="danger" className="w-full sm:flex-none">Open Dispute ({isTestMode ? 'Devnet' : 'Live'})</Button>
-                      <Button variant="primary" className="w-full sm:flex-none bg-orange-500 hover:bg-orange-600 text-white">Release Payment ${deal.amount} ({isTestMode ? 'Devnet' : 'Live'})</Button>
+                      <Button variant="primary" className="w-full sm:flex-none bg-orange-500 hover:bg-orange-600 text-white">Release Payment ${dealTotal(deal) /* TODO stage B */} ({isTestMode ? 'Devnet' : 'Live'})</Button>
                     </>
                   ) : (
                     <Button variant="outline" className="w-full sm:w-auto border-orange-500/30 text-orange-400 hover:bg-orange-500/10">Assign Contractor</Button>
@@ -200,24 +201,24 @@ export const Dashboard = () => {
                 <div key={deal.id} className="bg-gray-900/40 border border-gray-800/60 rounded-lg p-4 space-y-3">
                   <div className="flex justify-between items-start gap-2">
                     <div className="min-w-0">
-                      <div className="font-medium text-gray-200 truncate">{deal.title}</div>
+                      <div className="font-medium text-gray-200 truncate">{deal.tasks[0]?.meta.title /* TODO stage B */}</div>
                       <div className="text-[11px] text-gray-500 mt-0.5">{deal.id}</div>
                     </div>
-                    <Badge status={deal.status} className="shrink-0">{getStatusLabel(deal.status)}</Badge>
+                    <Badge status={deriveDealStatus(deal)} className="shrink-0">{getStatusLabel(deriveDealStatus(deal))}</Badge>
                   </div>
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-gray-500 shrink-0">{role === 'contractor' ? 'Customer' : 'Contractor'}:</span>
                     <span className="font-mono text-gray-400 text-xs truncate ml-2">
-                      {role === 'contractor' ? truncateAddress(deal.customer) : (deal.contractor ? truncateAddress(deal.contractor) : <span className="italic">Unassigned</span>)}
+                      {role === 'contractor' ? (deal.customer ? truncateAddress(deal.customer) : <span className="italic">Unassigned</span>) : (deal.contractor ? truncateAddress(deal.contractor) : <span className="italic">Unassigned</span>)}
                     </span>
                   </div>
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-gray-500">Amount:</span>
-                    <span className="font-semibold text-gray-200">${deal.amount.toLocaleString()}</span>
+                    <span className="font-semibold text-gray-200">${dealTotal(deal) /* TODO stage B */.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-gray-500">Deadline:</span>
-                    <span className="text-gray-400 text-xs">{deal.deadline}</span>
+                    <span className="text-gray-400 text-xs">{deal.tasks[0]?.deadline /* TODO stage B */}</span>
                   </div>
                   <div className="pt-2">
                     <Link to={`/deal/${deal.id}`} className="flex items-center justify-center w-full gap-1.5 text-gray-300 hover:text-white font-medium transition-colors bg-gray-800/50 hover:bg-gray-700 px-3 py-2 rounded-md text-sm">
@@ -244,17 +245,17 @@ export const Dashboard = () => {
                 {filteredDeals.map((deal) => (
                   <tr key={deal.id} className="hover:bg-gray-800/40 transition-colors group">
                     <td className="px-5 py-4">
-                      <div className="font-medium text-gray-200 group-hover:text-purple-400 transition-colors">{deal.title}</div>
+                      <div className="font-medium text-gray-200 group-hover:text-purple-400 transition-colors">{deal.tasks[0]?.meta.title /* TODO stage B */}</div>
                       <div className="text-[11px] text-gray-500 mt-0.5">{deal.id}</div>
                     </td>
                     <td className="px-5 py-4 font-mono text-xs text-gray-400">
-                      {role === 'contractor' ? truncateAddress(deal.customer) : (deal.contractor ? truncateAddress(deal.contractor) : <span className="text-gray-600 italic">Unassigned</span>)}
+                      {role === 'contractor' ? (deal.customer ? truncateAddress(deal.customer) : <span className="text-gray-600 italic">Unassigned</span>) : (deal.contractor ? truncateAddress(deal.contractor) : <span className="text-gray-600 italic">Unassigned</span>)}
                     </td>
-                    <td className="px-5 py-4 font-semibold text-gray-200">${deal.amount.toLocaleString()}</td>
+                    <td className="px-5 py-4 font-semibold text-gray-200">${dealTotal(deal).toLocaleString() /* TODO stage B */}</td>
                     <td className="px-5 py-4">
-                      <Badge status={deal.status}>{getStatusLabel(deal.status)}</Badge>
+                      <Badge status={deriveDealStatus(deal)}>{getStatusLabel(deriveDealStatus(deal))}</Badge>
                     </td>
-                    <td className="px-5 py-4 text-gray-400 text-xs">{deal.deadline}</td>
+                    <td className="px-5 py-4 text-gray-400 text-xs">{deal.tasks[0]?.deadline /* TODO stage B */}</td>
                     <td className="px-5 py-4 text-right">
                       <Link to={`/deal/${deal.id}`} className="inline-flex items-center gap-1.5 text-gray-400 hover:text-white font-medium transition-colors bg-gray-800/50 hover:bg-gray-700 px-3 py-1.5 rounded-md text-xs">
                         View <ArrowRight className="w-3.5 h-3.5" />

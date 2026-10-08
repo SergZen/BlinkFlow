@@ -1,5 +1,6 @@
 import { useParams, Link, useLocation } from 'react-router-dom';
-import { mockDeals } from '../mockData';
+import { client } from '../lib/client';
+import { dealTotal, deriveDealStatus } from '../lib/dealStatus';
 import { Card } from '../components/Card';
 import { Badge, getStatusLabel } from '../components/Badge';
 import { Button } from '../components/Button';
@@ -11,7 +12,7 @@ import { useToken } from '../lib/constants';
 import { truncateAddress } from '../lib/utils';
 import { useSolBalance } from '../hooks/useSolBalance';
 import { useNetwork } from '../NetworkContext';
-import type { Deal } from '../mockData';
+import type { Deal } from '../lib/types';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { Transaction } from '@solana/web3.js';
 
@@ -139,6 +140,8 @@ export const DealDetails = () => {
   const [error, setError] = useState<string | null>(null);
   const [deal, setDeal] = useState<Deal | null>(null);
   const [submission, setSubmission] = useState('');
+  // TEMP: virtual deals go away in stage B.
+  const [virtualStatusLabel, setVirtualStatusLabel] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   
@@ -163,9 +166,9 @@ export const DealDetails = () => {
   };
 
   useEffect(() => {
-    const timer = setTimeout(() => {
+    const loadDeal = async () => {
       try {
-        const foundDeal = mockDeals.find(d => d.id === id);
+        const foundDeal = await client.getDeal(id || '');
         if (foundDeal) {
           setDeal(foundDeal);
         } else {
@@ -176,16 +179,18 @@ export const DealDetails = () => {
           
           if (title && amount) {
             setDeal({
-              id: id || 'VIRTUAL',
-              title,
-              amount: parseFloat(amount),
-              status: (params.get('status') as any) || 'searching',
+              id: id || 'VIRTUAL', creator: 'VIRTUAL', createdAt: new Date().toISOString(),
+              
+              
+              
               customer: params.get('customerWallet') || 'Customer (Pending)',
               contractor: params.get('contractorWallet') || '',
-              deadline: 'TBD',
-              successCriteria: '',
+              
+              tasks: [{ taskIndex: 0, amount: parseFloat(amount), status: (params.get('status') as any) === 'searching' ? 'CustomerCreated' : 'Started', taskHash: 'virtual', solutionHash: null, solutionNote: null, deadline: 'TBD', createdAt: new Date().toISOString(), deposited: false, meta: { title: title || 'VIRTUAL', successCriteria: '' } }],
               history: []
             });
+            // TEMP: virtual deals go away in stage B.
+            setVirtualStatusLabel(params.get('status') || 'Seeking Contractor');
           } else {
             throw new Error("Deal not found");
           }
@@ -195,11 +200,11 @@ export const DealDetails = () => {
       } finally {
         setLoading(false);
       }
-    }, 800);
-    return () => clearTimeout(timer);
+    };
+    loadDeal();
   }, [id, location.search]);
 
-  const isVirtualDeal = deal && !mockDeals.some(d => d.id === deal.id);
+  const isVirtualDeal = !!deal && deal.creator === 'VIRTUAL';
 
   if (loading) return <div className="p-12 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-purple-500" /></div>;
   if (error) return <div className="p-8 text-center text-red-400">{error}</div>;
@@ -228,14 +233,19 @@ export const DealDetails = () => {
       <div className="flex flex-col md:flex-row justify-between items-start gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-3 mb-2">
-            <h2 className="text-xl sm:text-2xl font-bold break-words">{deal.title}</h2>
-            <Badge status={deal.status}>{getStatusLabel(deal.status)}</Badge>
+            <h2 className="text-xl sm:text-2xl font-bold break-words">{deal.tasks[0]?.meta.title /* TODO stage B */}</h2>
+            {/* TEMP: virtual deals go away in stage B. */}
+            {isVirtualDeal && virtualStatusLabel ? (
+              <Badge>{virtualStatusLabel}</Badge>
+            ) : (
+              <Badge status={deriveDealStatus(deal)}>{getStatusLabel(deriveDealStatus(deal))}</Badge>
+            )}
           </div>
           <p className="text-gray-400 text-sm font-mono">{deal.id}</p>
         </div>
         <div className="text-left md:text-right mt-2 md:mt-0 flex flex-col items-start md:items-end gap-3">
           <div className="flex flex-col md:items-end gap-1">
-            <div className="text-2xl sm:text-3xl font-bold text-white">${deal.amount.toLocaleString()} <span className="text-base sm:text-lg text-gray-500 font-medium">{symbol}</span></div>
+            <div className="text-2xl sm:text-3xl font-bold text-white">${dealTotal(deal) /* TODO stage B */.toLocaleString()} <span className="text-base sm:text-lg text-gray-500 font-medium">{symbol}</span></div>
             <div className={`text-xs px-2 py-1 rounded-md border font-medium ${isTestMode ? 'bg-gray-800 text-gray-300 border-gray-700' : 'bg-orange-500/10 text-orange-400 border-orange-500/20'}`}>
               {isTestMode ? 'TEST MODE — devnet funds, no real money' : '⚠ LIVE — real funds'}
             </div>
@@ -256,10 +266,11 @@ export const DealDetails = () => {
             <p className="text-sm text-gray-400 mb-2">Send this link to your partner.</p>
             <ShareDealPanel 
               rawActionUrl={`${import.meta.env.VITE_ACTIONS_API_URL || 'http://localhost:3001'}/deal/${deal.id}?${new URLSearchParams({
-                title: deal.title,
-                amount: deal.amount.toString(),
+                title: deal.tasks[0]?.meta.title /* TODO stage B */,
+                amount: dealTotal(deal) /* TODO stage B */.toString(),
                 token: 'USDC',
-                status: getStatusLabel(deal.status),
+                // TEMP: virtual deals go away in stage B.
+                status: isVirtualDeal && virtualStatusLabel ? virtualStatusLabel : getStatusLabel(deriveDealStatus(deal)),
                 ...(deal.customer && { customerWallet: deal.customer }),
                 ...(deal.contractor && { contractorWallet: deal.contractor })
               }).toString()}`}
@@ -286,7 +297,7 @@ export const DealDetails = () => {
               {isVirtualDeal ? (
                 <span className="text-gray-500 italic">Details available once the counterparty opens this deal.</span>
               ) : (
-                deal.successCriteria
+                deal.tasks[0]?.meta.successCriteria /* TODO stage B */
               )}
             </div>
           </Card>
@@ -298,7 +309,7 @@ export const DealDetails = () => {
               <p className="text-gray-500 italic text-sm">Actions available once the counterparty opens this deal.</p>
             ) : (
               <>
-                {role === 'contractor' && deal.status === 'in_progress' && (
+                {role === 'contractor' && deriveDealStatus(deal) === 'in_progress' && (
                   <div className="space-y-4">
                     <p className="text-sm text-gray-400">Submit your work for review. The customer will be notified to release funds.</p>
                     <textarea 
@@ -323,7 +334,7 @@ export const DealDetails = () => {
                   </div>
                 )}
                 
-                {role === 'customer' && deal.status === 'pending_approval' && (
+                {role === 'customer' && deriveDealStatus(deal) === 'pending_approval' && (
                   <div className="space-y-4">
                     <div className="p-4 bg-gray-900 rounded-lg border border-gray-800">
                       <p className="text-sm font-medium mb-1">Contractor's Submission:</p>
@@ -349,15 +360,15 @@ export const DealDetails = () => {
                   </div>
                 )}
 
-                {(deal.status === 'completed' || deal.status === 'cancelled') && (
+                {(deriveDealStatus(deal) === 'completed' || deriveDealStatus(deal) === 'cancelled') && (
                   <p className="text-gray-400 text-sm bg-gray-900/50 p-3 rounded-lg border border-gray-800">This deal is closed. No further actions can be taken.</p>
                 )}
                 
-                {deal.status === 'searching' && role === 'customer' && (
+                {deriveDealStatus(deal) === 'searching' && role === 'customer' && (
                   <p className="text-gray-400 text-sm bg-gray-900/50 p-3 rounded-lg border border-gray-800">Waiting for a contractor to accept the deal.</p>
                 )}
                 
-                {deal.status === 'searching' && role === 'contractor' && (
+                {deriveDealStatus(deal) === 'searching' && role === 'contractor' && (
                   <div>
                     {renderSolWarning()}
                     <Button 
@@ -370,7 +381,7 @@ export const DealDetails = () => {
                   </div>
                 )}
                 
-                {deal.status === 'dispute' && (
+                {deriveDealStatus(deal) === 'dispute' && (
                   <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
                     <p className="text-sm text-red-400 font-medium">This deal is currently under dispute resolution.</p>
                     <p className="text-xs text-red-400/80 mt-1">An arbitrator will review the case and make a decision.</p>
@@ -398,7 +409,7 @@ export const DealDetails = () => {
             <div className="space-y-4 text-sm">
               <div>
                 <div className="text-gray-500 mb-1">Customer</div>
-                <div className="font-mono text-gray-300">{truncateAddress(deal.customer)}</div>
+                <div className="font-mono text-gray-300">{deal.customer ? truncateAddress(deal.customer) : 'Not assigned yet'}</div>
               </div>
               <div>
                 <div className="text-gray-500 mb-1">Contractor</div>
@@ -406,12 +417,12 @@ export const DealDetails = () => {
               </div>
               <div>
                 <div className="text-gray-500 mb-1">Deadline</div>
-                <div className="text-gray-300">{deal.deadline}</div>
+                <div className="text-gray-300">{deal.tasks[0]?.deadline /* TODO stage B */}</div>
               </div>
             </div>
           </Card>
 
-          {!isVirtualDeal && deal.history && (
+          {!isVirtualDeal && deal.history && deal.history.length > 0 && (
             <Card className="p-6">
               <h3 className="font-medium mb-4 flex items-center gap-2">
                 <History className="w-4 h-4 text-gray-400" />

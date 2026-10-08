@@ -1,6 +1,6 @@
 import { HTMLAttributes, ReactNode } from 'react';
 import { cn } from '../lib/utils';
-import type { DealStatus } from '../mockData';
+import type { DealStatus } from '../lib/types';
 
 interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
   children: ReactNode;
