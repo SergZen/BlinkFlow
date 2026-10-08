@@ -1,6 +1,6 @@
 import { useParams, Link, useLocation } from 'react-router-dom';
 import { client } from '../lib/client';
-import { dealTotal, deriveDealStatus } from '../lib/dealStatus';
+import { dealTotal, deriveDealStatus, getEarliestDeadline, taskStatusLabel, taskStatusKind } from '../lib/dealStatus';
 import { Card } from '../components/Card';
 import { Badge, getStatusLabel } from '../components/Badge';
 import { Button } from '../components/Button';
@@ -144,6 +144,22 @@ export const DealDetails = () => {
   const [virtualStatusLabel, setVirtualStatusLabel] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [expandedTasks, setExpandedTasks] = useState<number[]>([]);
+
+  const [initializedDealId, setInitializedDealId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (deal?.id && deal.id !== initializedDealId) {
+      setExpandedTasks(deal.tasks.length === 1 ? [0] : []);
+      setInitializedDealId(deal.id);
+    }
+  }, [deal?.id]);
+
+  const toggleTask = (index: number) => {
+    setExpandedTasks(prev => 
+      prev.includes(index) ? prev.filter(i => i !== index) : [...prev, index]
+    );
+  };
   
   const { isTestMode } = useNetwork();
   const { solBalance } = useSolBalance();
@@ -243,7 +259,10 @@ export const DealDetails = () => {
       <div className="flex flex-col md:flex-row justify-between items-start gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-3 mb-2">
-            <h2 className="text-xl sm:text-2xl font-bold break-words">{deal.tasks[0]?.meta.title /* TODO stage B */}</h2>
+            <h2 className="text-xl sm:text-2xl font-bold break-words">
+              {deal.tasks[0]?.meta.title}
+              {deal.tasks.length > 1 && ` +${deal.tasks.length - 1}`}
+            </h2>
             {/* TEMP: virtual deals go away in stage B. */}
             {isVirtualDeal && virtualStatusLabel ? (
               <Badge>{virtualStatusLabel}</Badge>
@@ -255,7 +274,7 @@ export const DealDetails = () => {
         </div>
         <div className="text-left md:text-right mt-2 md:mt-0 flex flex-col items-start md:items-end gap-3">
           <div className="flex flex-col md:items-end gap-1">
-            <div className="text-2xl sm:text-3xl font-bold text-white">${dealTotal(deal) /* TODO stage B */.toLocaleString()} <span className="text-base sm:text-lg text-gray-500 font-medium">{symbol}</span></div>
+            <div className="text-2xl sm:text-3xl font-bold text-white">${dealTotal(deal).toLocaleString()} <span className="text-base sm:text-lg text-gray-500 font-medium">{symbol}</span></div>
             <div className={`text-xs px-2 py-1 rounded-md border font-medium ${isTestMode ? 'bg-gray-800 text-gray-300 border-gray-700' : 'bg-orange-500/10 text-orange-400 border-orange-500/20'}`}>
               {isTestMode ? 'TEST MODE — devnet funds, no real money' : '⚠ LIVE — real funds'}
             </div>
@@ -276,8 +295,8 @@ export const DealDetails = () => {
             <p className="text-sm text-gray-400 mb-2">Send this link to your partner.</p>
             <ShareDealPanel 
               rawActionUrl={`${import.meta.env.VITE_ACTIONS_API_URL || 'http://localhost:3001'}/deal/${deal.id}?${new URLSearchParams({
-                title: deal.tasks[0]?.meta.title /* TODO stage B */,
-                amount: dealTotal(deal) /* TODO stage B */.toString(),
+                title: deal.tasks[0]?.meta.title,
+                amount: dealTotal(deal).toString(),
                 token: 'USDC',
                 // TEMP: virtual deals go away in stage B.
                 status: isVirtualDeal && virtualStatusLabel ? virtualStatusLabel : getStatusLabel(deriveDealStatus(deal)),
@@ -301,19 +320,57 @@ export const DealDetails = () => {
           <Card className="p-6">
             <h3 className="text-lg font-medium mb-4 flex items-center gap-2">
               <CheckCircle2 className="w-5 h-5 text-purple-400" />
-              Success Criteria
+              Tasks
             </h3>
-            <div className="bg-gray-950 p-4 rounded-lg border border-gray-800 text-gray-300 leading-relaxed">
+            <div className="space-y-3">
               {isVirtualDeal && !deal.tasks[0]?.meta.successCriteria ? (
-                <span className="text-gray-500 italic">Details available once the counterparty opens this deal.</span>
+                <div className="bg-gray-950 p-4 rounded-lg border border-gray-800 text-gray-300 leading-relaxed">
+                  <span className="text-gray-500 italic">Details available once the counterparty opens this deal.</span>
+                </div>
               ) : (
-                deal.tasks[0]?.meta.successCriteria /* TODO stage B */
+                deal.tasks.map((task, i) => {
+                  const isExpanded = expandedTasks.includes(i);
+                  return (
+                    <div key={i} className="bg-gray-950 border border-gray-800 rounded-lg overflow-hidden">
+                      <button 
+                        onClick={() => toggleTask(i)}
+                        aria-expanded={isExpanded}
+                        className="w-full flex flex-col sm:flex-row sm:items-center justify-between p-4 text-left hover:bg-gray-900/50 transition-colors gap-3"
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 min-w-0">
+                          <span className="text-gray-500 font-mono text-sm shrink-0">#{i + 1}</span>
+                          <span className="font-medium text-gray-200 truncate">{task.meta.title}</span>
+                        </div>
+                        <div className="flex flex-wrap sm:flex-nowrap items-center gap-3 shrink-0">
+                          <span className="font-semibold text-gray-200">${task.amount.toLocaleString()}</span>
+                          <Badge status={taskStatusKind(task)}>{taskStatusLabel(task)}</Badge>
+                          <span className="text-gray-500 text-xs w-24 text-right truncate" title={task.deadline}>{task.deadline === 'TBD' ? 'TBD' : task.deadline}</span>
+                        </div>
+                      </button>
+                      {isExpanded && (
+                        <div className="p-4 pt-0 border-t border-gray-800/50 mt-2 text-gray-300 leading-relaxed text-sm bg-gray-950/50">
+                          <div className="mt-4">
+                            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Success Criteria</h4>
+                            <p className="whitespace-pre-wrap">{task.meta.successCriteria}</p>
+                          </div>
+                          {task.solutionNote && (
+                            <div className="mt-4 pt-4 border-t border-gray-800/50">
+                              <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Solution Note</h4>
+                              <p className="whitespace-pre-wrap">{task.solutionNote}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
               )}
             </div>
           </Card>
 
           {/* Action Panel based on role and status */}
           <Card className="p-6 border-purple-500/20 bg-purple-500/5">
+            {/* TODO B4: move into task rows */}
             <h3 className="text-lg font-medium mb-4">Action Panel</h3>
             {isVirtualDeal ? (
               <p className="text-gray-500 italic text-sm">Actions available once the counterparty opens this deal.</p>

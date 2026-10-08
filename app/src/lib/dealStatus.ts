@@ -1,4 +1,4 @@
-import { Deal, DealStatus } from './types';
+import { Deal, DealStatus, Task } from './types';
 
 export const dealTotal = (deal: Deal): number => {
   return deal.tasks
@@ -21,13 +21,43 @@ export const dealEscrowTotal = (deal: Deal): number => {
 };
 
 export const getEarliestDeadline = (deal: Deal): string => {
-  const activeTasks = deal.tasks.filter(t => t.status !== 'Cancelled' && t.deadline && t.deadline !== 'TBD');
+  const activeTasks = deal.tasks.filter(t => t.status !== 'Cancelled' && t.status !== 'Completed' && t.status !== 'Resolved' && t.deadline && t.deadline !== 'TBD');
   if (activeTasks.length === 0) {
-    const tbdTask = deal.tasks.find(t => t.status !== 'Cancelled');
-    return tbdTask?.deadline || 'TBD';
+    const lastTask = [...deal.tasks].reverse().find(t => t.status !== 'Cancelled');
+    return lastTask?.deadline || 'TBD';
   }
   const sorted = [...activeTasks].sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime());
   return sorted[0].deadline;
+};
+
+export const taskStatusLabel = (task: Task): string => {
+  switch (task.status) {
+    case 'Disputed': return 'Disputed';
+    case 'Finished': return 'Submitted';
+    case 'Started': return 'In Progress';
+    case 'Completed': return 'Completed';
+    case 'Resolved': return 'Resolved';
+    case 'Cancelled': return 'Cancelled';
+    case 'CustomerCreated':
+    case 'ContractorCreated':
+      return task.deposited ? 'Funded' : 'Awaiting Funding';
+    default: return task.status;
+  }
+};
+
+export const taskStatusKind = (task: Task): DealStatus => {
+  switch (task.status) {
+    case 'Disputed': return 'dispute';
+    case 'Finished': return 'pending_approval';
+    case 'Started': return 'in_progress';
+    case 'Completed':
+    case 'Resolved': return 'completed';
+    case 'Cancelled': return 'cancelled';
+    case 'CustomerCreated':
+    case 'ContractorCreated':
+      return task.deposited ? 'in_progress' : 'awaiting_funding';
+    default: return 'in_progress';
+  }
 };
 
 export const deriveDealStatus = (deal: Deal): DealStatus => {
