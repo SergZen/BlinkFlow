@@ -33,6 +33,14 @@ export const Dashboard = () => {
       }
     };
     loadDeals();
+    const handleDealsChanged = () => {
+      loadDeals();
+    };
+    window.addEventListener('blinkflow:deals-changed', handleDealsChanged);
+    
+    return () => {
+      window.removeEventListener('blinkflow:deals-changed', handleDealsChanged);
+    };
   }, []);
 
   const activeDeals = deals.filter(d => deriveDealStatus(d) !== 'completed' && deriveDealStatus(d) !== 'cancelled');

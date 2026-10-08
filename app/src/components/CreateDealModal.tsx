@@ -9,6 +9,7 @@ import { useWalletModal } from '@solana/wallet-adapter-react-ui';
 import { useToken } from '../lib/constants';
 import { useSolBalance } from '../hooks/useSolBalance';
 import { useNetwork } from '../NetworkContext';
+import { client } from '../lib/client';
 
 export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) => {
   const { symbol } = useToken();
@@ -27,10 +28,11 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
 
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
+  const [criteria, setCriteria] = useState('');
   const [deadline, setDeadline] = useState('');
   const [error, setError] = useState('');
 
-  const handleGenerate = (e: React.FormEvent) => {
+  const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!connected) {
       setError("Please connect your Solana wallet to create a deal.");
@@ -62,16 +64,34 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
     // TODO: replace with real transaction once Anchor program is deployed
     const baseUrl = import.meta.env.VITE_ACTIONS_API_URL || 'http://localhost:3001';
     
-    const dealId = `ESC-${Math.floor(1000 + Math.random() * 9000)}`;
+    let dealId = `ESC-${Math.floor(1000 + Math.random() * 9000)}`;
     const walletAddr = connected && publicKey ? publicKey.toBase58() : '';
+    
+    try {
+      const deal = await client.createDeal({
+        role,
+        wallet: walletAddr,
+        title: title.trim(),
+        successCriteria: criteria.trim(),
+        amount: parseFloat(amount),
+        deadline
+      });
+      dealId = deal.id;
+    } catch (err) {
+      console.error("Failed to create deal locally", err);
+    }
+    
     const customerWallet = role === 'customer' ? walletAddr : '';
     const contractorWallet = role === 'contractor' ? walletAddr : '';
     
+    const truncatedCriteria = criteria.trim().substring(0, 500);
     const queryParams = new URLSearchParams({
       title: title.trim(),
       amount: amount,
       token: 'USDC',
       status: 'Awaiting Funding',
+      criteria: truncatedCriteria,
+      deadline: deadline,
       ...(customerWallet && { customerWallet }),
       ...(contractorWallet && { contractorWallet })
     });
@@ -121,7 +141,7 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
 
               <div>
                 <label htmlFor="deal-criteria" className="block text-sm font-medium text-gray-300 mb-1.5">Success Criteria</label>
-                <textarea id="deal-criteria" required maxLength={1000} rows={4} placeholder="Describe exactly what needs to be delivered to release the funds..." className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-2.5 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all text-white resize-none"></textarea>
+                <textarea id="deal-criteria" required maxLength={1000} rows={4} value={criteria} onChange={(e) => setCriteria(e.target.value)} placeholder="Describe exactly what needs to be delivered to release the funds..." className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-2.5 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all text-white resize-none"></textarea>
                 <div className="flex items-center gap-2 mt-2">
                   <button type="button" className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1 transition-colors">
                     <Link2 className="w-3 h-3" /> Attach File (Requirements)

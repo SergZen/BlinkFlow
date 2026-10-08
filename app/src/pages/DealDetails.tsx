@@ -176,6 +176,8 @@ export const DealDetails = () => {
           const params = new URLSearchParams(location.search);
           const title = params.get('title');
           const amount = params.get('amount');
+          const criteria = params.get('criteria');
+          const urlDeadline = params.get('deadline');
           
           if (title && amount) {
             setDeal({
@@ -186,7 +188,7 @@ export const DealDetails = () => {
               customer: params.get('customerWallet') || 'Customer (Pending)',
               contractor: params.get('contractorWallet') || '',
               
-              tasks: [{ taskIndex: 0, amount: parseFloat(amount), status: (params.get('status') as any) === 'searching' ? 'CustomerCreated' : 'Started', taskHash: 'virtual', solutionHash: null, solutionNote: null, deadline: 'TBD', createdAt: new Date().toISOString(), deposited: false, meta: { title: title || 'VIRTUAL', successCriteria: '' } }],
+              tasks: [{ taskIndex: 0, amount: parseFloat(amount), status: (params.get('status') as any) === 'searching' ? 'CustomerCreated' : 'Started', taskHash: 'virtual', solutionHash: null, solutionNote: null, deadline: urlDeadline || 'TBD', createdAt: new Date().toISOString(), deposited: false, meta: { title: title || 'VIRTUAL', successCriteria: criteria || '' } }],
               history: []
             });
             // TEMP: virtual deals go away in stage B.
@@ -202,6 +204,14 @@ export const DealDetails = () => {
       }
     };
     loadDeal();
+    const handleDealsChanged = () => {
+      loadDeal();
+    };
+    window.addEventListener('blinkflow:deals-changed', handleDealsChanged);
+    
+    return () => {
+      window.removeEventListener('blinkflow:deals-changed', handleDealsChanged);
+    };
   }, [id, location.search]);
 
   const isVirtualDeal = !!deal && deal.creator === 'VIRTUAL';
@@ -294,7 +304,7 @@ export const DealDetails = () => {
               Success Criteria
             </h3>
             <div className="bg-gray-950 p-4 rounded-lg border border-gray-800 text-gray-300 leading-relaxed">
-              {isVirtualDeal ? (
+              {isVirtualDeal && !deal.tasks[0]?.meta.successCriteria ? (
                 <span className="text-gray-500 italic">Details available once the counterparty opens this deal.</span>
               ) : (
                 deal.tasks[0]?.meta.successCriteria /* TODO stage B */

@@ -3,7 +3,43 @@ import { Deal, Task, TaskStatus } from '../types';
 import { seedDeals } from '../../mockData';
 
 // In-memory store
-let deals: Deal[] = [...seedDeals];
+let deals: Deal[] = [];
+
+const STORAGE_KEY = 'blinkflow_mock_deals_v1';
+
+const saveDeals = () => {
+  try {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(deals));
+      window.dispatchEvent(new Event('blinkflow:deals-changed'));
+    }
+  } catch (err) {
+    console.warn('Failed to save to localStorage', err);
+  }
+};
+
+try {
+  if (typeof window !== 'undefined') {
+    const stored = window.localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed)) {
+        deals = parsed;
+      } else {
+        deals = [...seedDeals];
+        saveDeals();
+      }
+    } else {
+      deals = [...seedDeals];
+      saveDeals();
+    }
+  } else {
+    deals = [...seedDeals];
+  }
+} catch (err) {
+  console.warn('Failed to read from localStorage', err);
+  deals = [...seedDeals];
+}
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -60,6 +96,7 @@ export const mockClient: BlinkflowClient = {
     };
     
     deals.push(newDeal);
+    saveDeals();
     return JSON.parse(JSON.stringify(newDeal));
   },
 
@@ -75,6 +112,7 @@ export const mockClient: BlinkflowClient = {
       deal.customer = wallet;
       deal.history.push({ date: getNow(), action: 'Customer Assigned' });
     }
+    saveDeals();
     return JSON.parse(JSON.stringify(deal));
   },
 
@@ -98,6 +136,7 @@ export const mockClient: BlinkflowClient = {
     };
     deal.tasks.push(task);
     deal.history.push({ date: getNow(), action: 'Task Added' });
+    saveDeals();
     return JSON.parse(JSON.stringify(deal));
   },
 
@@ -114,6 +153,7 @@ export const mockClient: BlinkflowClient = {
     task.deposited = true;
     task.status = 'Started';
     deal.history.push({ date: getNow(), action: 'Task Deposited' });
+    saveDeals();
     return JSON.parse(JSON.stringify(deal));
   },
 
@@ -128,6 +168,7 @@ export const mockClient: BlinkflowClient = {
     task.solutionNote = solutionNote;
     task.solutionHash = await createHash(solutionNote);
     deal.history.push({ date: getNow(), action: 'Work Submitted by Contractor' });
+    saveDeals();
     return JSON.parse(JSON.stringify(deal));
   },
 
@@ -145,6 +186,7 @@ export const mockClient: BlinkflowClient = {
       task.status = 'Disputed';
       deal.history.push({ date: getNow(), action: 'Dispute Raised by Customer' });
     }
+    saveDeals();
     return JSON.parse(JSON.stringify(deal));
   },
 
@@ -157,6 +199,7 @@ export const mockClient: BlinkflowClient = {
 
     task.status = 'Cancelled';
     deal.history.push({ date: getNow(), action: 'Task Cancelled' });
+    saveDeals();
     return JSON.parse(JSON.stringify(deal));
   },
 
@@ -169,6 +212,7 @@ export const mockClient: BlinkflowClient = {
 
     task.status = 'Resolved';
     deal.history.push({ date: getNow(), action: `Dispute Resolved (${customerWins ? 'Customer' : 'Contractor'} won)` });
+    saveDeals();
     return JSON.parse(JSON.stringify(deal));
   }
 };
