@@ -1,7 +1,7 @@
 import { ReactNode, useState, useEffect } from 'react';
 import { useRole } from '../RoleContext';
 import { NavLink, Link } from 'react-router-dom';
-import { Zap, Home, ScrollText, ShieldCheck, Shield, Menu, X } from 'lucide-react';
+import { Zap, Home, ScrollText, ShieldCheck, Shield, Menu, X, Send } from 'lucide-react';
 import { WalletMultiButton, useWalletModal } from '@solana/wallet-adapter-react-ui';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { NetworkControls } from './NetworkControls';
@@ -82,6 +82,37 @@ export const Layout = ({ children }: { children: ReactNode }) => {
             Public Dispute Log
           </NavLink>
         </nav>
+
+        {(import.meta.env.VITE_TELEGRAM_BOT_URL || import.meta.env.VITE_TWITTER_URL) && (
+          <div className="mt-4 pt-4 border-t border-gray-800 space-y-2">
+            {import.meta.env.VITE_TELEGRAM_BOT_URL && (
+              <a 
+                href={import.meta.env.VITE_TELEGRAM_BOT_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium text-white bg-gradient-to-r from-purple-600 to-blue-600 hover:opacity-90 transition-opacity w-full"
+              >
+                <Send className="w-4 h-4" />
+                Telegram Bot
+              </a>
+            )}
+            {import.meta.env.VITE_TWITTER_URL && (
+              <a
+                href={import.meta.env.VITE_TWITTER_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-gray-800/50 transition-colors w-full"
+              >
+                <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                </svg>
+                X / Twitter
+              </a>
+            )}
+          </div>
+        )}
       </aside>
 
       {/* Main Content */}
