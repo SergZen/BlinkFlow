@@ -265,6 +265,7 @@ export const Dashboard = () => {
               className="w-full bg-gray-950 border border-gray-800 rounded-lg pl-9 pr-4 py-2 text-sm focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all text-gray-200 placeholder:text-gray-600"
             />
           </div>
+          </div>
         </div>
         <div className="px-4 py-3 bg-gray-900/40 border-b border-gray-800/60 flex gap-2 overflow-x-auto hide-scrollbar">
             {['all', 'in_progress', 'pending_approval', 'dispute', 'completed'].map((f) => (
