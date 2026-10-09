@@ -4,14 +4,16 @@ import { Badge, getStatusLabel } from '../components/Badge';
 import { Button } from '../components/Button';
 import { client } from '../lib/client';
 import { dealTotal, deriveDealStatus, dealEscrowTotal, getEarliestDeadline } from '../lib/dealStatus';
-import { Plus, ArrowRight, DollarSign, Briefcase, Clock, Search, Loader2, Inbox } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Plus, ArrowRight, DollarSign, Briefcase, Clock, Search, Loader2, Inbox, Wallet } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { CreateDealModal } from '../components/CreateDealModal';
 import { truncateAddress } from '../lib/utils';
 import type { Deal } from '../lib/types';
 import { useToken } from '../lib/constants';
 import { useNetwork } from '../NetworkContext';
+import { useWallet } from '@solana/wallet-adapter-react';
+import { useSolBalance } from '../hooks/useSolBalance';
 
 export const Dashboard = () => {
   const { role } = useRole();
@@ -21,6 +23,16 @@ export const Dashboard = () => {
   const [error, setError] = useState<string | null>(null);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [filter, setFilter] = useState<string>('all');
+  
+  const navigate = useNavigate();
+  const { publicKey, connected } = useWallet();
+  const { solBalance } = useSolBalance();
+  const MIN_SOL_REQUIRED = 0.01;
+  const hasEnoughSol = solBalance !== null && solBalance >= MIN_SOL_REQUIRED;
+
+  const [walletFilter, setWalletFilter] = useState<'all' | 'mine'>('all');
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const loadDeals = async () => {
@@ -44,7 +56,14 @@ export const Dashboard = () => {
   }, []);
 
   const isResolved = (status: string) => status === 'resolved' || status === 'resolved_refunded' || status === 'resolved_paid_out';
-  const activeDeals = deals.filter(d => {
+  const baseDeals = walletFilter === 'mine' 
+    ? deals.filter(d => {
+        const pk = publicKey?.toBase58();
+        return pk && (d.customer === pk || d.contractor === pk || d.creator === pk);
+      })
+    : deals;
+
+  const activeDeals = baseDeals.filter(d => {
     const status = deriveDealStatus(d);
     return status !== 'completed' && status !== 'cancelled' && !isResolved(status);
   });
@@ -53,13 +72,49 @@ export const Dashboard = () => {
     ? activeDeals.filter(d => deriveDealStatus(d) === 'pending_approval' || deriveDealStatus(d) === 'searching')
     : activeDeals.filter(d => deriveDealStatus(d) === 'in_progress');
 
-  const filteredDeals = deals.filter(deal => {
+  const filteredDeals = baseDeals.filter(deal => {
     if (filter === 'all') return true;
     if (filter === 'attention') return pendingActions.some(p => p.id === deal.id);
     const status = deriveDealStatus(deal);
     if (filter === 'completed') return status === 'completed' || isResolved(status);
     return status === filter;
+
   });
+
+  const handlePendingAction = async (e: React.MouseEvent, deal: Deal, action: 'release' | 'dispute' | 'assign') => {
+    e.stopPropagation();
+    if (action === 'assign') {
+      navigate(`/deal/${deal.id}`);
+      return;
+    }
+    
+    const submittedTasks = deal.tasks.map((t, i) => ({t, i})).filter(x => x.t.status === 'Finished');
+    if (submittedTasks.length !== 1) {
+      navigate(`/deal/${deal.id}`);
+      return;
+    }
+    const taskIndex = submittedTasks[0].i;
+
+    setActionLoading(deal.id);
+    setActionError(prev => {
+      const next = { ...prev };
+      delete next[deal.id];
+      return next;
+    });
+    try {
+      if (action === 'release') {
+        await client.completeTask(deal.id, taskIndex, true);
+      } else if (action === 'dispute') {
+        await client.completeTask(deal.id, taskIndex, false);
+      }
+      window.dispatchEvent(new Event('blinkflow:deals-changed'));
+    } catch (err: any) {
+      console.error(err);
+      setActionError(prev => ({ ...prev, [deal.id]: err.message || 'Action failed' }));
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -134,7 +189,14 @@ export const Dashboard = () => {
           </h3>
           <div className="grid grid-cols-1 gap-3">
             {pendingActions.map(deal => (
-              <Card key={deal.id} className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between border-orange-500/20 bg-orange-500/5 gap-4">
+              <Card 
+                key={deal.id} 
+                className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between border-orange-500/20 bg-orange-500/5 gap-4 cursor-pointer hover:bg-orange-500/10 focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-colors"
+                tabIndex={0}
+                role="link"
+                onClick={() => navigate(`/deal/${deal.id}`)}
+                onKeyDown={(e) => e.key === 'Enter' && e.target === e.currentTarget && navigate(`/deal/${deal.id}`)}
+              >
                 <div>
                   <div className="font-semibold text-gray-200">
                     {deal.tasks[0]?.meta.title}
@@ -143,15 +205,28 @@ export const Dashboard = () => {
                   <div className="text-sm text-gray-400 mt-1">
                     {deriveDealStatus(deal) === 'pending_approval' ? 'Contractor submitted work for review.' : 'Waiting to assign a contractor.'}
                   </div>
+                  {!hasEnoughSol && role === 'customer' && deriveDealStatus(deal) === 'pending_approval' && (
+                    <div className="mt-1 text-xs text-orange-400 font-medium">
+                      You need ~0.01 SOL to cover network fees.
+                    </div>
+                  )}
+                  {actionError[deal.id] && (
+                    <div className="mt-1 text-xs text-red-400 font-medium">
+                      {actionError[deal.id]}
+                    </div>
+                  )}
                 </div>
                 <div className="flex flex-col sm:flex-row flex-wrap gap-2 w-full md:w-auto md:justify-end">
                   {deriveDealStatus(deal) === 'pending_approval' ? (
                     <>
-                      <Button variant="danger" className="w-full sm:flex-none">Open Dispute</Button>
-                      <Button variant="primary" className="w-full sm:flex-none bg-orange-500 hover:bg-orange-600 text-white">Release Payment ${dealTotal(deal)}</Button>
+                      <Button variant="danger" className="w-full sm:flex-none" onClick={(e) => handlePendingAction(e, deal, 'dispute')} disabled={actionLoading === deal.id || !hasEnoughSol}>Open Dispute</Button>
+                      <Button variant="primary" className="w-full sm:flex-none bg-orange-500 hover:bg-orange-600 text-white" onClick={(e) => handlePendingAction(e, deal, 'release')} disabled={actionLoading === deal.id || !hasEnoughSol}>
+                         {actionLoading === deal.id ? <Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> : null}
+                         Release Payment ${dealTotal(deal)}
+                      </Button>
                     </>
                   ) : (
-                    <Button variant="outline" className="w-full sm:w-auto border-orange-500/30 text-orange-400 hover:bg-orange-500/10">Assign Contractor</Button>
+                    <Button variant="outline" className="w-full sm:w-auto border-orange-500/30 text-orange-400 hover:bg-orange-500/10" onClick={(e) => handlePendingAction(e, deal, 'assign')}>Assign Contractor</Button>
                   )}
                 </div>
               </Card>
@@ -167,12 +242,27 @@ export const Dashboard = () => {
             All Deals
             <span className="text-xs font-normal bg-orange-500/10 text-orange-400 px-2 py-1 rounded border border-orange-500/20">Demo data</span>
           </h3>
-          <div className="relative w-full sm:w-auto">
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+            <div className="flex bg-gray-950 border border-gray-800 rounded-lg p-0.5 shrink-0">
+              <button 
+                onClick={() => setWalletFilter('all')}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${walletFilter === 'all' ? 'bg-gray-800 text-white' : 'text-gray-400 hover:text-gray-200'}`}
+              >
+                All
+              </button>
+              <button 
+                onClick={() => setWalletFilter('mine')}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${walletFilter === 'mine' ? 'bg-gray-800 text-white' : 'text-gray-400 hover:text-gray-200'}`}
+              >
+                Mine
+              </button>
+            </div>
+            <div className="relative w-full sm:w-64 shrink-0">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
             <input 
               type="text" 
               placeholder="Search deals..." 
-              className="w-full sm:w-64 bg-gray-950 border border-gray-800 rounded-lg pl-9 pr-4 py-2 text-sm focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all text-gray-200 placeholder:text-gray-600"
+              className="w-full bg-gray-950 border border-gray-800 rounded-lg pl-9 pr-4 py-2 text-sm focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all text-gray-200 placeholder:text-gray-600"
             />
           </div>
         </div>
@@ -198,6 +288,14 @@ export const Dashboard = () => {
             </div>
           ) : error ? (
             <div className="p-12 text-center text-red-400 font-medium">{error}</div>
+          ) : walletFilter === 'mine' && !connected ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="w-16 h-16 bg-gray-900/80 rounded-full flex items-center justify-center mb-4 border border-gray-800">
+                <Wallet className="w-8 h-8 text-gray-500" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-200">Connect your wallet</h3>
+              <p className="text-sm text-gray-400 mt-1 max-w-sm">Please connect your wallet to see your deals.</p>
+            </div>
           ) : filteredDeals.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <div className="w-16 h-16 bg-gray-900/80 rounded-full flex items-center justify-center mb-4 border border-gray-800">
@@ -215,7 +313,14 @@ export const Dashboard = () => {
             {/* Mobile/Tablet Card Layout */}
             <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4 p-4 xl:hidden">
               {filteredDeals.map(deal => (
-                <div key={deal.id} className="bg-gray-900/40 border border-gray-800/60 rounded-lg p-4 space-y-3">
+                <div 
+                  key={deal.id} 
+                  className="bg-gray-900/40 border border-gray-800/60 rounded-lg p-4 space-y-3 cursor-pointer hover:bg-gray-800/40 focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-colors"
+                  tabIndex={0}
+                  role="link"
+                  onClick={() => navigate(`/deal/${deal.id}`)}
+                  onKeyDown={(e) => e.key === 'Enter' && e.target === e.currentTarget && navigate(`/deal/${deal.id}`)}
+                >
                   <div className="flex justify-between items-start gap-2">
                     <div className="min-w-0">
                       <div className="font-medium text-gray-200 truncate">
@@ -242,11 +347,7 @@ export const Dashboard = () => {
                     <span className="text-gray-500">Deadline:</span>
                     <span className="text-gray-400 text-xs">{getEarliestDeadline(deal)}</span>
                   </div>
-                  <div className="pt-2">
-                    <Link to={`/deal/${deal.id}`} className="flex items-center justify-center w-full gap-1.5 text-gray-300 hover:text-white font-medium transition-colors bg-gray-800/50 hover:bg-gray-700 px-3 py-2 rounded-md text-sm">
-                      View Deal <ArrowRight className="w-4 h-4" />
-                    </Link>
-                  </div>
+
                 </div>
               ))}
             </div>
@@ -260,12 +361,18 @@ export const Dashboard = () => {
                   <th className="px-5 py-3 font-semibold">Amount</th>
                   <th className="px-5 py-3 font-semibold">Status</th>
                   <th className="px-5 py-3 font-semibold">Deadline</th>
-                  <th className="px-5 py-3 text-right font-semibold">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-800/60 bg-gray-900/20">
                 {filteredDeals.map((deal) => (
-                  <tr key={deal.id} className="hover:bg-gray-800/40 transition-colors group">
+                  <tr 
+                    key={deal.id} 
+                    className="hover:bg-gray-800/40 transition-colors group cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                    tabIndex={0}
+                    role="link"
+                    onClick={() => navigate(`/deal/${deal.id}`)}
+                    onKeyDown={(e) => e.key === 'Enter' && e.target === e.currentTarget && navigate(`/deal/${deal.id}`)}
+                  >
                     <td className="px-5 py-4">
                       <div className="font-medium text-gray-200 group-hover:text-purple-400 transition-colors">
                         {deal.tasks[0]?.meta.title}
@@ -283,11 +390,6 @@ export const Dashboard = () => {
                       <Badge status={deriveDealStatus(deal)}>{getStatusLabel(deriveDealStatus(deal))}</Badge>
                     </td>
                     <td className="px-5 py-4 text-gray-400 text-xs">{getEarliestDeadline(deal)}</td>
-                    <td className="px-5 py-4 text-right">
-                      <Link to={`/deal/${deal.id}`} className="inline-flex items-center gap-1.5 text-gray-400 hover:text-white font-medium transition-colors bg-gray-800/50 hover:bg-gray-700 px-3 py-1.5 rounded-md text-xs">
-                        View <ArrowRight className="w-3.5 h-3.5" />
-                      </Link>
-                    </td>
                   </tr>
                 ))}
               </tbody>

@@ -176,10 +176,10 @@ export const ShareDealPanel = ({ rawActionUrl, dealId, customClass = '' }: { raw
             <CheckCircle2 className="w-5 h-5 text-green-400 shrink-0 mt-0.5" />
             <div className="flex-1 pr-6">
               <p className="text-gray-200 text-sm font-bold mb-1">
-                {instagramHint.type === 'copied' ? 'Посилання скопійовано' : 'Скопіюйте посилання вручну'}
+                {instagramHint.type === 'copied' ? 'Link copied' : 'Copy the link manually'}
               </p>
               <p className="text-gray-400 text-xs leading-relaxed">
-                Відкрийте чат в Instagram і вставте його: картка з'явиться сама.
+                Open an Instagram chat and paste it: the card will appear automatically.
               </p>
               {instagramHint.type === 'manual' && (
                 <input 
