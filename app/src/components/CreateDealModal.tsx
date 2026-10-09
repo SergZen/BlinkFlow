@@ -103,9 +103,7 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
     setStep(2);
   };
 
-  const handleCopy = (url: string) => {
-    navigator.clipboard.writeText(url);
-  };
+
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-950/80 backdrop-blur-sm animate-in fade-in">
@@ -161,30 +159,7 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
                   className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-2.5 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all text-white cursor-pointer [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:opacity-70 hover:[&::-webkit-calendar-picker-indicator]:opacity-100" 
                 />
               </div>
-
               <div className="pt-4 space-y-4">
-                <div className="flex items-center justify-between bg-gray-950 p-3 rounded-lg border border-gray-800">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-gray-300">Network Mode</span>
-                  </div>
-                  <div className="flex bg-gray-900 p-1 rounded-md border border-gray-800">
-                    <button
-                      type="button"
-                      onClick={() => setNetwork('devnet')}
-                      className={`text-xs px-3 py-1.5 rounded transition-all font-medium ${isTestMode ? 'bg-gray-800 text-white shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}
-                    >
-                      Devnet
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setNetwork('mainnet-beta')}
-                      className={`text-xs px-3 py-1.5 rounded transition-all font-medium ${!isTestMode ? 'bg-orange-500/20 text-orange-400 shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}
-                    >
-                      Live
-                    </button>
-                  </div>
-                </div>
-
                 {!hasEnoughSol && role === 'customer' && (
                   <div className="mb-4 bg-orange-500/10 border border-orange-500/20 rounded-lg p-3 text-sm text-orange-400">
                     You need a small amount of SOL (~0.01) to cover network fees and account rent.
@@ -211,7 +186,7 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
                     type="submit"
                     disabled={!hasEnoughSol && role === 'customer'}
                   >
-                    Create Deal Link ({isTestMode ? 'Devnet' : 'Live'})
+                    Create Deal Link
                   </Button>
                 )}
               </div>
@@ -237,7 +212,6 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
               <ShareDealPanel 
                 rawActionUrl={rawActionUrl} 
                 dealId="ESC-1006" 
-                onCopy={handleCopy} 
               />
             </div>
           )}

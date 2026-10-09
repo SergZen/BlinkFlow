@@ -11,20 +11,17 @@ interface NetworkContextType {
 const NetworkContext = createContext<NetworkContextType | undefined>(undefined);
 
 export const NetworkProvider = ({ children }: { children: ReactNode }) => {
-  const [network, setNetwork] = useState<NetworkType>(() => {
-    const saved = localStorage.getItem('blinkflow_network');
-    return (saved as NetworkType) || 'devnet';
-  });
+  const network = 'devnet';
 
   useEffect(() => {
-    localStorage.setItem('blinkflow_network', network);
-  }, [network]);
+    localStorage.removeItem('blinkflow_network');
+  }, []);
 
   return (
     <NetworkContext.Provider value={{ 
       network, 
-      setNetwork, 
-      isTestMode: network === 'devnet' 
+      setNetwork: () => {}, 
+      isTestMode: true 
     }}>
       {children}
     </NetworkContext.Provider>

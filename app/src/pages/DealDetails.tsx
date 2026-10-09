@@ -17,116 +17,76 @@ import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { useWalletModal } from '@solana/wallet-adapter-react-ui';
 import { Transaction } from '@solana/web3.js';
 
-const EscrowActionCard = ({ deal }: { deal: Deal }) => {
+const EscrowActionCard = ({ deal, escrowState }: { deal: Deal, escrowState: string }) => {
   const { isTestMode } = useNetwork();
-  const [data, setData] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const [imgError, setImgError] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
-  const BLINK_SERVER_URL = import.meta.env.VITE_ACTIONS_API_URL || 'http://localhost:3001';
-
-  useEffect(() => {
-    fetch(`${BLINK_SERVER_URL}/api/deal/${deal.id}`)
-      .then(res => {
-        if (!res.ok) throw new Error("Failed to fetch action");
-        return res.json();
-      })
-      .then(json => {
-        setData(json);
-        setIsLoading(false);
-      })
-      .catch(err => {
-        console.error(err);
-        setError("Failed to load action preview");
-        setIsLoading(false);
-      });
-  }, [deal.id, BLINK_SERVER_URL]);
+  let rawBaseUrl = import.meta.env.VITE_ACTIONS_API_URL || 'http://localhost:3001';
+  if (rawBaseUrl.endsWith('/')) {
+    rawBaseUrl = rawBaseUrl.slice(0, -1);
+  }
+  const BLINK_SERVER_URL = rawBaseUrl;
 
   const currentStatus = getStatusLabel(deriveDealStatus(deal));
 
-  const getEscrowState = () => {
-    const activeTasks = deal.tasks.filter(t => t.status !== 'Cancelled');
-    if (activeTasks.length === 0) return 'Not funded';
-    
-    const allDone = activeTasks.every(t => t.status === 'Completed' || t.status === 'Resolved');
-    if (allDone) {
-      if (activeTasks.every(t => t.status === 'Completed')) return 'Released';
-      if (activeTasks.some(t => t.disputeResult === 'customer')) return 'Refunded';
-      if (activeTasks.some(t => t.disputeResult === 'contractor')) return 'Released to contractor';
-      return 'Released';
+  const params = new URLSearchParams({
+    title: deal.tasks[0]?.meta?.title || 'Escrow Deal',
+    amount: dealTotal(deal).toString(),
+    token: 'USDC',
+    status: currentStatus,
+  });
+  if (deal.customer) params.append('customerWallet', deal.customer);
+  if (deal.contractor) params.append('contractorWallet', deal.contractor);
+
+  const ogImageUrl = `${BLINK_SERVER_URL}/api/deal/${deal.id}/og-image.png?${params.toString()}`;
+
+  const getButtonText = () => {
+    switch(escrowState) {
+      case 'Not funded': return 'Deposit USDC';
+      case 'Funded': return 'Awaiting work';
+      case 'Released': return 'Released';
+      case 'Refunded': return 'Refunded';
+      case 'Released to contractor': return 'Released to contractor';
+      default: return 'Action';
     }
-    
-    const anyDeposited = activeTasks.some(t => t.deposited);
-    if (anyDeposited) return 'Funded';
-    return 'Not funded';
   };
 
   return (
-    <div className="w-full overflow-hidden rounded-xl bg-gray-900 border border-gray-800 flex flex-col">
-      {data?.icon ? (
-        <img src={data.icon} alt={data.title} className="w-full h-48 object-cover border-b border-gray-800" />
-      ) : (
-        <div className="w-full h-48 bg-gray-950 border-b border-gray-800 flex flex-col items-center justify-center text-gray-500">
-          {isLoading ? (
-            <><Loader2 className="w-6 h-6 animate-spin mb-2" /><span>Loading preview...</span></>
-          ) : (
-            <><div className="mb-2">No preview image</div><span className="text-xs text-red-400">{error}</span></>
+    <div className="space-y-4">
+      <div className="w-full overflow-hidden rounded-xl bg-gray-900 border border-gray-800 flex flex-col">
+        <div className="w-full aspect-[1.91/1] bg-[#030712] border-b border-gray-800 flex items-center justify-center relative overflow-hidden">
+          {!imgLoaded && !imgError && (
+            <div className="absolute inset-0 flex items-center justify-center bg-gray-950">
+              <Loader2 className="w-6 h-6 animate-spin text-gray-500" />
+            </div>
           )}
+          <img 
+            src={imgError ? `${BLINK_SERVER_URL}/blinkFlow.jpg` : ogImageUrl} 
+            alt="Deal Preview" 
+            className={`w-full h-full object-contain transition-opacity duration-300 ${imgLoaded || imgError ? 'opacity-100' : 'opacity-0'}`}
+            onLoad={() => setImgLoaded(true)}
+            onError={() => setImgError(true)}
+          />
         </div>
-      )}
-      <div className="p-5 space-y-4">
-        <div>
-          <h4 className="font-bold text-lg text-white mb-1">
-            {deal.tasks[0]?.meta.title}
-          </h4>
-          <p className="text-xs text-gray-500 font-mono mb-2">ID: {deal.id}</p>
-          <p className="text-sm text-gray-400 leading-relaxed">
-            {getEscrowState() === 'Not funded' && "Waiting for the customer to fund the escrow."}
-            {getEscrowState() === 'Funded' && "Funds are held in escrow until the work is approved."}
-            {getEscrowState() === 'Released' && "Funds were released to the contractor."}
-            {getEscrowState() === 'Refunded' && "Funds were refunded to the customer."}
-            {getEscrowState() === 'Released to contractor' && "Dispute resolved: funds released to the contractor."}
+        <div className="p-4 space-y-4">
+          <p className="text-sm text-gray-400 leading-relaxed line-clamp-2">
+            {escrowState === 'Not funded' && "Waiting for the customer to fund the escrow."}
+            {escrowState === 'Funded' && "Funds are held in escrow until the work is approved."}
+            {escrowState === 'Released' && "Funds were released to the contractor."}
+            {escrowState === 'Refunded' && "Funds were refunded to the customer."}
+            {escrowState === 'Released to contractor' && "Dispute resolved: funds released to the contractor."}
           </p>
-        </div>
-        
-        <div className="space-y-2 pt-2 border-t border-gray-800/50 text-sm">
-          <div className="flex justify-between">
-            <span className="text-gray-500">Status</span>
-            <span className="text-gray-300 font-medium">{currentStatus}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-500">Escrow</span>
-            <span className="text-gray-300 font-medium">{getEscrowState()}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-500">Amount</span>
-            <span className="text-gray-300 font-medium">${dealTotal(deal).toLocaleString()} USDC</span>
-          </div>
-          <div className="flex flex-col gap-1 mt-2">
-            <div className="flex justify-between">
-              <span className="text-gray-500">Customer</span>
-              <span className="font-mono text-gray-300">{deal.customer ? truncateAddress(deal.customer) : 'Waiting'}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">Contractor</span>
-              <span className="font-mono text-gray-300">{deal.contractor ? truncateAddress(deal.contractor) : 'Waiting'}</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="pt-2">
-          <Button variant="primary" className="w-full py-2.5" onClick={() => setIsShareModalOpen(true)}>
-            <Share2 className="w-4 h-4 mr-2" /> Share Deal
+          <Button variant="primary" className="w-full pointer-events-none opacity-80" disabled>
+            {getButtonText()}
           </Button>
         </div>
-        
-        {isTestMode && (
-          <p className="text-xs text-center text-gray-500 mt-2">
-            Demo: payments are simulated until the smart contract is deployed
-          </p>
-        )}
       </div>
+      
+      <Button variant="outline" className="w-full py-2.5" onClick={() => setIsShareModalOpen(true)}>
+        <Share2 className="w-4 h-4 mr-2" /> Share Deal
+      </Button>
 
       {isShareModalOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-950/80 backdrop-blur-sm animate-in fade-in">
@@ -146,9 +106,6 @@ const EscrowActionCard = ({ deal }: { deal: Deal }) => {
                 ...(deal.contractor && { contractorWallet: deal.contractor })
               }).toString()}`}
               dealId={deal.id}
-              onCopy={(url) => { 
-                navigator.clipboard.writeText(url); 
-              }}
               customClass="mt-2"
             />
           </Card>
@@ -261,6 +218,25 @@ export const DealDetails = () => {
 
   const isVirtualDeal = !!deal && deal.creator === 'VIRTUAL';
 
+  const getEscrowState = () => {
+    if (!deal || !deal.tasks) return 'Not funded';
+    const activeTasks = deal.tasks.filter(t => t.status !== 'Cancelled');
+    if (activeTasks.length === 0) return 'Not funded';
+    
+    const allDone = activeTasks.every(t => t.status === 'Completed' || t.status === 'Resolved');
+    if (allDone) {
+      if (activeTasks.every(t => t.status === 'Completed')) return 'Released';
+      if (activeTasks.some(t => t.disputeResult === 'customer')) return 'Refunded';
+      if (activeTasks.some(t => t.disputeResult === 'contractor')) return 'Released to contractor';
+      return 'Released';
+    }
+    
+    const anyDeposited = activeTasks.some(t => t.deposited);
+    if (anyDeposited) return 'Funded';
+    return 'Not funded';
+  };
+  const escrowState = getEscrowState();
+
   if (loading) return <div className="p-12 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-purple-500" /></div>;
   if (error) return <div className="p-8 text-center text-red-400">{error}</div>;
   if (!deal) return <div className="p-8 text-center text-gray-400">Deal not found</div>;
@@ -346,7 +322,7 @@ export const DealDetails = () => {
             ) : (
               <Button onClick={() => handleTaskAction(index, () => client.depositTask(deal.id, index, publicKey!.toBase58()))} disabled={loading || !hasEnoughSol} className={!hasEnoughSol ? 'opacity-50' : ''}>
                 {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> : null}
-                Deposit ({isTestMode ? 'Devnet' : 'Live'})
+                Deposit
               </Button>
             )}
             {err && <p className="text-red-400 text-xs">{err}</p>}
@@ -370,10 +346,10 @@ export const DealDetails = () => {
                  <>
                    <Button variant="primary" className="bg-green-600 hover:bg-green-500" onClick={() => handleTaskAction(index, () => client.completeTask(deal.id, index, true))} disabled={loading || !hasEnoughSol} >
                       {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> : null}
-                      Approve & Release ({isTestMode ? 'Devnet' : 'Live'})
+                      Approve & Release
                    </Button>
                    <Button variant="danger" onClick={() => handleTaskAction(index, () => client.completeTask(deal.id, index, false))} disabled={loading || !hasEnoughSol} >
-                      Open Dispute ({isTestMode ? 'Devnet' : 'Live'})
+                      Open Dispute
                    </Button>
                    {/* ASSUMPTION: confirm with the contract author */}
                  </>
@@ -398,7 +374,7 @@ export const DealDetails = () => {
                  <Button variant="outline" onClick={() => setVisible(true)}>Connect Wallet to Cancel</Button>
               ) : (
                 <Button variant="outline" onClick={() => handleTaskAction(index, () => client.cancelTask(deal.id, index))} disabled={loading || !hasEnoughSol}>
-                  Cancel Task ({isTestMode ? 'Devnet' : 'Live'})
+                  Cancel Task
                 </Button>
               )}
             </div>
@@ -425,12 +401,12 @@ export const DealDetails = () => {
               ) : (
                 <Button variant="primary" onClick={() => handleTaskAction(index, () => client.finishTask(deal.id, index, submissionText))} disabled={loading || !submissionText.trim() || !hasEnoughSol}>
                   {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> : null}
-                  Submit Work ({isTestMode ? 'Devnet' : 'Live'})
+                  Submit Work
                 </Button>
               )}
               {!connected ? null : (
                 <Button variant="outline" onClick={() => handleTaskAction(index, () => client.cancelTask(deal.id, index))} disabled={loading || !hasEnoughSol}>
-                  Cancel Task ({isTestMode ? 'Devnet' : 'Live'})
+                  Cancel Task
                 </Button>
               )}
             </div>
@@ -481,6 +457,28 @@ export const DealDetails = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
+          <Card className="p-4 sm:p-5">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <div className="text-gray-500 text-xs uppercase tracking-wider font-semibold mb-1">Escrow</div>
+                <div className="text-gray-300 font-medium">{escrowState}</div>
+              </div>
+              <div>
+                <div className="text-gray-500 text-xs uppercase tracking-wider font-semibold mb-1">Customer</div>
+                <div className="text-gray-300 font-mono">{deal?.customer ? truncateAddress(deal.customer) : 'Waiting'}</div>
+              </div>
+              <div>
+                <div className="text-gray-500 text-xs uppercase tracking-wider font-semibold mb-1">Contractor</div>
+                <div className="text-gray-300 font-mono">{deal?.contractor ? truncateAddress(deal.contractor) : 'Waiting'}</div>
+              </div>
+            </div>
+            {isTestMode && (
+              <div className="mt-4 pt-4 border-t border-gray-800/50 text-xs text-gray-500">
+                Demo: payments are simulated until the smart contract is deployed
+              </div>
+            )}
+          </Card>
+
           {!isVirtualDeal && ((role === 'contractor' && !deal.contractor) || (role === 'customer' && !deal.customer)) && (
             <Card className="p-6 border-purple-500/20 bg-purple-500/5">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -497,7 +495,7 @@ export const DealDetails = () => {
                   ) : (
                     <Button variant="gradient" onClick={() => handleGlobalAction(() => client.acceptDeal(deal.id, publicKey!.toBase58()))} disabled={globalLoading}>
                       {globalLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> : null}
-                      Accept Deal ({isTestMode ? 'Devnet' : 'Live'})
+                      Accept Deal
                     </Button>
                   )}
                 </div>
@@ -557,39 +555,6 @@ export const DealDetails = () => {
             </div>
           </Card>
 
-
-        </div>
-
-        <div className="space-y-6">
-          <Card className="p-6 border-purple-500/20 bg-purple-500/5">
-            <h3 className="font-medium mb-4 text-purple-400 flex items-center gap-2">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
-              Live Deal Preview
-            </h3>
-            <EscrowActionCard deal={deal} />
-          </Card>
-
-          <Card className="p-6">
-            <h3 className="font-medium mb-4 flex items-center gap-2">
-              Deal Details
-              <span className="text-xs font-normal bg-orange-500/10 text-orange-400 px-2 py-1 rounded border border-orange-500/20">Demo data</span>
-            </h3>
-            <div className="space-y-4 text-sm">
-              <div>
-                <div className="text-gray-500 mb-1">Customer</div>
-                <div className="font-mono text-gray-300">{deal.customer ? truncateAddress(deal.customer) : 'Not assigned yet'}</div>
-              </div>
-              <div>
-                <div className="text-gray-500 mb-1">Contractor</div>
-                <div className="font-mono text-gray-300">{deal.contractor ? truncateAddress(deal.contractor) : 'Not assigned yet'}</div>
-              </div>
-              <div>
-                <div className="text-gray-500 mb-1">Deadline</div>
-                <div className="text-gray-300">{deal.tasks[0]?.deadline /* TODO stage B */}</div>
-              </div>
-            </div>
-          </Card>
-
           {!isVirtualDeal && deal.history && deal.history.length > 0 && (
             <Card className="p-6">
               <h3 className="font-medium mb-4 flex items-center gap-2">
@@ -613,6 +578,16 @@ export const DealDetails = () => {
               </div>
             </Card>
           )}
+        </div>
+
+        <div className="space-y-6">
+          <div>
+            <h3 className="font-medium mb-4 text-purple-400 flex items-center gap-2 px-1">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+              Live Deal Preview
+            </h3>
+            <EscrowActionCard deal={deal} escrowState={escrowState} />
+          </div>
         </div>
       </div>
     </div>

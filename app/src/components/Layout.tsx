@@ -31,7 +31,7 @@ export const Layout = ({ children }: { children: ReactNode }) => {
         <div className="fixed bottom-4 right-4 z-[100] animate-in slide-in-from-bottom-5">
           <div className="bg-gray-800 text-white px-4 py-3 rounded-lg shadow-xl border border-gray-700 flex items-center gap-2">
             <Zap className={`w-4 h-4 ${isTestMode ? 'text-gray-400' : 'text-orange-400'}`} />
-            <span className="font-medium">Connected &middot; {isTestMode ? 'Devnet' : 'Mainnet (Live)'}</span>
+            <span className="font-medium">Connected &middot; Devnet</span>
           </div>
         </div>
       )}

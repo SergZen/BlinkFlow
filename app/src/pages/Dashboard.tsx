@@ -147,8 +147,8 @@ export const Dashboard = () => {
                 <div className="flex flex-col sm:flex-row flex-wrap gap-2 w-full md:w-auto md:justify-end">
                   {deriveDealStatus(deal) === 'pending_approval' ? (
                     <>
-                      <Button variant="danger" className="w-full sm:flex-none">Open Dispute ({isTestMode ? 'Devnet' : 'Live'})</Button>
-                      <Button variant="primary" className="w-full sm:flex-none bg-orange-500 hover:bg-orange-600 text-white">Release Payment ${dealTotal(deal)} ({isTestMode ? 'Devnet' : 'Live'})</Button>
+                      <Button variant="danger" className="w-full sm:flex-none">Open Dispute</Button>
+                      <Button variant="primary" className="w-full sm:flex-none bg-orange-500 hover:bg-orange-600 text-white">Release Payment ${dealTotal(deal)}</Button>
                     </>
                   ) : (
                     <Button variant="outline" className="w-full sm:w-auto border-orange-500/30 text-orange-400 hover:bg-orange-500/10">Assign Contractor</Button>

@@ -279,25 +279,17 @@ app.get('/api/deal/:id/og-image.png', async (req, res) => {
     const { id } = req.params;
     const foundDeal = dealsData.find(d => d.id === id);
     
-    let title = 'Escrow Deal';
-    let amount = '';
-    let status = 'Pending';
-    let customerWallet = '';
-    let contractorWallet = '';
+    const baseTitle = foundDeal ? foundDeal.title : 'Escrow Deal';
+    const baseAmount = foundDeal ? foundDeal.amount.toString() : '';
+    const baseStatus = foundDeal ? foundDeal.status : 'Pending';
+    const baseCustomer = foundDeal ? foundDeal.customer : '';
+    const baseContractor = foundDeal ? (foundDeal.contractor || '') : '';
 
-    if (foundDeal) {
-      title = foundDeal.title;
-      amount = foundDeal.amount.toString();
-      status = foundDeal.status;
-      customerWallet = foundDeal.customer;
-      contractorWallet = foundDeal.contractor || '';
-    } else {
-      title = req.query.title || 'Escrow Deal';
-      amount = req.query.amount || '';
-      status = req.query.status || 'Pending';
-      customerWallet = req.query.customerWallet || '';
-      contractorWallet = req.query.contractorWallet || '';
-    }
+    const title = req.query.title || baseTitle;
+    const amount = req.query.amount || baseAmount;
+    const status = req.query.status || baseStatus;
+    const customerWallet = req.query.customerWallet || baseCustomer;
+    const contractorWallet = req.query.contractorWallet || baseContractor;
 
     const shorten = (addr) => addr && addr.length > 8 ? `${addr.slice(0, 4)}...${addr.slice(-4)}` : addr;
 

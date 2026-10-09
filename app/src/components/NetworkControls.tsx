@@ -25,20 +25,14 @@ export const NetworkControls = () => {
 
   return (
     <div className="flex items-center gap-3 relative">
-      {/* Network Switcher Toggle */}
-      <button
-        onClick={() => setNetwork(isTestMode ? 'mainnet-beta' : 'devnet')}
-        title={isTestMode ? "Switch to Mainnet (Live)" : "Switch to Test Mode (Devnet)"}
-        className={`group flex items-center justify-center gap-1.5 sm:gap-2 w-[90px] sm:w-[120px] px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-full border font-mono text-[9px] sm:text-[10px] font-bold tracking-wider cursor-pointer transition-all ${
-          isTestMode
-            ? 'bg-amber-500/10 text-amber-400 border-amber-500/50 shadow-[0_0_12px_rgba(245,158,11,0.5)] hover:bg-amber-500/20'
-            : 'bg-green-500/10 text-green-400 border-green-500/20 hover:bg-green-500/20'
-        }`}
+      {/* Static Devnet Badge */}
+      <div
+        title="Running on Solana Devnet for Colosseum Hackathon"
+        className="flex items-center justify-center gap-1.5 sm:gap-2 w-[90px] sm:w-[100px] px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-full border font-mono text-[9px] sm:text-[10px] font-bold tracking-wider bg-amber-500/10 text-amber-400 border-amber-500/50 shadow-[0_0_12px_rgba(245,158,11,0.5)]"
       >
-        <div className={`w-2 h-2 rounded-full ${isTestMode ? 'bg-amber-400 animate-pulse' : 'bg-green-400'}`}></div>
-        <span>{isTestMode ? 'TEST MODE' : 'LIVE'}</span>
-        <ArrowRightLeft className="w-3 h-3 opacity-40 group-hover:opacity-100 transition-opacity ml-0.5" />
-      </button>
+        <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></div>
+        <span>TEST MODE</span>
+      </div>
 
       {/* Phantom Testnet Tip Tooltip */}
       {showPhantomTip && (

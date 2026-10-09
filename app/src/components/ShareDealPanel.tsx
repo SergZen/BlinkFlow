@@ -2,10 +2,21 @@ import { Button } from './Button';
 import { Copy, Loader2, X, CheckCircle2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
-export const ShareDealPanel = ({ rawActionUrl, dealId, onCopy, customClass = '' }: { rawActionUrl: string, dealId: string, onCopy: (url: string) => void, customClass?: string }) => {
+export const ShareDealPanel = ({ rawActionUrl, dealId, customClass = '' }: { rawActionUrl: string, dealId: string, customClass?: string }) => {
   const [isShortening, setIsShortening] = useState<'telegram' | 'twitter' | 'instagram' | null>(null);
   const [isShorteningCopy, setIsShorteningCopy] = useState(false);
   const [instagramHint, setInstagramHint] = useState<{ type: 'copied' | 'manual', url: string } | null>(null);
+  const [copiedLink, setCopiedLink] = useState<'short' | 'full' | null>(null);
+
+  useEffect(() => {
+    let timeout: NodeJS.Timeout;
+    if (copiedLink) {
+      timeout = setTimeout(() => {
+        setCopiedLink(null);
+      }, 2000);
+    }
+    return () => clearTimeout(timeout);
+  }, [copiedLink]);
 
   useEffect(() => {
     if (!instagramHint) return;
@@ -36,7 +47,21 @@ export const ShareDealPanel = ({ rawActionUrl, dealId, onCopy, customClass = '' 
     setIsShorteningCopy(true);
     const shortUrl = await getShortUrl();
     setIsShorteningCopy(false);
-    onCopy(shortUrl);
+    try {
+      await navigator.clipboard.writeText(shortUrl);
+      setCopiedLink('short');
+    } catch (e) {
+      console.error('Failed to copy short link:', e);
+    }
+  };
+
+  const handleCopyFullLink = async () => {
+    try {
+      await navigator.clipboard.writeText(rawActionUrl);
+      setCopiedLink('full');
+    } catch (e) {
+      console.error('Failed to copy full link:', e);
+    }
   };
 
   const handleShareTelegram = async () => {
@@ -176,11 +201,13 @@ export const ShareDealPanel = ({ rawActionUrl, dealId, onCopy, customClass = '' 
         <div className="flex flex-col gap-3 w-full">
           <Button variant="outline" className="w-full justify-between group border-gray-800 hover:bg-gray-800/50" onClick={handleCopyShortLink} disabled={isShorteningCopy}>
             <span className="text-sm font-medium">Copy short link</span>
-            {isShorteningCopy ? <Loader2 className="w-4 h-4 text-gray-500 animate-spin" /> : <Copy className="w-4 h-4 text-gray-500 group-hover:text-white transition-colors" />}
+            {isShorteningCopy ? <Loader2 className="w-4 h-4 text-gray-500 animate-spin" /> : 
+              copiedLink === 'short' ? <CheckCircle2 className="w-4 h-4 text-green-400" aria-label="Copied" title="Copied" /> : <Copy className="w-4 h-4 text-gray-500 group-hover:text-white transition-colors" />
+            }
           </Button>
-          <Button variant="outline" className="w-full justify-between group border-gray-800 hover:bg-gray-800/50" onClick={() => onCopy(rawActionUrl)}>
+          <Button variant="outline" className="w-full justify-between group border-gray-800 hover:bg-gray-800/50" onClick={handleCopyFullLink}>
             <span className="text-sm font-medium">Copy full link</span>
-            <Copy className="w-4 h-4 text-gray-500 group-hover:text-white transition-colors" />
+            {copiedLink === 'full' ? <CheckCircle2 className="w-4 h-4 text-green-400" aria-label="Copied" title="Copied" /> : <Copy className="w-4 h-4 text-gray-500 group-hover:text-white transition-colors" />}
           </Button>
         </div>
       </div>
