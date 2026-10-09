@@ -77,8 +77,17 @@ const EscrowActionCard = ({ deal }: { deal: Deal }) => {
       )}
       <div className="p-5 space-y-4">
         <div>
-          <h4 className="font-bold text-lg text-white mb-1">{data?.title || 'BlinkFlow Escrow'}</h4>
-          <p className="text-sm text-gray-400 leading-relaxed">{data?.description || 'No description available.'}</p>
+          <h4 className="font-bold text-lg text-white mb-1">
+            {deal.tasks[0]?.meta.title}
+          </h4>
+          <p className="text-xs text-gray-500 font-mono mb-2">ID: {deal.id}</p>
+          <p className="text-sm text-gray-400 leading-relaxed">
+            {getEscrowState() === 'Not funded' && "Waiting for the customer to fund the escrow."}
+            {getEscrowState() === 'Funded' && "Funds are held in escrow until the work is approved."}
+            {getEscrowState() === 'Released' && "Funds were released to the contractor."}
+            {getEscrowState() === 'Refunded' && "Funds were refunded to the customer."}
+            {getEscrowState() === 'Released to contractor' && "Dispute resolved: funds released to the contractor."}
+          </p>
         </div>
         
         <div className="space-y-2 pt-2 border-t border-gray-800/50 text-sm">
@@ -297,7 +306,7 @@ export const DealDetails = () => {
       let text = 'Resolved';
       if (task.disputeResult === 'customer') text += ' — Customer won (refund)';
       else if (task.disputeResult === 'contractor') text += ' — Contractor won (payout)';
-      return <p className="text-gray-500 text-sm italic mt-4 pt-4 border-t border-gray-800/50">{text}</p>;
+      return <p className="text-gray-300 text-sm mt-4 pt-4 border-t border-gray-800/50">{text}</p>;
     }
 
     if (task.status === 'Completed' || task.status === 'Cancelled') {

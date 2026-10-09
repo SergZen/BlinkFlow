@@ -36,7 +36,10 @@ export const taskStatusLabel = (task: Task): string => {
     case 'Finished': return 'Submitted';
     case 'Started': return 'In Progress';
     case 'Completed': return 'Completed';
-    case 'Resolved': return 'Resolved';
+    case 'Resolved':
+      if (task.disputeResult === 'customer') return 'Resolved · Refunded';
+      if (task.disputeResult === 'contractor') return 'Resolved · Paid out';
+      return 'Resolved';
     case 'Cancelled': return 'Cancelled';
     case 'CustomerCreated':
     case 'ContractorCreated':
@@ -50,8 +53,11 @@ export const taskStatusKind = (task: Task): DealStatus => {
     case 'Disputed': return 'dispute';
     case 'Finished': return 'pending_approval';
     case 'Started': return 'in_progress';
-    case 'Completed':
-    case 'Resolved': return 'completed';
+    case 'Completed': return 'completed';
+    case 'Resolved':
+      if (task.disputeResult === 'customer') return 'resolved_refunded';
+      if (task.disputeResult === 'contractor') return 'resolved_paid_out';
+      return 'resolved';
     case 'Cancelled': return 'cancelled';
     case 'CustomerCreated':
     case 'ContractorCreated':
@@ -68,7 +74,12 @@ export const deriveDealStatus = (deal: Deal): DealStatus => {
   
   const activeTasks = tasks.filter(t => t.status !== 'Cancelled');
   if (activeTasks.length > 0 && activeTasks.every(t => t.status === 'Completed' || t.status === 'Resolved')) {
-    if (activeTasks.some(t => t.status === 'Resolved')) return 'resolved';
+    if (activeTasks.some(t => t.status === 'Resolved')) {
+      const resolvedTasks = activeTasks.filter(t => t.status === 'Resolved');
+      if (resolvedTasks.every(t => t.disputeResult === 'customer')) return 'resolved_refunded';
+      if (resolvedTasks.every(t => t.disputeResult === 'contractor')) return 'resolved_paid_out';
+      return 'resolved';
+    }
     return 'completed';
   }
   
