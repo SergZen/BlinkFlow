@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Shield, Zap, Handshake, Lock, Scale } from 'lucide-react';
+import { openCookieSettings } from '../lib/consent';
 
 export const About = () => {
   useEffect(() => {
@@ -138,6 +139,7 @@ export const About = () => {
             )}
             <Link to="/terms" className="hover:text-slate-300 transition-colors">Terms</Link>
             <Link to="/privacy" className="hover:text-slate-300 transition-colors">Privacy</Link>
+            <button onClick={openCookieSettings} className="hover:text-slate-300 transition-colors">Cookie settings</button>
           </div>
         </div>
       </footer>

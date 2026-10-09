@@ -12,6 +12,10 @@ import { DisputeLog } from './pages/DisputeLog';
 import { LpFreelancerEscrow } from './pages/LpFreelancerEscrow';
 import { About } from './pages/About';
 
+import { Terms } from './pages/Terms';
+import { Privacy } from './pages/Privacy';
+import { CookieBanner } from './components/CookieBanner';
+
 import '@solana/wallet-adapter-react-ui/styles.css';
 import { NetworkProvider, useNetwork } from './NetworkContext';
 
@@ -32,9 +36,12 @@ function InnerApp() {
         <WalletModalProvider>
           <RoleProvider>
             <Router>
+              <CookieBanner />
               <Routes>
                 <Route path="/lp/freelancer-escrow" element={<LpFreelancerEscrow />} />
                 <Route path="/about" element={<About />} />
+                <Route path="/terms" element={<Terms />} />
+                <Route path="/privacy" element={<Privacy />} />
                 <Route path="/*" element={
                   <Layout>
                     <Routes>
@@ -46,6 +53,7 @@ function InnerApp() {
                   </Layout>
                 } />
               </Routes>
+
             </Router>
           </RoleProvider>
         </WalletModalProvider>
