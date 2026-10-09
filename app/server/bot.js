@@ -70,7 +70,19 @@ function setupBot(app, baseUrl, frontendUrl, dealsData) {
   };
 
   bot.onText(/^\/start/, (msg) => {
-    showMenu(msg.chat.id);
+    const chatId = msg.chat.id;
+    bot.sendMessage(chatId, "👇 Choose an option below:", {
+      reply_markup: {
+        keyboard: [
+          ["➕ New deal", "📂 Demo deals"],
+          ["ℹ️ How it works", "🌐 Website"]
+        ],
+        resize_keyboard: true,
+        is_persistent: true
+      }
+    }).then(() => {
+      showMenu(chatId);
+    }).catch(err => console.error("Telegram API Error:", err));
   });
 
   bot.onText(/^\/cancel/, (msg) => {
@@ -79,16 +91,23 @@ function setupBot(app, baseUrl, frontendUrl, dealsData) {
     showMenu(chatId);
   });
 
+  const sendDemoDeals = (chatId) => {
+    const keyboard = dealsData.map(d => ([{ text: `${d.title} · ${d.id}`, callback_data: `dl:${d.id}` }]));
+    bot.sendMessage(chatId, "Select a demo deal:", {
+      reply_markup: { inline_keyboard: keyboard }
+    }).catch(err => console.error("Telegram API Error:", err));
+  };
+
+  const sendHowItWorks = (chatId) => {
+    bot.sendMessage(chatId, "ℹ️ *How it works*\n1. Create a deal and set the terms.\n2. Forward the Blink to your client.\n3. They deposit funds securely into the smart contract.\n4. Funds are released when the work is done.", { parse_mode: 'Markdown' }).catch(err => console.error("Telegram API Error:", err));
+  };
+
   bot.onText(/^\/deal(?: (.+))?/, (msg, match) => {
     const chatId = msg.chat.id;
     const dealId = match[1];
 
     if (!dealId) {
-      // Show demo deals list
-      const keyboard = dealsData.map(d => ([{ text: `${d.title} · ${d.id}`, callback_data: `dl:${d.id}` }]));
-      bot.sendMessage(chatId, "Select a demo deal:", {
-        reply_markup: { inline_keyboard: keyboard }
-      }).catch(err => console.error("Telegram API Error:", err));
+      sendDemoDeals(chatId);
       return;
     }
 
@@ -146,14 +165,35 @@ function setupBot(app, baseUrl, frontendUrl, dealsData) {
     if (msg.text && msg.text.startsWith('/')) return;
 
     const chatId = msg.chat.id;
+    const text = msg.text ? msg.text.trim() : '';
+
+    if (text === "➕ New deal") {
+      conversations.delete(chatId);
+      startNewDeal(chatId);
+      return;
+    }
+    if (text === "📂 Demo deals") {
+      conversations.delete(chatId);
+      sendDemoDeals(chatId);
+      return;
+    }
+    if (text === "ℹ️ How it works") {
+      conversations.delete(chatId);
+      sendHowItWorks(chatId);
+      return;
+    }
+    if (text === "🌐 Website") {
+      conversations.delete(chatId);
+      bot.sendMessage(chatId, frontendUrl).catch(err => console.error("Telegram API Error:", err));
+      return;
+    }
+
     const session = conversations.get(chatId);
 
     if (!session) return;
 
     cleanupSessions();
     session.lastActive = Date.now();
-
-    const text = msg.text ? msg.text.trim() : '';
 
     switch (session.step) {
       case 'AWAITING_TITLE':
@@ -264,15 +304,12 @@ function setupBot(app, baseUrl, frontendUrl, dealsData) {
     }
 
     if (data === 'demo') {
-      const keyboard = dealsData.map(d => ([{ text: `${d.title} · ${d.id}`, callback_data: `dl:${d.id}` }]));
-      bot.sendMessage(chatId, "Select a demo deal:", {
-        reply_markup: { inline_keyboard: keyboard }
-      }).catch(err => console.error("Telegram API Error:", err));
+      sendDemoDeals(chatId);
       return;
     }
 
     if (data === 'how') {
-      bot.sendMessage(chatId, "ℹ️ *How it works*\n1. Create a deal and set the terms.\n2. Forward the Blink to your client.\n3. They deposit funds securely into the smart contract.\n4. Funds are released when the work is done.", { parse_mode: 'Markdown' }).catch(err => console.error(err));
+      sendHowItWorks(chatId);
       return;
     }
 
