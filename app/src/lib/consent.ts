@@ -18,7 +18,9 @@ export function setConsent(value: 'granted' | 'denied') {
     // ignore
   }
 
-  if (value === 'denied') {
+  if (value === 'granted') {
+    (window as any)['ga-disable-' + GA_ID] = false;
+  } else if (value === 'denied') {
     (window as any)['ga-disable-' + GA_ID] = true;
     try {
       const domain = window.location.hostname;

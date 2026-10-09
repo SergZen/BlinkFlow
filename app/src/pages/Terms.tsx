@@ -18,7 +18,7 @@ export const Terms = () => {
       <section>
         <h2 className="text-xl font-bold text-white mb-3">2. Not financial or legal advice</h2>
         <p>
-          Not a bank, exchange or custodian. Funds in deals are held by a smart contract, not by BlinkFlow.
+          BlinkFlow does not provide financial or legal advice. Not a bank, exchange or custodian. Funds in deals are held by a smart contract, not by BlinkFlow.
         </p>
       </section>
 
