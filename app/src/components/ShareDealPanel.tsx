@@ -9,7 +9,7 @@ export const ShareDealPanel = ({ rawActionUrl, dealId, customClass = '' }: { raw
   const [copiedLink, setCopiedLink] = useState<'short' | 'full' | null>(null);
 
   useEffect(() => {
-    let timeout: NodeJS.Timeout;
+    let timeout: ReturnType<typeof setTimeout>;
     if (copiedLink) {
       timeout = setTimeout(() => {
         setCopiedLink(null);
@@ -202,12 +202,12 @@ export const ShareDealPanel = ({ rawActionUrl, dealId, customClass = '' }: { raw
           <Button variant="outline" className="w-full justify-between group border-gray-800 hover:bg-gray-800/50" onClick={handleCopyShortLink} disabled={isShorteningCopy}>
             <span className="text-sm font-medium">Copy short link</span>
             {isShorteningCopy ? <Loader2 className="w-4 h-4 text-gray-500 animate-spin" /> : 
-              copiedLink === 'short' ? <CheckCircle2 className="w-4 h-4 text-green-400" aria-label="Copied" title="Copied" /> : <Copy className="w-4 h-4 text-gray-500 group-hover:text-white transition-colors" />
+              copiedLink === 'short' ? <span title="Copied"><CheckCircle2 className="w-4 h-4 text-green-400" aria-label="Copied" /></span> : <Copy className="w-4 h-4 text-gray-500 group-hover:text-white transition-colors" />
             }
           </Button>
           <Button variant="outline" className="w-full justify-between group border-gray-800 hover:bg-gray-800/50" onClick={handleCopyFullLink}>
             <span className="text-sm font-medium">Copy full link</span>
-            {copiedLink === 'full' ? <CheckCircle2 className="w-4 h-4 text-green-400" aria-label="Copied" title="Copied" /> : <Copy className="w-4 h-4 text-gray-500 group-hover:text-white transition-colors" />}
+            {copiedLink === 'full' ? <span title="Copied"><CheckCircle2 className="w-4 h-4 text-green-400" aria-label="Copied" /></span> : <Copy className="w-4 h-4 text-gray-500 group-hover:text-white transition-colors" />}
           </Button>
         </div>
       </div>
