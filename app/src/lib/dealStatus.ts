@@ -68,6 +68,7 @@ export const deriveDealStatus = (deal: Deal): DealStatus => {
   
   const activeTasks = tasks.filter(t => t.status !== 'Cancelled');
   if (activeTasks.length > 0 && activeTasks.every(t => t.status === 'Completed' || t.status === 'Resolved')) {
+    if (activeTasks.some(t => t.status === 'Resolved')) return 'resolved';
     return 'completed';
   }
   

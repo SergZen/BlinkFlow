@@ -211,6 +211,7 @@ export const mockClient: BlinkflowClient = {
     if (!task) throw new Error("Task not found");
 
     task.status = 'Resolved';
+    task.disputeResult = customerWins ? 'customer' : 'contractor';
     deal.history.push({ date: getNow(), action: `Dispute Resolved (${customerWins ? 'Customer' : 'Contractor'} won)` });
     saveDeals();
     return JSON.parse(JSON.stringify(deal));

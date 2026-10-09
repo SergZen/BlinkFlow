@@ -43,7 +43,7 @@ export const Dashboard = () => {
     };
   }, []);
 
-  const activeDeals = deals.filter(d => deriveDealStatus(d) !== 'completed' && deriveDealStatus(d) !== 'cancelled');
+  const activeDeals = deals.filter(d => deriveDealStatus(d) !== 'completed' && deriveDealStatus(d) !== 'cancelled' && deriveDealStatus(d) !== 'resolved');
   
   const pendingActions = role === 'customer' 
     ? activeDeals.filter(d => deriveDealStatus(d) === 'pending_approval' || deriveDealStatus(d) === 'searching')
@@ -52,7 +52,9 @@ export const Dashboard = () => {
   const filteredDeals = deals.filter(deal => {
     if (filter === 'all') return true;
     if (filter === 'attention') return pendingActions.some(p => p.id === deal.id);
-    return deriveDealStatus(deal) === filter;
+    const status = deriveDealStatus(deal);
+    if (filter === 'completed') return status === 'completed' || status === 'resolved';
+    return status === filter;
   });
 
   return (

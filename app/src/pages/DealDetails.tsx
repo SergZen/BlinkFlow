@@ -17,20 +17,17 @@ import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { useWalletModal } from '@solana/wallet-adapter-react-ui';
 import { Transaction } from '@solana/web3.js';
 
-const EscrowActionCard = ({ id }: { id: string }) => {
-  const { connection } = useConnection();
-  const { publicKey, sendTransaction } = useWallet();
+const EscrowActionCard = ({ deal }: { deal: Deal }) => {
   const { isTestMode } = useNetwork();
   const [data, setData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isExecuting, setIsExecuting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
   const BLINK_SERVER_URL = import.meta.env.VITE_ACTIONS_API_URL || 'http://localhost:3001';
 
   useEffect(() => {
-    fetch(`${BLINK_SERVER_URL}/api/deal/${id}`)
+    fetch(`${BLINK_SERVER_URL}/api/deal/${deal.id}`)
       .then(res => {
         if (!res.ok) throw new Error("Failed to fetch action");
         return res.json();
@@ -44,92 +41,110 @@ const EscrowActionCard = ({ id }: { id: string }) => {
         setError("Failed to load action preview");
         setIsLoading(false);
       });
-  }, [id, BLINK_SERVER_URL]);
+  }, [deal.id, BLINK_SERVER_URL]);
 
-  const handleAction = async (href: string) => {
-    if (!publicKey) {
-      setError("Please connect your wallet first");
-      return;
+  const currentStatus = getStatusLabel(deriveDealStatus(deal));
+
+  const getEscrowState = () => {
+    const activeTasks = deal.tasks.filter(t => t.status !== 'Cancelled');
+    if (activeTasks.length === 0) return 'Not funded';
+    
+    const allDone = activeTasks.every(t => t.status === 'Completed' || t.status === 'Resolved');
+    if (allDone) {
+      if (activeTasks.every(t => t.status === 'Completed')) return 'Released';
+      if (activeTasks.some(t => t.disputeResult === 'customer')) return 'Refunded';
+      if (activeTasks.some(t => t.disputeResult === 'contractor')) return 'Released to contractor';
+      return 'Released';
     }
     
-    setIsExecuting(true);
-    setError(null);
-    setSuccess(null);
-
-    try {
-      const res = await fetch(`${BLINK_SERVER_URL}${href}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ account: publicKey.toBase58() })
-      });
-      
-      if (!res.ok) {
-         const errData = await res.json().catch(() => ({}));
-         throw new Error(errData.error || "Failed to fetch transaction");
-      }
-      const { transaction, message } = await res.json();
-
-      const binaryString = atob(transaction);
-      const txBuf = Uint8Array.from(binaryString, c => c.charCodeAt(0));
-      const tx = Transaction.from(txBuf);
-
-      const signature = await sendTransaction(tx, connection);
-
-      const latestBlockhash = await connection.getLatestBlockhash('finalized');
-      await connection.confirmTransaction({
-        signature,
-        blockhash: latestBlockhash.blockhash,
-        lastValidBlockHeight: latestBlockhash.lastValidBlockHeight
-      }, 'finalized');
-
-      setSuccess(message || "Transaction successful!");
-    } catch (err: any) {
-      console.error(err);
-      setError(err.message || "Transaction failed");
-    } finally {
-      setIsExecuting(false);
-    }
+    const anyDeposited = activeTasks.some(t => t.deposited);
+    if (anyDeposited) return 'Funded';
+    return 'Not funded';
   };
-
-  if (isLoading) return <div className="text-gray-400 text-sm p-4 text-center border border-gray-800 rounded-xl flex items-center justify-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading action preview...</div>;
-  if (!data || (error && !data)) return <div className="text-red-400 text-sm p-4 text-center border border-red-500/20 bg-red-500/10 rounded-xl">{error || "Failed to load action preview"}</div>;
 
   return (
     <div className="w-full overflow-hidden rounded-xl bg-gray-900 border border-gray-800 flex flex-col">
-      {data.icon && <img src={data.icon} alt={data.title} className="w-full h-48 object-cover border-b border-gray-800" />}
-      <div className="p-5 space-y-4">
-        <div>
-          <h4 className="font-bold text-lg text-white mb-1">{data.title}</h4>
-          <p className="text-sm text-gray-400 leading-relaxed">{data.description}</p>
-        </div>
-        
-        {error && <div className="text-red-400 text-xs p-3 bg-red-500/10 border border-red-500/20 rounded-lg break-words">{error}</div>}
-        {success && <div className="text-green-400 text-xs p-3 bg-green-500/10 border border-green-500/20 rounded-lg break-words">{success}</div>}
-
-        <div className="flex flex-col gap-2 pt-2">
-          {data.links?.actions?.map((action: any, i: number) => (
-            <Button 
-              key={i} 
-              variant="primary" 
-              className="w-full py-2.5" 
-              onClick={() => handleAction(action.href)}
-              disabled={isExecuting}
-            >
-              {isExecuting ? <Loader2 className="w-4 h-4 animate-spin mr-2 inline" /> : null}
-              {action.label} ({isTestMode ? 'Devnet' : 'Live'})
-            </Button>
-          ))}
-          {(!data.links || !data.links.actions || data.links.actions.length === 0) && (
-            <Button 
-              variant="primary" 
-              className="w-full py-2.5" 
-              disabled={true}
-            >
-              {data.label}
-            </Button>
+      {data?.icon ? (
+        <img src={data.icon} alt={data.title} className="w-full h-48 object-cover border-b border-gray-800" />
+      ) : (
+        <div className="w-full h-48 bg-gray-950 border-b border-gray-800 flex flex-col items-center justify-center text-gray-500">
+          {isLoading ? (
+            <><Loader2 className="w-6 h-6 animate-spin mb-2" /><span>Loading preview...</span></>
+          ) : (
+            <><div className="mb-2">No preview image</div><span className="text-xs text-red-400">{error}</span></>
           )}
         </div>
+      )}
+      <div className="p-5 space-y-4">
+        <div>
+          <h4 className="font-bold text-lg text-white mb-1">{data?.title || 'BlinkFlow Escrow'}</h4>
+          <p className="text-sm text-gray-400 leading-relaxed">{data?.description || 'No description available.'}</p>
+        </div>
+        
+        <div className="space-y-2 pt-2 border-t border-gray-800/50 text-sm">
+          <div className="flex justify-between">
+            <span className="text-gray-500">Status</span>
+            <span className="text-gray-300 font-medium">{currentStatus}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-500">Escrow</span>
+            <span className="text-gray-300 font-medium">{getEscrowState()}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-500">Amount</span>
+            <span className="text-gray-300 font-medium">${dealTotal(deal).toLocaleString()} USDC</span>
+          </div>
+          <div className="flex flex-col gap-1 mt-2">
+            <div className="flex justify-between">
+              <span className="text-gray-500">Customer</span>
+              <span className="font-mono text-gray-300">{deal.customer ? truncateAddress(deal.customer) : 'Waiting'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Contractor</span>
+              <span className="font-mono text-gray-300">{deal.contractor ? truncateAddress(deal.contractor) : 'Waiting'}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="pt-2">
+          <Button variant="primary" className="w-full py-2.5" onClick={() => setIsShareModalOpen(true)}>
+            <Share2 className="w-4 h-4 mr-2" /> Share Deal
+          </Button>
+        </div>
+        
+        {isTestMode && (
+          <p className="text-xs text-center text-gray-500 mt-2">
+            Demo: payments are simulated until the smart contract is deployed
+          </p>
+        )}
       </div>
+
+      {isShareModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-950/80 backdrop-blur-sm animate-in fade-in">
+          <Card className="w-full max-w-lg bg-gray-900 border-gray-800 shadow-2xl relative p-6">
+            <button onClick={() => setIsShareModalOpen(false)} aria-label="Close" className="absolute right-4 top-4 z-10 text-gray-400 hover:text-white transition-colors bg-gray-900/50 rounded-full p-1">
+              <X className="w-5 h-5" />
+            </button>
+            <h2 className="text-xl font-bold mb-1">Share Deal</h2>
+            <p className="text-sm text-gray-400 mb-2">Send this link to your partner.</p>
+            <ShareDealPanel 
+              rawActionUrl={`${import.meta.env.VITE_ACTIONS_API_URL || 'http://localhost:3001'}/deal/${deal.id}?${new URLSearchParams({
+                title: deal.tasks[0]?.meta.title,
+                amount: dealTotal(deal).toString(),
+                token: 'USDC',
+                status: currentStatus,
+                ...(deal.customer && { customerWallet: deal.customer }),
+                ...(deal.contractor && { contractorWallet: deal.contractor })
+              }).toString()}`}
+              dealId={deal.id}
+              onCopy={(url) => { 
+                navigator.clipboard.writeText(url); 
+              }}
+              customClass="mt-2"
+            />
+          </Card>
+        </div>
+      )}
     </div>
   );
 };
@@ -147,7 +162,6 @@ export const DealDetails = () => {
   const [globalLoading, setGlobalLoading] = useState(false);
   // TEMP: virtual deals go away in stage B.
   const [virtualStatusLabel, setVirtualStatusLabel] = useState<string | null>(null);
-  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [expandedTasks, setExpandedTasks] = useState<number[]>([]);
 
   const [initializedDealId, setInitializedDealId] = useState<string | null>(null);
@@ -279,7 +293,14 @@ export const DealDetails = () => {
     const err = taskErrors[index];
     const submissionText = taskSubmissions[index] || '';
     
-    if (task.status === 'Completed' || task.status === 'Resolved' || task.status === 'Cancelled') {
+    if (task.status === 'Resolved') {
+      let text = 'Resolved';
+      if (task.disputeResult === 'customer') text += ' — Customer won (refund)';
+      else if (task.disputeResult === 'contractor') text += ' — Contractor won (payout)';
+      return <p className="text-gray-500 text-sm italic mt-4 pt-4 border-t border-gray-800/50">{text}</p>;
+    }
+
+    if (task.status === 'Completed' || task.status === 'Cancelled') {
       return <p className="text-gray-500 text-sm italic mt-4 pt-4 border-t border-gray-800/50">Task is closed.</p>;
     }
     
@@ -446,41 +467,8 @@ export const DealDetails = () => {
               {isTestMode ? 'TEST MODE — devnet funds, no real money' : '⚠ LIVE — real funds'}
             </div>
           </div>
-          <Button variant="outline" className="border-gray-800 hover:bg-gray-800/50 flex items-center justify-center text-sm py-1.5" onClick={() => setIsShareModalOpen(true)}>
-            <Share2 className="w-4 h-4 mr-2" /> Share Deal
-          </Button>
         </div>
       </div>
-
-      {isShareModalOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-950/80 backdrop-blur-sm animate-in fade-in">
-          <Card className="w-full max-w-lg bg-gray-900 border-gray-800 shadow-2xl relative p-6">
-            <button onClick={() => setIsShareModalOpen(false)} aria-label="Close" className="absolute right-4 top-4 z-10 text-gray-400 hover:text-white transition-colors bg-gray-900/50 rounded-full p-1">
-              <X className="w-5 h-5" />
-            </button>
-            <h2 className="text-xl font-bold mb-1">Share Deal</h2>
-            <p className="text-sm text-gray-400 mb-2">Send this link to your partner.</p>
-            <ShareDealPanel 
-              rawActionUrl={`${import.meta.env.VITE_ACTIONS_API_URL || 'http://localhost:3001'}/deal/${deal.id}?${new URLSearchParams({
-                title: deal.tasks[0]?.meta.title,
-                amount: dealTotal(deal).toString(),
-                token: 'USDC',
-                // TEMP: virtual deals go away in stage B.
-                status: isVirtualDeal && virtualStatusLabel ? virtualStatusLabel : getStatusLabel(deriveDealStatus(deal)),
-                ...(deal.customer && { customerWallet: deal.customer }),
-                ...(deal.contractor && { contractorWallet: deal.contractor })
-              }).toString()}`}
-              dealId={deal.id}
-              onCopy={(url) => { 
-                navigator.clipboard.writeText(url); 
-                // Using alert just like in CreateDealModal for simplicity, though a toast would be better.
-                // It works for the Instagram fallback too.
-              }}
-              customClass="mt-2"
-            />
-          </Card>
-        </div>
-      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
@@ -569,7 +557,7 @@ export const DealDetails = () => {
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
               Live Deal Preview
             </h3>
-            <EscrowActionCard id={deal.id} />
+            <EscrowActionCard deal={deal} />
           </Card>
 
           <Card className="p-6">
