@@ -10,6 +10,7 @@ import { DealDetails } from './pages/DealDetails';
 import { Profile } from './pages/Profile';
 import { DisputeLog } from './pages/DisputeLog';
 import { LpFreelancerEscrow } from './pages/LpFreelancerEscrow';
+import { About } from './pages/About';
 
 import '@solana/wallet-adapter-react-ui/styles.css';
 import { NetworkProvider, useNetwork } from './NetworkContext';
@@ -33,6 +34,7 @@ function InnerApp() {
             <Router>
               <Routes>
                 <Route path="/lp/freelancer-escrow" element={<LpFreelancerEscrow />} />
+                <Route path="/about" element={<About />} />
                 <Route path="/*" element={
                   <Layout>
                     <Routes>
