@@ -503,6 +503,213 @@ app.post('/api/deal/:id/tx', async (req, res) => {
   }
 });
 
+
+app.get('/sbt/:file', async (req, res) => {
+  const { file } = req.params;
+  const protocol = req.hostname === 'localhost' ? 'http' : 'https';
+  const baseUrl = `${protocol}://${req.get('host')}`;
+  const frontendUrl = process.env.FRONTEND_URL;
+  
+  res.setHeader('Cache-Control', 'public, max-age=300');
+  
+  if (file === 'collection.json') {
+    const payload = {
+      name: "BlinkFlow Reputation",
+      description: "Soulbound reputation of BlinkFlow participants.",
+      image: `${baseUrl}/blinkFlow.jpg`,
+    };
+    if (frontendUrl) {
+      payload.external_url = frontendUrl;
+    }
+    return res.json(payload);
+  }
+
+  const isJson = file.endsWith('.json');
+  const isPng = file.endsWith('.png');
+
+  if (!isJson && !isPng) {
+    return res.status(404).json({ error: "Not found" });
+  }
+
+  const wallet = file.slice(0, file.lastIndexOf('.'));
+  
+  try {
+    new PublicKey(wallet);
+  } catch (e) {
+    return res.status(400).json({ error: "Invalid wallet address" });
+  }
+
+  let dealsCompleted = 0;
+  let volumeUsdc = 0;
+  let disputesWon = 0;
+  let disputesLost = 0;
+  let isCustomer = false;
+  let isContractor = false;
+
+  dealsData.forEach(d => {
+    const asCustomer = d.customer === wallet;
+    const asContractor = d.contractor === wallet;
+    if (!asCustomer && !asContractor) return;
+    
+    if (asCustomer) isCustomer = true;
+    if (asContractor) isContractor = true;
+
+    if (d.status === 'completed') {
+      dealsCompleted++;
+      volumeUsdc += d.amount;
+    }
+    
+    if (d.status === 'resolved_refunded') {
+      if (asCustomer) disputesWon++;
+      if (asContractor) disputesLost++;
+    } else if (d.status === 'resolved_paid_out') {
+      if (asCustomer) disputesLost++;
+      if (asContractor) {
+        disputesWon++;
+        volumeUsdc += d.amount;
+      }
+    }
+  });
+
+  const roleStr = (isCustomer && isContractor) ? "Both" : (isCustomer ? "Customer" : (isContractor ? "Contractor" : ""));
+
+  if (isJson) {
+    const payload = {
+      name: `BlinkFlow Reputation · ${wallet.slice(0,4)}…${wallet.slice(-4)}`,
+      description: "Soulbound reputation of a BlinkFlow participant.",
+      image: `${baseUrl}/sbt/${wallet}.png`,
+      attributes: [
+        { trait_type: "Deals completed", value: dealsCompleted },
+        { trait_type: "Volume (USDC)", value: volumeUsdc },
+        { trait_type: "Disputes won", value: disputesWon },
+        { trait_type: "Disputes lost", value: disputesLost },
+        { trait_type: "Role", value: roleStr }
+      ]
+    };
+    if (frontendUrl) {
+      payload.external_url = `${frontendUrl}/profile/${wallet}`;
+    }
+    return res.json(payload);
+  }
+
+  try {
+    const svg = await satori(
+      {
+        type: 'div',
+        props: {
+          style: {
+            height: '100%',
+            width: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            backgroundImage: 'linear-gradient(135deg, #0F172A 0%, #020617 100%)',
+            padding: '80px',
+            fontFamily: 'Roboto',
+            color: '#f8fafc'
+          },
+          children: [
+            {
+              type: 'div',
+              props: {
+                style: { display: 'flex', alignItems: 'center', gap: '20px' },
+                children: [
+                  {
+                    type: 'div',
+                    props: {
+                      style: { width: '100px', height: '100px', borderRadius: '50%', overflow: 'hidden', display: 'flex', border: '2px solid rgba(255,255,255,0.15)' },
+                      children: [{ type: 'img', props: { src: logoData, style: { width: '100%', height: '100%', objectFit: 'cover' } } }]
+                    }
+                  },
+                  {
+                    type: 'div',
+                    props: {
+                      style: { display: 'flex', flexDirection: 'column' },
+                      children: [
+                        { type: 'span', props: { style: { fontSize: '48px', fontWeight: 700, color: '#e9d5ff', letterSpacing: '2px' }, children: 'BlinkFlow Reputation' } },
+                        { type: 'span', props: { style: { fontSize: '28px', color: '#94a3b8', fontFamily: 'monospace', marginTop: '8px' }, children: wallet } }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              type: 'div',
+              props: {
+                style: { display: 'flex', justifyContent: 'space-between', marginTop: '80px', padding: '0 20px' },
+                children: [
+                  {
+                    type: 'div',
+                    props: {
+                      style: { display: 'flex', flexDirection: 'column' },
+                      children: [
+                        { type: 'span', props: { style: { fontSize: '28px', color: '#94a3b8', marginBottom: '12px' }, children: 'Deals Completed' } },
+                        { type: 'span', props: { style: { fontSize: '72px', fontWeight: 700, color: '#f8fafc' }, children: dealsCompleted.toString() } }
+                      ]
+                    }
+                  },
+                  {
+                    type: 'div',
+                    props: {
+                      style: { display: 'flex', flexDirection: 'column' },
+                      children: [
+                        { type: 'span', props: { style: { fontSize: '28px', color: '#94a3b8', marginBottom: '12px' }, children: 'Volume (USDC)' } },
+                        { type: 'span', props: { style: { fontSize: '72px', fontWeight: 700, color: '#38bdf8' }, children: volumeUsdc.toString() } }
+                      ]
+                    }
+                  },
+                  {
+                    type: 'div',
+                    props: {
+                      style: { display: 'flex', flexDirection: 'column' },
+                      children: [
+                        { type: 'span', props: { style: { fontSize: '28px', color: '#94a3b8', marginBottom: '12px' }, children: 'Disputes Won' } },
+                        { type: 'span', props: { style: { fontSize: '72px', fontWeight: 700, color: '#4ade80' }, children: disputesWon.toString() } }
+                      ]
+                    }
+                  },
+                  {
+                    type: 'div',
+                    props: {
+                      style: { display: 'flex', flexDirection: 'column' },
+                      children: [
+                        { type: 'span', props: { style: { fontSize: '28px', color: '#94a3b8', marginBottom: '12px' }, children: 'Disputes Lost' } },
+                        { type: 'span', props: { style: { fontSize: '72px', fontWeight: 700, color: '#f87171' }, children: disputesLost.toString() } }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        width: 1200,
+        height: 630,
+        fonts: [
+          { name: 'Roboto', data: fontRegular, weight: 400, style: 'normal' },
+          { name: 'Roboto', data: fontBold, weight: 700, style: 'normal' },
+        ],
+      }
+    );
+
+    const resvg = new Resvg(svg, {
+      background: 'rgba(3, 7, 18, 1)',
+      fitTo: { mode: 'width', value: 1200 },
+    });
+    
+    const pngBuffer = resvg.render().asPng();
+    
+    res.setHeader('Content-Type', 'image/png');
+    res.send(pngBuffer);
+  } catch (error) {
+    console.error('SBT Image generation error:', error);
+    res.sendFile(path.join(__dirname, 'blinkFlow.jpg'));
+  }
+});
+
 app.options('*', cors(corsOptions));
 
 const PORT = process.env.PORT || 3001;
