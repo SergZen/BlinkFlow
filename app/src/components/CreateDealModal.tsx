@@ -81,6 +81,10 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
       dealId = deal.id;
     } catch (err) {
       console.error("Failed to create deal locally", err);
+      if (isChainMode) {
+        setError(err instanceof Error ? err.message : String(err));
+        return;
+      }
     }
     
     const customerWallet = role === 'customer' ? walletAddr : '';

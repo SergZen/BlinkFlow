@@ -1,5 +1,5 @@
 import { useParams, Link, useLocation } from 'react-router-dom';
-import { client } from '../lib/client';
+import { client, isChainMode } from '../lib/client';
 import { getChainInfo, explorerAddr, explorerTx, type ChainInfo } from '../lib/client/chainClient';
 import { dealTotal, deriveDealStatus, getEarliestDeadline, taskStatusLabel, taskStatusKind } from '../lib/dealStatus';
 import { Card } from '../components/Card';
@@ -477,7 +477,7 @@ export const DealDetails = () => {
             </div>
             {isTestMode && (
               <div className="mt-4 pt-4 border-t border-gray-800/50 text-xs text-gray-500">
-                Demo: payments are simulated until the smart contract is deployed
+                {isChainMode ? "Payments settle on-chain on Solana Devnet." : "Demo: payments are simulated until the smart contract is deployed"}
               </div>
             )}
           </Card>
