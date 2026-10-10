@@ -135,7 +135,7 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
                 <input id="deal-title" type="text" required maxLength={100} placeholder="e.g. Website Redesign" value={title} onChange={(e) => setTitle(e.target.value)} className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-2.5 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all text-white" />
               </div>
 
-              {role === 'customer' && isChainMode && (
+              {role === 'customer' && isChainMode && !import.meta.env.VITE_DEMO_CONTRACTOR && (
                 <div>
                   <label htmlFor="deal-contractor" className="block text-sm font-medium text-gray-300 mb-1.5">Contractor Wallet (Optional)</label>
                   <input id="deal-contractor" type="text" placeholder="Leave empty to use the demo contractor" value={contractorWalletInput} onChange={(e) => setContractorWalletInput(e.target.value)} className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-2.5 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all text-white font-mono text-sm" />
