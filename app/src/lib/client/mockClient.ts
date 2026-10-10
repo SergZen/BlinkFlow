@@ -217,3 +217,6 @@ export const mockClient: BlinkflowClient = {
     return JSON.parse(JSON.stringify(deal));
   }
 };
+
+export const getDeals = () => deals;
+export const replaceDeals = (list: Deal[]) => { deals = list; try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(deals)); } catch {} window.dispatchEvent(new Event('blinkflow:deals-changed')); };

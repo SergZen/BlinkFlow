@@ -710,6 +710,24 @@ app.get('/sbt/:file', async (req, res) => {
   }
 });
 
+const syncStore = new Map(); // id -> { id, deal, chain, updatedAt }
+const SYNC_ID = /^[A-Za-z0-9_-]{1,40}$/;
+
+app.get('/api/sync/deals', (req, res) => {
+  res.json([...syncStore.values()]);
+});
+
+app.post('/api/sync/deals/:id', (req, res) => {
+  const { id } = req.params;
+  const { deal, chain } = req.body || {};
+  if (!SYNC_ID.test(id) || !deal || typeof deal !== 'object' || !chain || typeof chain !== 'object' || deal.id !== id) {
+    return res.status(400).json({ error: 'bad payload' });
+  }
+  if (!syncStore.has(id) && syncStore.size >= 500) return res.status(507).json({ error: 'store full' });
+  syncStore.set(id, { id, deal, chain, updatedAt: Date.now() });
+  res.json({ ok: true });
+});
+
 app.options('*', cors(corsOptions));
 
 const PORT = process.env.PORT || 3001;
