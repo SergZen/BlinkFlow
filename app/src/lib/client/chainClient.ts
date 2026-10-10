@@ -11,7 +11,6 @@
 import {
   Connection, PublicKey, Transaction, TransactionInstruction, SystemProgram, ComputeBudgetProgram,
 } from '@solana/web3.js';
-import { Buffer } from 'buffer';
 import { BlinkflowClient } from './types';
 import { mockClient } from './mockClient';
 import { syncNow } from './sync';
@@ -114,7 +113,7 @@ async function trustAuthority(): Promise<PublicKey> {
   return new PublicKey(info.data.slice(8 + 32, 8 + 64));
 }
 
-const ix = (data: Uint8Array, keys: ReturnType<typeof meta>[]) => new TransactionInstruction({ programId: PROGRAM_ID, data: Buffer.from(data), keys });
+const ix = (data: Uint8Array, keys: ReturnType<typeof meta>[]) => new TransactionInstruction({ programId: PROGRAM_ID, data: data as any, keys });
 
 async function ctx(dealId: string) {
   await syncNow(); // pick up the other browser's latest state first
