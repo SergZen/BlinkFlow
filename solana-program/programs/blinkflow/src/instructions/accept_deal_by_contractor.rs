@@ -12,7 +12,6 @@ pub struct AcceptDealByContractor<'info> {
 
     #[account(
         mut,
-        has_one = contractor @ BlinkFlowError::Unauthorized,
         seeds = [DIAL_SEED, deal.customer.as_ref(), deal.seed.to_le_bytes().as_ref()],
         bump = deal.bump,
     )]

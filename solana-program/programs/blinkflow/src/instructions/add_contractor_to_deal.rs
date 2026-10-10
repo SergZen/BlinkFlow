@@ -15,7 +15,6 @@ pub struct AddContractorToDeal<'info> {
     #[account(
         mut,
         has_one = customer @ BlinkFlowError::Unauthorized,
-        has_one = contractor @ BlinkFlowError::Unauthorized,
         seeds = [DIAL_SEED, customer.key().as_ref(), deal.seed.to_le_bytes().as_ref()],
         bump = deal.bump,
     )]
