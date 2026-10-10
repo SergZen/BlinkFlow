@@ -1,5 +1,6 @@
 import { useParams, Link, useLocation } from 'react-router-dom';
 import { client } from '../lib/client';
+import { getChainInfo, explorerAddr, explorerTx, type ChainInfo } from '../lib/client/chainClient';
 import { dealTotal, deriveDealStatus, getEarliestDeadline, taskStatusLabel, taskStatusKind } from '../lib/dealStatus';
 import { Card } from '../components/Card';
 import { Badge, getStatusLabel } from '../components/Badge';
@@ -129,6 +130,7 @@ export const DealDetails = () => {
   // TEMP: virtual deals go away in stage B.
   const [virtualStatusLabel, setVirtualStatusLabel] = useState<string | null>(null);
   const [expandedTasks, setExpandedTasks] = useState<number[]>([]);
+  const [chainInfo, setChainInfo] = useState<ChainInfo | null>(null);
 
   const [initializedDealId, setInitializedDealId] = useState<string | null>(null);
 
@@ -173,6 +175,7 @@ export const DealDetails = () => {
         const foundDeal = await client.getDeal(id || '');
         if (foundDeal) {
           setDeal(foundDeal);
+          setChainInfo(getChainInfo(foundDeal.id));
         } else {
           // Fallback: try to construct deal from query parameters
           const params = new URLSearchParams(location.search);
@@ -588,6 +591,38 @@ export const DealDetails = () => {
             </h3>
             <EscrowActionCard deal={deal} escrowState={escrowState} />
           </div>
+
+          {chainInfo && (
+            <div>
+              <h3 className="font-medium mb-4 text-gray-400 flex items-center gap-2 px-1">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                On-chain (Devnet)
+              </h3>
+              <Card className="p-5">
+                <div className="space-y-4 text-sm">
+                  <div>
+                    <div className="text-gray-500 mb-1">Deal PDA</div>
+                    <a href={explorerAddr(chainInfo.deal)} target="_blank" rel="noreferrer" className="text-blue-400 hover:underline font-mono truncate block" title={chainInfo.deal}>
+                      {truncateAddress(chainInfo.deal)}
+                    </a>
+                  </div>
+                  {chainInfo.sigs.length > 0 && (
+                    <div>
+                      <div className="text-gray-500 mb-2">Transactions</div>
+                      <div className="space-y-2">
+                        {chainInfo.sigs.map((s, i) => (
+                          <div key={i} className="flex justify-between items-center bg-gray-950 p-2 rounded border border-gray-800">
+                            <span className="text-gray-300 capitalize">{s.step}</span>
+                            <a href={explorerTx(s.sig)} target="_blank" rel="noreferrer" className="text-blue-400 hover:underline text-xs">View →</a>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            </div>
+          )}
         </div>
       </div>
     </div>

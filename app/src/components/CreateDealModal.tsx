@@ -9,7 +9,7 @@ import { useWalletModal } from '@solana/wallet-adapter-react-ui';
 import { useToken } from '../lib/constants';
 import { useSolBalance } from '../hooks/useSolBalance';
 import { useNetwork } from '../NetworkContext';
-import { client } from '../lib/client';
+import { client, isChainMode } from '../lib/client';
 
 export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) => {
   const { symbol } = useToken();
@@ -30,6 +30,7 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
   const [amount, setAmount] = useState('');
   const [criteria, setCriteria] = useState('');
   const [deadline, setDeadline] = useState('');
+  const [contractorWalletInput, setContractorWalletInput] = useState(import.meta.env.VITE_DEMO_CONTRACTOR || '');
   const [error, setError] = useState('');
 
   const handleGenerate = async (e: React.FormEvent) => {
@@ -74,7 +75,8 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
         title: title.trim(),
         successCriteria: criteria.trim(),
         amount: parseFloat(amount),
-        deadline
+        deadline,
+        ...(role === 'customer' && contractorWalletInput.trim() ? { contractorWallet: contractorWalletInput.trim() } : {})
       });
       dealId = deal.id;
     } catch (err) {
@@ -82,7 +84,7 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
     }
     
     const customerWallet = role === 'customer' ? walletAddr : '';
-    const contractorWallet = role === 'contractor' ? walletAddr : '';
+    const finalContractorWallet = role === 'contractor' ? walletAddr : (role === 'customer' ? contractorWalletInput.trim() : '');
     
     const truncatedCriteria = criteria.trim().substring(0, 500);
     const queryParams = new URLSearchParams({
@@ -93,7 +95,7 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
       criteria: truncatedCriteria,
       deadline: deadline,
       ...(customerWallet && { customerWallet }),
-      ...(contractorWallet && { contractorWallet })
+      ...(finalContractorWallet && { contractorWallet: finalContractorWallet })
     });
     const queryString = `?${queryParams.toString()}`;
     
@@ -128,6 +130,13 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
                 <label htmlFor="deal-title" className="block text-sm font-medium text-gray-300 mb-1.5">Deal Title</label>
                 <input id="deal-title" type="text" required maxLength={100} placeholder="e.g. Website Redesign" value={title} onChange={(e) => setTitle(e.target.value)} className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-2.5 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all text-white" />
               </div>
+
+              {role === 'customer' && isChainMode && (
+                <div>
+                  <label htmlFor="deal-contractor" className="block text-sm font-medium text-gray-300 mb-1.5">Contractor Wallet (Optional)</label>
+                  <input id="deal-contractor" type="text" placeholder="Leave empty to use the demo contractor" value={contractorWalletInput} onChange={(e) => setContractorWalletInput(e.target.value)} className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-2.5 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all text-white font-mono text-sm" />
+                </div>
+              )}
 
               <div>
                 <label htmlFor="deal-amount" className="block text-sm font-medium text-gray-300 mb-1.5">Amount ({symbol})</label>
