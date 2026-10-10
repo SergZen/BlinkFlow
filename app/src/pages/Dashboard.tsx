@@ -38,7 +38,14 @@ export const Dashboard = () => {
     const loadDeals = async () => {
       try {
         const list = await client.listDeals();
-        setDeals(list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+        const mapped = list.map((deal, index) => ({ deal, index }));
+        mapped.sort((a, b) => {
+          const tA = new Date(a.deal.createdAt).getTime();
+          const tB = new Date(b.deal.createdAt).getTime();
+          if (tB !== tA) return tB - tA;
+          return b.index - a.index;
+        });
+        setDeals(mapped.map(m => m.deal));
       } catch (err: any) {
         setError("Failed to fetch deals");
       } finally {

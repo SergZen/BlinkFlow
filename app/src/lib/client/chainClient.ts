@@ -13,7 +13,7 @@ import {
 } from '@solana/web3.js';
 import { BlinkflowClient } from './types';
 import { mockClient } from './mockClient';
-import { syncNow } from './sync';
+import { syncNow, push } from './sync';
 
 export const PROGRAM_ID = new PublicKey('3vJWWymQCHkntbWTgPfL2ujrquLrYHLneqzebr7bnkik');
 export const MINT = new PublicKey('Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr');
@@ -128,6 +128,16 @@ function requireWallet(expected: string, role: string) {
   if (me !== expected) throw new Error(`Switch Phantom to the ${role} account (${expected.slice(0, 4)}…${expected.slice(-4)}).`);
 }
 
+// After every action: let the mock state settle, then push the FINAL state to the shared server so the other
+// browser sees the same status (otherwise only the intermediate state with the new signature is shared).
+async function afterStep<T>(p: Promise<T>): Promise<T> {
+  const r = await p;
+  // push() is skipped while another push is still in flight, so retry a few times in the background
+  // (it is idempotent: nothing is sent when the server already has this exact state).
+  void (async () => { for (let i = 0; i < 4; i++) { await push(); await new Promise((res) => setTimeout(res, 700)); } })();
+  return r;
+}
+
 // ---- the client -----------------------------------------------------------------------------------
 export const chainClient: BlinkflowClient = {
   ...mockClient,
@@ -154,6 +164,7 @@ export const chainClient: BlinkflowClient = {
     const all = readChainStore();
     all[deal.id] = { seed: seed.toString(), customer: customer.toBase58(), contractor: contractor.toBase58(), deal: a.deal.toBase58(), sigs: [{ step: 'create', sig, at: new Date().toISOString() }] };
     writeChainStore(all);
+    void (async () => { for (let i = 0; i < 4; i++) { await push(); await new Promise((res) => setTimeout(res, 700)); } })();
     return deal;
   },
 
@@ -166,7 +177,7 @@ export const chainClient: BlinkflowClient = {
       meta(c.contractor, true, true), meta(a.deal, false, true), meta(a.task0, false, true), meta(a.sbtCollection, false, true),
       meta(a.sbtContractor, false, true), meta(MPL_CORE), meta(SystemProgram.programId)])]);
     addSig(dealId, 'accept', sig);
-    return mockClient.acceptDeal(dealId, wallet);
+    return afterStep(mockClient.acceptDeal(dealId, wallet));
   },
 
   async depositTask(dealId, taskIndex, wallet) {
@@ -175,7 +186,7 @@ export const chainClient: BlinkflowClient = {
     // Customer-created deals are already funded on-chain: init_deal_by_customer moved the USDC into the
     // deal vault. So this step is a UI-state update only (no transaction, no second deposit).
     requireWallet(c.info.customer, 'customer');
-    return mockClient.depositTask(dealId, taskIndex, wallet);
+    return afterStep(mockClient.depositTask(dealId, taskIndex, wallet));
   },
 
   async finishTask(dealId, taskIndex, solutionNote) {
@@ -186,7 +197,7 @@ export const chainClient: BlinkflowClient = {
     const sig = await sendTx([ix(cat(Uint8Array.from(DISC.finishTaskByContractor), Uint8Array.of(0), await sha256(solutionNote)), [
       meta(c.contractor, true), meta(a.deal, false, true), meta(a.task0, false, true)])]);
     addSig(dealId, 'finish', sig);
-    return mockClient.finishTask(dealId, taskIndex, solutionNote);
+    return afterStep(mockClient.finishTask(dealId, taskIndex, solutionNote));
   },
 
   async completeTask(dealId, taskIndex, approved) {
@@ -199,6 +210,6 @@ export const chainClient: BlinkflowClient = {
       meta(a.dealVault, false, true), meta(a.protocolVault, false, true), meta(a.contractorAta, false, true), meta(a.sbtCollection, false, true),
       meta(a.sbtCustomer, false, true), meta(a.sbtContractor, false, true), meta(MPL_CORE), meta(ATA_PROGRAM), meta(TOKEN_PROGRAM), meta(SystemProgram.programId)])]);
     addSig(dealId, 'complete', sig);
-    return mockClient.completeTask(dealId, taskIndex, approved);
+    return afterStep(mockClient.completeTask(dealId, taskIndex, approved));
   },
 };
