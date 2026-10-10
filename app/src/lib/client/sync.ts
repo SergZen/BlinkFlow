@@ -28,7 +28,10 @@ export async function pull(): Promise<void> {
       if (pushed.get(e.id) === remoteSig) continue;                  // already in sync
       const idx = deals.findIndex((d) => d.id === e.id);
       const localSig = idx >= 0 && chain[e.id] ? sigOf(deals[idx], chain[e.id]) : null;
-      const localDirty = localSig !== null && localSig !== pushed.get(e.id); // unpushed local change wins
+      // An unpushed local change wins, but only when we know what we last pushed in this page session.
+      // After a page reload `pushed` is empty: the server is the source of truth then (otherwise a stale local
+      // copy would block every update and even overwrite the server with old state).
+      const localDirty = localSig !== null && pushed.has(e.id) && localSig !== pushed.get(e.id);
       if (localDirty) continue;
       if (idx >= 0) deals[idx] = e.deal; else deals = [...deals, e.deal];
       chain[e.id] = e.chain;
