@@ -1,19 +1,19 @@
-skip_local_validator = true
-
 [toolchain]
+anchor_version = "0.32.2"
 
 [features]
 resolution = true
 skip-lint = false
 
+[programs.devnet]
+blinkflow = "3vJWWymQCHkntbWTgPfL2ujrquLrYHLneqzebr7bnkik"
+
 [programs.localnet]
-blink_flow = "G5T5TN8CEcgqi6iFzX34aTV2QJcnM8W2hTkch6Ev9JDE"
+blinkflow = "G8twaYoLecP7q9vgQqytuJwuEuPxzo19hQvWoTHD17TX"
+
+[registry]
+url = "https://api.apr.dev"
 
 [provider]
-cluster = "localnet"
+cluster = "devnet"
 wallet = "~/.config/solana/id.json"
-
-[scripts]
-test = "cargo test"
-
-[hooks]
