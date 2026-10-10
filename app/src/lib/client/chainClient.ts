@@ -4,7 +4,7 @@
 // Scope for the demo: task 0 of a customer-created deal.
 //   createDeal (customer)  -> init_deal_by_customer + add_contractor_to_deal   (one tx, customer signs)
 //   acceptDeal (contractor)-> accept_deal_by_contractor
-//   depositTask(0)         -> deposit_task_by_customer
+//   depositTask(0)         -> no tx (init_deal_by_customer already funded the vault); UI state only
 //   finishTask(0)          -> finish_task_by_contractor
 //   completeTask(0, true)  -> complete_task_by_customer
 // Anything else (extra tasks, cancel, disputes, rejecting) falls through to mockClient only.
@@ -172,13 +172,9 @@ export const chainClient: BlinkflowClient = {
   async depositTask(dealId, taskIndex, wallet) {
     const c = await ctx(dealId);
     if (!c || taskIndex !== 0) return mockClient.depositTask(dealId, taskIndex, wallet);
+    // Customer-created deals are already funded on-chain: init_deal_by_customer moved the USDC into the
+    // deal vault. So this step is a UI-state update only (no transaction, no second deposit).
     requireWallet(c.info.customer, 'customer');
-    const a = c.a;
-    const sig = await sendTx([ix(cat(Uint8Array.from(DISC.depositTaskByCustomer), Uint8Array.of(0)), [
-      meta(c.customer, true, true), meta(a.protocol), meta(a.deal, false, true), meta(a.task0, false, true), meta(MINT), meta(a.dealVault, false, true),
-      meta(a.customerAta, false, true), meta(a.sbtCollection, false, true), meta(a.sbtCustomer, false, true),
-      meta(MPL_CORE), meta(ATA_PROGRAM), meta(TOKEN_PROGRAM), meta(SystemProgram.programId)])]);
-    addSig(dealId, 'deposit', sig);
     return mockClient.depositTask(dealId, taskIndex, wallet);
   },
 
