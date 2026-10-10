@@ -1,5 +1,9 @@
 // sync.ts — shares on-chain demo deals between browsers (two Chrome profiles) through the Blink server.
 // Only deals that have chain info (created through chainClient) are synced.
+//
+// Conflict rule (no ping-pong): a deal only ever moves forward. "Progress" = chain signatures * 100 + history
+// entries. A browser adopts the server copy only when it is further along than its own, and pushes its own copy
+// only when it is further along than what the server is known to hold.
 export interface SyncHooks {
   getDeals(): any[];
   replaceDeals(list: any[]): void;
@@ -9,10 +13,11 @@ export interface SyncHooks {
 
 const API = (((import.meta as any).env?.VITE_ACTIONS_API_URL as string) || 'http://localhost:3001').replace(/\/$/, '');
 let hooks: SyncHooks | null = null;
-const pushed = new Map<string, string>(); // id -> signature of the last state known to be on the server
+const serverProgress = new Map<string, number>(); // id -> progress of the copy the server is known to hold
+let pulledOnce = false; // never push before we know what the server holds
 let busy = false;
 
-const sigOf = (deal: any, chain: any) => JSON.stringify({ deal, chain });
+const progress = (deal: any, chain: any) => (chain?.sigs?.length ?? 0) * 100 + (deal?.history?.length ?? 0);
 
 export async function pull(): Promise<void> {
   if (!hooks) return;
@@ -24,26 +29,22 @@ export async function pull(): Promise<void> {
     let deals = hooks.getDeals().slice();
     let changed = false;
     for (const e of entries) {
-      const remoteSig = sigOf(e.deal, e.chain);
-      if (pushed.get(e.id) === remoteSig) continue;                  // already in sync
+      const remoteP = progress(e.deal, e.chain);
+      serverProgress.set(e.id, remoteP);
       const idx = deals.findIndex((d) => d.id === e.id);
-      const localSig = idx >= 0 && chain[e.id] ? sigOf(deals[idx], chain[e.id]) : null;
-      // An unpushed local change wins, but only when we know what we last pushed in this page session.
-      // After a page reload `pushed` is empty: the server is the source of truth then (otherwise a stale local
-      // copy would block every update and even overwrite the server with old state).
-      const localDirty = localSig !== null && pushed.has(e.id) && localSig !== pushed.get(e.id);
-      if (localDirty) continue;
+      const localP = idx >= 0 && chain[e.id] ? progress(deals[idx], chain[e.id]) : -1;
+      if (remoteP <= localP) continue; // we are as far or further: keep ours (it is pushed below)
       if (idx >= 0) deals[idx] = e.deal; else deals = [...deals, e.deal];
       chain[e.id] = e.chain;
-      pushed.set(e.id, remoteSig);
       changed = true;
     }
+    pulledOnce = true;
     if (changed) { hooks.writeChain(chain); hooks.replaceDeals(deals); }
   } catch { /* offline: ignore */ }
 }
 
 export async function push(): Promise<void> {
-  if (!hooks || busy) return;
+  if (!hooks || busy || !pulledOnce) return;
   busy = true;
   try {
     const chain = hooks.readChain();
@@ -51,13 +52,13 @@ export async function push(): Promise<void> {
     for (const id of Object.keys(chain)) {
       const deal = deals.find((d) => d.id === id);
       if (!deal) continue;
-      const sig = sigOf(deal, chain[id]);
-      if (pushed.get(id) === sig) continue;
+      const p = progress(deal, chain[id]);
+      if (p <= (serverProgress.get(id) ?? -1)) continue; // the server already has this or newer
       const res = await fetch(`${API}/api/sync/deals/${encodeURIComponent(id)}`, {
         method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ deal, chain: chain[id] }),
       });
-      if (res.ok) pushed.set(id, sig);
+      if (res.ok) serverProgress.set(id, p);
     }
   } catch { /* offline: ignore */ } finally { busy = false; }
 }

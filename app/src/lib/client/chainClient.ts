@@ -12,7 +12,7 @@ import {
   Connection, PublicKey, Transaction, TransactionInstruction, SystemProgram, ComputeBudgetProgram,
 } from '@solana/web3.js';
 import { BlinkflowClient } from './types';
-import { mockClient } from './mockClient';
+import { mockClient, getDeals, replaceDeals } from './mockClient';
 import { syncNow, push } from './sync';
 
 export const PROGRAM_ID = new PublicKey('3vJWWymQCHkntbWTgPfL2ujrquLrYHLneqzebr7bnkik');
@@ -138,6 +138,18 @@ async function afterStep<T>(p: Promise<T>): Promise<T> {
   return r;
 }
 
+// The contract funds the escrow inside init_deal_by_customer and starts the task inside accept_deal_by_contractor,
+// so the UI state must follow the chain: funded right after creation, started right after the contractor accepts.
+function patchDeal(dealId: string, fn: (d: any) => void) {
+  const list = getDeals().slice();
+  const d: any = list.find((x: any) => x.id === dealId);
+  if (!d) return null;
+  fn(d);
+  replaceDeals(list as any);
+  return JSON.parse(JSON.stringify(d));
+}
+const today = () => new Date().toISOString().slice(0, 10);
+
 // ---- the client -----------------------------------------------------------------------------------
 export const chainClient: BlinkflowClient = {
   ...mockClient,
@@ -164,6 +176,7 @@ export const chainClient: BlinkflowClient = {
     const all = readChainStore();
     all[deal.id] = { seed: seed.toString(), customer: customer.toBase58(), contractor: contractor.toBase58(), deal: a.deal.toBase58(), sigs: [{ step: 'create', sig, at: new Date().toISOString() }] };
     writeChainStore(all);
+    patchDeal(deal.id, (d) => { d.tasks[0].deposited = true; d.history.push({ date: today(), action: 'Escrow Funded On-chain' }); });
     void (async () => { for (let i = 0; i < 4; i++) { await push(); await new Promise((res) => setTimeout(res, 700)); } })();
     return deal;
   },
@@ -177,7 +190,8 @@ export const chainClient: BlinkflowClient = {
       meta(c.contractor, true, true), meta(a.deal, false, true), meta(a.task0, false, true), meta(a.sbtCollection, false, true),
       meta(a.sbtContractor, false, true), meta(MPL_CORE), meta(SystemProgram.programId)])]);
     addSig(dealId, 'accept', sig);
-    return afterStep(mockClient.acceptDeal(dealId, wallet));
+    return afterStep(mockClient.acceptDeal(dealId, wallet).then((r) =>
+      patchDeal(dealId, (d) => { d.tasks[0].status = 'Started'; d.history.push({ date: today(), action: 'Task Started' }); }) ?? r));
   },
 
   async depositTask(dealId, taskIndex, wallet) {
