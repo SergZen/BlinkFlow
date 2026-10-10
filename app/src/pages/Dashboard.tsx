@@ -37,7 +37,8 @@ export const Dashboard = () => {
   useEffect(() => {
     const loadDeals = async () => {
       try {
-        setDeals(await client.listDeals());
+        const list = await client.listDeals();
+        setDeals(list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
       } catch (err: any) {
         setError("Failed to fetch deals");
       } finally {
