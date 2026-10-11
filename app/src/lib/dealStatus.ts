@@ -16,7 +16,7 @@ export const dealTaskCount = (deal: Deal): number => {
 
 export const dealEscrowTotal = (deal: Deal): number => {
   return deal.tasks
-    .filter(t => t.deposited && ['Started', 'Finished', 'Disputed'].includes(t.status))
+    .filter(t => t.deposited && ['CustomerCreated', 'ContractorCreated', 'Started', 'Finished', 'Disputed'].includes(t.status))
     .reduce((sum, t) => sum + t.amount, 0);
 };
 
