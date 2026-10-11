@@ -23,10 +23,10 @@ export const FaucetButton = () => {
     <div className="relative">
       <Button 
         variant="outline" 
-        onClick={() => setShowUsdcModal(true)}
+        onClick={() => setShowUsdcModal((prev) => !prev)}
         className="h-9 px-3 border-blue-500/30 text-blue-400 hover:bg-blue-500/10 text-xs flex"
       >
-        <Droplets className="w-3.5 h-3.5 mr-1.5" /> Get {symbol}
+        <Droplets className="w-3.5 h-3.5 mr-1.5" /> Get USDC/SOL
       </Button>
 
       {showUsdcModal && (
