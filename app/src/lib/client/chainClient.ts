@@ -37,6 +37,8 @@ const DISC = {
   completeTaskByCustomer: [166, 182, 255, 19, 234, 8, 253, 49],
   cancelTaskByCustomer: [139, 65, 95, 224, 49, 230, 23, 83],
   cancelTaskByContractor: [155, 183, 94, 233, 91, 29, 155, 211],
+  setTrustAuthority: [130, 95, 184, 81, 201, 79, 106, 112],
+  resolveDispute: [231, 6, 202, 6, 96, 103, 12, 230],
 };
 
 const conn = new Connection(RPC, 'confirmed');
@@ -252,14 +254,66 @@ function addrs(customer: PublicKey, contractor: PublicKey, seed: bigint) {
 let cachedTrustAuthority: { key: PublicKey; expiresAt: number } | null = null;
 const TRUST_AUTH_CACHE_TTL = 10 * 60 * 1000;
 
+export function clearTrustAuthorityCache() {
+  cachedTrustAuthority = null;
+}
+
+export interface ProtocolConfig {
+  admin: string;
+  trustAuthority: string;
+  feeRecipient: string;
+  mint: string;
+  protocolFeeBps: number;
+  arbitrationFeeBps: number;
+  paused: boolean;
+}
+
+export async function fetchProtocolConfig(): Promise<ProtocolConfig> {
+  const info = await withRetry(() => conn.getAccountInfo(pda([enc.encode('protocol')])));
+  if (!info) throw new Error('Protocol is not initialised on this cluster.');
+  const admin = new PublicKey(info.data.subarray(8, 40)).toBase58();
+  const trustAuthority = new PublicKey(info.data.subarray(40, 72)).toBase58();
+  const feeRecipient = new PublicKey(info.data.subarray(72, 104)).toBase58();
+  const mint = new PublicKey(info.data.subarray(104, 136)).toBase58();
+  const protocolFeeBps = new DataView(info.data.buffer, info.data.byteOffset + 136, 2).getUint16(0, true);
+  const arbitrationFeeBps = new DataView(info.data.buffer, info.data.byteOffset + 138, 2).getUint16(0, true);
+  const paused = Boolean(info.data[140]);
+  return {
+    admin,
+    trustAuthority,
+    feeRecipient,
+    mint,
+    protocolFeeBps,
+    arbitrationFeeBps,
+    paused,
+  };
+}
+
+export async function setTrustAuthority(newTrustAuthorityStr: string): Promise<string> {
+  const newTrustPubkey = new PublicKey(newTrustAuthorityStr.trim());
+  const protocolPda = pda([enc.encode('protocol')]);
+  const config = await fetchProtocolConfig();
+  requireWallet(config.admin, 'admin');
+
+  const adminKey = new PublicKey(config.admin);
+  const data = cat(Uint8Array.from(DISC.setTrustAuthority), newTrustPubkey.toBuffer());
+  const keys = [
+    meta(adminKey, true, false),
+    meta(protocolPda, false, true),
+  ];
+
+  const sig = await sendTx([ix(data, keys)]);
+  clearTrustAuthorityCache();
+  return sig;
+}
+
 async function trustAuthority(): Promise<PublicKey> {
   const now = Date.now();
   if (cachedTrustAuthority && cachedTrustAuthority.expiresAt > now) {
     return cachedTrustAuthority.key;
   }
-  const info = await withRetry(() => conn.getAccountInfo(pda([enc.encode('protocol')])));
-  if (!info) throw new Error('Protocol is not initialised on this cluster.');
-  const key = new PublicKey(info.data.slice(8 + 32, 8 + 64));
+  const config = await fetchProtocolConfig();
+  const key = new PublicKey(config.trustAuthority);
   cachedTrustAuthority = { key, expiresAt: now + TRUST_AUTH_CACHE_TTL };
   return key;
 }
@@ -467,5 +521,97 @@ export const chainClient: BlinkflowClient = {
     addSig(dealId, 'cancel', sig);
     return afterStep(mockClient.cancelTask(dealId, taskIndex).then((r) =>
       patchDeal(dealId, (d) => { d.history.push({ date: today(), action: side === 'customer' ? 'Cancelled by Customer, Escrow Refunded On-chain' : 'Cancelled by Contractor, Escrow Refunded to Customer On-chain' }); }) ?? r));
+  },
+
+  async resolveDispute(dealId, taskIndex, customerWins) {
+    const c = await ctx(dealId);
+    if (!c) return mockClient.resolveDispute(dealId, taskIndex, customerWins);
+
+    let dealTrustAuth: PublicKey;
+    try {
+      const dealAccount = await withRetry(() => conn.getAccountInfo(c.a.deal));
+      if (dealAccount && dealAccount.data.length >= 136) {
+        dealTrustAuth = new PublicKey(dealAccount.data.subarray(104, 136));
+      } else {
+        dealTrustAuth = await trustAuthority();
+      }
+    } catch {
+      dealTrustAuth = await trustAuthority();
+    }
+
+    requireWallet(dealTrustAuth.toBase58(), 'arbiter / trust authority');
+
+    const a = c.a;
+    const taskPda = pda([enc.encode('task'), a.deal.toBuffer(), Uint8Array.of(taskIndex)]);
+    const trustAuthAta = ata(dealTrustAuth);
+
+    const ixs: TransactionInstruction[] = [];
+
+    // Ensure ATAs exist for accounts receiving tokens if not yet created
+    for (const owner of [dealTrustAuth, c.contractor, c.customer]) {
+      const existing = await withRetry(() => conn.getAccountInfo(ata(owner)));
+      if (!existing) {
+        ixs.push(new TransactionInstruction({
+          programId: ATA_PROGRAM,
+          keys: [
+            meta(dealTrustAuth, true, true),
+            meta(ata(owner), false, true),
+            meta(owner, false, false),
+            meta(MINT, false, false),
+            meta(SystemProgram.programId, false, false),
+            meta(TOKEN_PROGRAM, false, false),
+          ],
+          data: Uint8Array.of(1) as any, // createIdempotent
+        }));
+      }
+    }
+
+    const data = cat(
+      Uint8Array.from(DISC.resolveDispute),
+      Uint8Array.of(taskIndex),
+      Uint8Array.of(customerWins ? 1 : 0)
+    );
+
+    const keys = [
+      meta(dealTrustAuth, true, true),
+      meta(c.contractor, false, false),
+      meta(c.customer, false, false),
+      meta(a.protocol, false, false),
+      meta(a.deal, false, true),
+      meta(taskPda, false, true),
+      meta(MINT, false, false),
+      meta(trustAuthAta, false, true),
+      meta(a.protocolVault, false, true),
+      meta(a.dealVault, false, true),
+      meta(a.customerAta, false, true),
+      meta(a.contractorAta, false, true),
+      meta(a.sbtCollection, false, true),
+      meta(a.sbtCustomer, false, true),
+      meta(a.sbtContractor, false, true),
+      meta(MPL_CORE, false, false),
+      meta(ATA_PROGRAM, false, false),
+      meta(TOKEN_PROGRAM, false, false),
+      meta(SystemProgram.programId, false, false),
+    ];
+
+    ixs.push(ix(data, keys));
+
+    const sig = await sendTx(ixs);
+    addSig(dealId, 'resolve_dispute', sig);
+
+    return afterStep(
+      mockClient.resolveDispute(dealId, taskIndex, customerWins).then((r) =>
+        patchDeal(dealId, (d) => {
+          if (d.tasks?.[taskIndex]) {
+            d.tasks[taskIndex].status = 'Resolved';
+            d.tasks[taskIndex].disputeResult = customerWins ? 'customer' : 'contractor';
+          }
+          d.history.push({
+            date: today(),
+            action: `Dispute Resolved On-chain (${customerWins ? 'Customer Refunded' : 'Contractor Paid'})`,
+          });
+        }) ?? r
+      )
+    );
   },
 };

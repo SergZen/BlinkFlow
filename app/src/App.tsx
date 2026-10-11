@@ -14,6 +14,7 @@ import { About } from './pages/About';
 
 import { Terms } from './pages/Terms';
 import { Privacy } from './pages/Privacy';
+import { ArbiterPage } from './pages/ArbiterPage';
 import { CookieBanner } from './components/CookieBanner';
 
 import '@solana/wallet-adapter-react-ui/styles.css';
@@ -41,7 +42,8 @@ function InnerApp() {
                 <Route path="/lp/freelancer-escrow" element={<LpFreelancerEscrow />} />
                 <Route path="/about" element={<About />} />
                 <Route path="/terms" element={<Terms />} />
-                <Route path="/privacy" element={<Privacy />} />
+                <Route path="/ops-k7r2x9" element={<ArbiterPage view="admin" />} />
+                <Route path="/arb-m4q8w3" element={<ArbiterPage view="arbiter" />} />
                 <Route path="/*" element={
                   <Layout>
                     <Routes>
