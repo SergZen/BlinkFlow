@@ -26,7 +26,7 @@ const MPL_CORE = new PublicKey('CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d');
 const ATA_PROGRAM = new PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
 const TOKEN_PROGRAM = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
 const DECIMALS = 6;
-const RPC = (import.meta as any).env?.VITE_CHAIN_RPC || 'https://api.devnet.solana.com';
+const RPC = (import.meta as any).env?.VITE_CHAIN_RPC || (import.meta as any).env?.VITE_SOLANA_RPC_URL_DEVNET || 'https://api.devnet.solana.com';
 
 const DISC = {
   initDealByCustomer: [2, 51, 89, 167, 112, 219, 175, 236],
@@ -77,11 +77,30 @@ function provider(): any {
   return p;
 }
 
+async function withRetry<T>(fn: () => Promise<T>, tries = 4): Promise<T> {
+  let lastError: any;
+  for (let attempt = 0; attempt < tries; attempt++) {
+    try {
+      return await fn();
+    } catch (e: any) {
+      lastError = e;
+      const text = (e?.message || String(e)).toLowerCase();
+      const isRateLimit = text.includes('429') || text.includes('rate limit') || text.includes('too many requests');
+      if (!isRateLimit || attempt === tries - 1) {
+        throw e;
+      }
+      const delay = 700 * Math.pow(2, attempt);
+      await new Promise((res) => setTimeout(res, delay));
+    }
+  }
+  throw lastError;
+}
+
 async function sendTx(ixs: TransactionInstruction[]): Promise<string> {
   const p = provider();
   const tx = new Transaction().add(ComputeBudgetProgram.setComputeUnitLimit({ units: 600000 }), ...ixs);
   tx.feePayer = new PublicKey(p.publicKey.toString());
-  const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash('confirmed');
+  const { blockhash, lastValidBlockHeight } = await withRetry(() => conn.getLatestBlockhash('confirmed'));
   tx.recentBlockhash = blockhash;
   let signed: Transaction;
   try {
@@ -120,10 +139,19 @@ function addrs(customer: PublicKey, contractor: PublicKey, seed: bigint) {
   };
 }
 
+let cachedTrustAuthority: { key: PublicKey; expiresAt: number } | null = null;
+const TRUST_AUTH_CACHE_TTL = 10 * 60 * 1000;
+
 async function trustAuthority(): Promise<PublicKey> {
-  const info = await conn.getAccountInfo(pda([enc.encode('protocol')]));
+  const now = Date.now();
+  if (cachedTrustAuthority && cachedTrustAuthority.expiresAt > now) {
+    return cachedTrustAuthority.key;
+  }
+  const info = await withRetry(() => conn.getAccountInfo(pda([enc.encode('protocol')])));
   if (!info) throw new Error('Protocol is not initialised on this cluster.');
-  return new PublicKey(info.data.slice(8 + 32, 8 + 64));
+  const key = new PublicKey(info.data.slice(8 + 32, 8 + 64));
+  cachedTrustAuthority = { key, expiresAt: now + TRUST_AUTH_CACHE_TTL };
+  return key;
 }
 
 const ix = (data: Uint8Array, keys: ReturnType<typeof meta>[]) => new TransactionInstruction({ programId: PROGRAM_ID, data: data as any, keys });
@@ -177,7 +205,7 @@ export const chainClient: BlinkflowClient = {
     const seed = BigInt(Date.now());
     const a = addrs(customer, contractor ?? customer, seed);
     try {
-      const balRes = await conn.getTokenAccountBalance(a.customerAta);
+      const balRes = await withRetry(() => conn.getTokenAccountBalance(a.customerAta));
       const have = balRes?.value?.uiAmount ?? (Number(balRes?.value?.amount || 0) / 10 ** DECIMALS);
       if (have < input.amount) {
         throw new Error(`Not enough USDC-Dev: you have ${have}, the deal needs ${input.amount}. Use "Get USDC-Dev" in the header.`);
@@ -201,7 +229,12 @@ export const chainClient: BlinkflowClient = {
     }
     const seconds = Math.max(86400, Math.floor((new Date(input.deadline).getTime() - Date.now()) / 1000) || 604800);
     const taskHash = await sha256(taskHashInput(input.title, input.successCriteria, input.requirementsFile?.sha256));
-    const trust = await trustAuthority();
+    let trust: PublicKey;
+    try {
+      trust = await trustAuthority();
+    } catch (e: any) {
+      throw new Error(friendlyError(e));
+    }
     const ixs = [
       ix(cat(Uint8Array.from(DISC.initDealByCustomer), u64(seed), u64(BigInt(Math.round(input.amount * 10 ** DECIMALS))), taskHash, i64(BigInt(seconds))), [
         meta(customer, true, true), meta(trust), meta(a.protocol), meta(a.deal, false, true), meta(a.task0, false, true), meta(MINT),

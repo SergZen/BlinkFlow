@@ -52,8 +52,8 @@ export function friendlyError(e: unknown): string {
     return 'The network was slow and the transaction was not confirmed. Please try again.';
   }
 
-  // e) RPC rate limit: "429", "too many requests"
-  if (text.includes('429') || text.includes('too many requests')) {
+  // e) RPC rate limit: "429", "too many requests", "rate limit"
+  if (text.includes('429') || text.includes('too many requests') || text.includes('rate limit')) {
     return 'The network is busy right now. Wait a few seconds and try again.';
   }
 
