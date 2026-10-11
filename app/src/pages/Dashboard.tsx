@@ -64,14 +64,15 @@ export const Dashboard = () => {
   }, []);
 
   const isResolved = (status: string) => status === 'resolved' || status === 'resolved_refunded' || status === 'resolved_paid_out';
+  const myDeals = deals.filter(d => {
+    const pk = publicKey?.toBase58();
+    return pk && (d.customer === pk || d.contractor === pk || d.creator === pk);
+  });
   const baseDeals = walletFilter === 'mine' 
-    ? deals.filter(d => {
-        const pk = publicKey?.toBase58();
-        return pk && (d.customer === pk || d.contractor === pk || d.creator === pk);
-      })
+    ? myDeals
     : deals;
 
-  const activeDeals = baseDeals.filter(d => {
+  const activeDeals = myDeals.filter(d => {
     const status = deriveDealStatus(d);
     return status !== 'completed' && status !== 'cancelled' && !isResolved(status);
   });
@@ -130,7 +131,6 @@ export const Dashboard = () => {
         <div>
           <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             Overview
-            <span className="text-xs font-normal bg-orange-500/10 text-orange-400 px-2 py-1 rounded border border-orange-500/20">Demo data</span>
           </h2>
           <p className="text-gray-400 text-sm mt-1">Manage your escrow agreements and release payments securely.</p>
         </div>
@@ -193,7 +193,6 @@ export const Dashboard = () => {
           <h3 className="text-lg font-medium flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse shadow-[0_0_8px_rgba(249,115,22,0.6)]"></div>
             Awaiting Your Action
-            <span className="text-xs font-normal bg-orange-500/10 text-orange-400 px-2 py-1 rounded border border-orange-500/20 ml-2">Demo data</span>
           </h3>
           <div className="grid grid-cols-1 gap-3">
             {pendingActions.map(deal => (
