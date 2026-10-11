@@ -10,6 +10,7 @@ import { ArrowLeft, CheckCircle2, History, Loader2, Share2, X } from 'lucide-rea
 import { useState, useEffect, useRef } from 'react';
 import { MAX_REQ_FILE_BYTES, sha256HexOfFile } from '../lib/fileHash';
 import { ShareDealPanel } from '../components/ShareDealPanel';
+import { ApplicationsPanel } from '../components/ApplicationsPanel';
 import { useToken } from '../lib/constants';
 import { truncateAddress } from '../lib/utils';
 import { useSolBalance } from '../hooks/useSolBalance';
@@ -349,7 +350,11 @@ export const DealDetails = () => {
     if (isVirtualDeal) return null;
 
     if ((role === 'contractor' && !deal.contractor) || (role === 'customer' && !deal.customer)) {
-      return <p className="text-gray-500 text-sm italic mt-4 pt-4 border-t border-gray-800/50">Accept the deal to continue</p>;
+      return (
+        <p className="text-gray-500 text-sm italic mt-4 pt-4 border-t border-gray-800/50">
+          {isChainMode && chainInfo ? 'Apply or accept in the panel above to continue' : 'Accept the deal to continue'}
+        </p>
+      );
     }
     
     const loading = taskActionLoading[index];
@@ -391,10 +396,6 @@ export const DealDetails = () => {
     }
 
     if (role === 'customer') {
-      if (!deal.contractor) {
-        return <p className="text-gray-500 text-sm italic mt-4 pt-4 border-t border-gray-800/50">Waiting for a contractor to accept this deal</p>;
-      }
-
       if (task.deposited && task.status === 'CustomerCreated') {
         return (
           <div className="mt-4 pt-4 border-t border-gray-800/50 space-y-3">
@@ -411,6 +412,10 @@ export const DealDetails = () => {
             {err && <p className="text-red-400 text-xs">{err}</p>}
           </div>
         );
+      }
+
+      if (!deal.contractor) {
+        return <p className="text-gray-500 text-sm italic mt-4 pt-4 border-t border-gray-800/50">Waiting for a contractor to accept this deal</p>;
       }
       
       if (!task.deposited && (task.status === 'CustomerCreated' || task.status === 'ContractorCreated')) {
@@ -575,7 +580,13 @@ export const DealDetails = () => {
               </div>
               <div>
                 <div className="text-gray-500 text-xs uppercase tracking-wider font-semibold mb-1">Contractor</div>
-                <div className="text-gray-300 font-mono">{deal?.contractor ? truncateAddress(deal.contractor) : 'Waiting'}</div>
+                <div className="text-gray-300 font-mono">
+                  {deal?.contractor
+                    ? truncateAddress(deal.contractor)
+                    : chainInfo?.contractor
+                    ? `${truncateAddress(chainInfo.contractor)} (pending)`
+                    : 'Waiting'}
+                </div>
               </div>
             </div>
             {isTestMode && (
@@ -585,7 +596,7 @@ export const DealDetails = () => {
             )}
           </Card>
 
-          {!isVirtualDeal && ((role === 'contractor' && !deal.contractor) || (role === 'customer' && !deal.customer)) && (
+          {!isVirtualDeal && !(isChainMode && chainInfo) && ((role === 'contractor' && !deal.contractor) || (role === 'customer' && !deal.customer)) && (
             <Card className="p-6 border-purple-500/20 bg-purple-500/5">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div>
@@ -609,6 +620,8 @@ export const DealDetails = () => {
               {globalError && <p className="text-red-400 text-xs mt-2">{globalError}</p>}
             </Card>
           )}
+
+          {!isVirtualDeal && isChainMode && chainInfo && !deal.contractor && <ApplicationsPanel deal={deal} chainInfo={chainInfo} role={role} />}
           <Card className="p-6">
             <h3 className="text-lg font-medium mb-4 flex items-center gap-2">
               <CheckCircle2 className="w-5 h-5 text-purple-400" />

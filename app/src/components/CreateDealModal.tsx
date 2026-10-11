@@ -29,7 +29,7 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
   const [amount, setAmount] = useState('');
   const [criteria, setCriteria] = useState('');
   const [deadline, setDeadline] = useState('');
-  const [contractorWalletInput, setContractorWalletInput] = useState(import.meta.env.VITE_DEMO_CONTRACTOR || '');
+  const [contractorWalletInput, setContractorWalletInput] = useState('');
   const [error, setError] = useState('');
   const [reqFile, setReqFile] = useState<{ name: string; sha256: string } | null>(null);
   const [isHashing, setIsHashing] = useState(false);
@@ -169,10 +169,11 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
                 <input id="deal-title" type="text" required maxLength={100} placeholder="e.g. Website Redesign" value={title} onChange={(e) => setTitle(e.target.value)} className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-2.5 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all text-white" />
               </div>
 
-              {role === 'customer' && isChainMode && !import.meta.env.VITE_DEMO_CONTRACTOR && (
+              {role === 'customer' && isChainMode && (
                 <div>
                   <label htmlFor="deal-contractor" className="block text-sm font-medium text-gray-300 mb-1.5">Contractor Wallet (Optional)</label>
-                  <input id="deal-contractor" type="text" placeholder="Leave empty to use the demo contractor" value={contractorWalletInput} onChange={(e) => setContractorWalletInput(e.target.value)} className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-2.5 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all text-white font-mono text-sm" />
+                  <input id="deal-contractor" type="text" placeholder="Leave empty: contractors will apply and you choose one" value={contractorWalletInput} onChange={(e) => setContractorWalletInput(e.target.value)} className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-2.5 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all text-white font-mono text-sm" />
+                  <p className="text-xs text-gray-500 mt-1">You can also invite a specific contractor by pasting their wallet.</p>
                 </div>
               )}
 
