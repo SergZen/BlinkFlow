@@ -108,12 +108,35 @@ async function sendTx(ixs: TransactionInstruction[]): Promise<string> {
   } catch (e: any) {
     throw new Error(friendlyError(e));
   }
-  let sig: string;
-  try {
-    sig = await conn.sendRawTransaction(signed.serialize(), { skipPreflight: false });
-  } catch (e: any) {
-    console.error('[sendTx]', e);
-    throw new Error(friendlyError(e));
+  const raw = signed.serialize();
+  let sig!: string;
+  for (let attempt = 1; attempt <= 6; attempt++) {
+    try {
+      sig = await conn.sendRawTransaction(raw, {
+        skipPreflight: false,
+        preflightCommitment: 'processed',
+      });
+      break;
+    } catch (e: any) {
+      const errMsg = (e?.message || String(e)).toLowerCase();
+      if (errMsg.includes('blockhash not found')) {
+        if (attempt < 6) {
+          await new Promise((res) => setTimeout(res, 1000));
+          continue;
+        }
+      } else {
+        console.error('[sendTx]', e);
+        throw new Error(friendlyError(e));
+      }
+    }
+  }
+  if (!sig) {
+    try {
+      sig = await conn.sendRawTransaction(raw, { skipPreflight: true, maxRetries: 3 });
+    } catch (e: any) {
+      console.error('[sendTx]', e);
+      throw new Error(friendlyError(e));
+    }
   }
   let res: any;
   try {
