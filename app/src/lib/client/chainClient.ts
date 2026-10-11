@@ -98,7 +98,11 @@ async function withRetry<T>(fn: () => Promise<T>, tries = 4): Promise<T> {
 
 async function sendTx(ixs: TransactionInstruction[]): Promise<string> {
   const p = provider();
-  const tx = new Transaction().add(ComputeBudgetProgram.setComputeUnitLimit({ units: 600000 }), ...ixs);
+  const tx = new Transaction().add(
+    ComputeBudgetProgram.setComputeUnitLimit({ units: 600000 }),
+    ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 50_000 }),
+    ...ixs
+  );
   tx.feePayer = new PublicKey(p.publicKey.toString());
   const { blockhash, lastValidBlockHeight } = await withRetry(() => conn.getLatestBlockhash('confirmed'));
   tx.recentBlockhash = blockhash;
@@ -138,9 +142,32 @@ async function sendTx(ixs: TransactionInstruction[]): Promise<string> {
       throw new Error(friendlyError(e));
     }
   }
+  let done = false;
+  const rebroadcastStart = Date.now();
+  const rebroadcastIntervalMs = 2_000;
+  const rebroadcastMaxMs = 60_000;
+
+  const rebroadcastLoop = async () => {
+    while (!done && Date.now() - rebroadcastStart < rebroadcastMaxMs) {
+      await new Promise((resolve) => setTimeout(resolve, rebroadcastIntervalMs));
+      if (done) break;
+      try {
+        await conn.sendRawTransaction(raw, { skipPreflight: true, maxRetries: 0 });
+      } catch {
+        // ignore rebroadcast errors
+      }
+    }
+  };
+
+  rebroadcastLoop().catch(() => {});
+
   let res: any;
   try {
-    res = await conn.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, 'confirmed');
+    try {
+      res = await conn.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, 'confirmed');
+    } finally {
+      done = true;
+    }
   } catch (confirmErr: any) {
     const confirmMsg = (confirmErr?.message || String(confirmErr)).toLowerCase();
     const isTimeout =
@@ -163,6 +190,11 @@ async function sendTx(ixs: TransactionInstruction[]): Promise<string> {
 
     while (Date.now() - startTime < maxPollTimeMs) {
       await new Promise((resolve) => setTimeout(resolve, intervalMs));
+      try {
+        await conn.sendRawTransaction(raw, { skipPreflight: true, maxRetries: 0 });
+      } catch {
+        // ignore rebroadcast errors in polling fallback
+      }
       let statusRes: any = null;
       try {
         statusRes = await withRetry(() =>
@@ -190,6 +222,8 @@ async function sendTx(ixs: TransactionInstruction[]): Promise<string> {
     throw new Error(
       'The transaction was sent but is not confirmed yet. Wait 30 seconds, refresh the page and check the deal status before trying again.'
     );
+  } finally {
+    done = true;
   }
 
   if (res.value.err) {
