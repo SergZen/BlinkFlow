@@ -728,6 +728,79 @@ app.post('/api/sync/deals/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+const appStore = new Map(); // dealId -> Array<{ wallet: string, note: string, createdAt: number }>
+const WALLET_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/; // base58 Solana address
+const MAX_APPS_PER_DEAL = 25;
+
+app.get('/api/sync/deals/:id/applications', (req, res) => {
+  const { id } = req.params;
+  if (!SYNC_ID.test(id)) return res.status(400).json({ error: 'invalid deal id' });
+  const apps = appStore.get(id) || [];
+  const sorted = [...apps].sort((a, b) => a.createdAt - b.createdAt);
+  res.json(sorted);
+});
+
+app.post('/api/sync/deals/:id/applications', (req, res) => {
+  const { id } = req.params;
+  if (!SYNC_ID.test(id)) return res.status(400).json({ error: 'invalid deal id' });
+  const stored = syncStore.get(id);
+  if (!stored) return res.status(404).json({ error: 'deal not found' });
+
+  const { wallet, note } = req.body || {};
+  if (typeof wallet !== 'string' || !WALLET_RE.test(wallet)) {
+    return res.status(400).json({ error: 'invalid wallet' });
+  }
+
+  const customerWallet = stored.chain?.customer || stored.deal?.chain?.customer || stored.deal?.customer;
+  if (customerWallet && wallet === customerWallet) {
+    return res.status(400).json({ error: 'customer cannot apply to own deal' });
+  }
+
+  const safeNote = typeof note === 'string' ? note.trim().slice(0, 140) : '';
+
+  let apps = appStore.get(id);
+  if (!apps) {
+    apps = [];
+    appStore.set(id, apps);
+  }
+
+  const existing = apps.find(a => a.wallet === wallet);
+  if (existing) {
+    existing.note = safeNote;
+    console.log(`[apps] updated application for deal ${id}`);
+    return res.json({ ok: true });
+  }
+
+  if (apps.length >= MAX_APPS_PER_DEAL) {
+    return res.status(429).json({ error: 'too many applications' });
+  }
+
+  apps.push({ wallet, note: safeNote, createdAt: Date.now() });
+  console.log(`[apps] added application for deal ${id}`);
+  res.json({ ok: true });
+});
+
+app.post('/api/sync/deals/:id/applications/withdraw', (req, res) => {
+  const { id } = req.params;
+  if (!SYNC_ID.test(id)) return res.status(400).json({ error: 'invalid deal id' });
+
+  const { wallet } = req.body || {};
+  if (typeof wallet !== 'string' || !WALLET_RE.test(wallet)) {
+    return res.status(400).json({ error: 'invalid wallet' });
+  }
+
+  const apps = appStore.get(id);
+  if (apps) {
+    const idx = apps.findIndex(a => a.wallet === wallet);
+    if (idx !== -1) {
+      apps.splice(idx, 1);
+      console.log(`[apps] withdrawn application for deal ${id}`);
+    }
+  }
+
+  res.json({ ok: true });
+});
+
 app.options('*', cors(corsOptions));
 
 const PORT = process.env.PORT || 3001;
