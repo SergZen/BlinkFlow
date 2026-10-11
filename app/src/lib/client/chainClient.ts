@@ -7,7 +7,8 @@
 //   depositTask(0)         -> no tx (init_deal_by_customer already funded the vault); UI state only
 //   finishTask(0)          -> finish_task_by_contractor
 //   completeTask(0, true)  -> complete_task_by_customer
-// Anything else (extra tasks, cancel, disputes, rejecting) falls through to mockClient only.
+//   cancelTask(0)          -> cancel_task_by_customer (CustomerCreated) / cancel_task_by_contractor (Started)
+// Anything else (extra tasks, disputes, rejecting) falls through to mockClient only.
 import {
   Connection, PublicKey, Transaction, TransactionInstruction, SystemProgram, ComputeBudgetProgram,
 } from '@solana/web3.js';
@@ -33,6 +34,8 @@ const DISC = {
   depositTaskByCustomer: [177, 242, 167, 14, 160, 252, 193, 176],
   finishTaskByContractor: [196, 235, 52, 233, 27, 16, 254, 233],
   completeTaskByCustomer: [166, 182, 255, 19, 234, 8, 253, 49],
+  cancelTaskByCustomer: [139, 65, 95, 224, 49, 230, 23, 83],
+  cancelTaskByContractor: [155, 183, 94, 233, 91, 29, 155, 211],
 };
 
 const conn = new Connection(RPC, 'confirmed');
@@ -226,5 +229,47 @@ export const chainClient: BlinkflowClient = {
       meta(a.sbtCustomer, false, true), meta(a.sbtContractor, false, true), meta(MPL_CORE), meta(ATA_PROGRAM), meta(TOKEN_PROGRAM), meta(SystemProgram.programId)])]);
     addSig(dealId, 'complete', sig);
     return afterStep(mockClient.completeTask(dealId, taskIndex, approved));
+  },
+
+  async cancelTask(dealId, taskIndex) {
+    const c = await ctx(dealId);
+    if (!c || taskIndex !== 0) return mockClient.cancelTask(dealId, taskIndex);
+    const me = provider().publicKey.toString();
+    let side: 'customer' | 'contractor';
+    if (me === c.info.customer) {
+      side = 'customer';
+    } else if (me === c.info.contractor) {
+      side = 'contractor';
+    } else {
+      throw new Error('Switch Phantom to the customer or contractor account of this deal.');
+    }
+    const currentDeal = getDeals().find((d) => d.id === dealId);
+    const currentStatus = currentDeal?.tasks?.[taskIndex]?.status;
+    if (side === 'customer') {
+      if (currentStatus !== 'CustomerCreated') {
+        throw new Error('The contractor already accepted this deal. The customer can no longer cancel it.');
+      }
+    } else {
+      if (currentStatus !== 'Started') {
+        throw new Error('The contractor can cancel only after accepting the task.');
+      }
+    }
+    const a = c.a;
+    const disc = side === 'customer' ? DISC.cancelTaskByCustomer : DISC.cancelTaskByContractor;
+    const signerKey = side === 'customer' ? c.customer : c.contractor;
+    const sig = await sendTx([ix(cat(Uint8Array.from(disc), Uint8Array.of(taskIndex)), [
+      meta(signerKey, true),
+      meta(a.deal, false, true),
+      meta(a.task0, false, true),
+      meta(MINT),
+      meta(a.dealVault, false, true),
+      meta(a.customerAta, false, true),
+      meta(ATA_PROGRAM),
+      meta(TOKEN_PROGRAM),
+      meta(SystemProgram.programId),
+    ])]);
+    addSig(dealId, 'cancel', sig);
+    return afterStep(mockClient.cancelTask(dealId, taskIndex).then((r) =>
+      patchDeal(dealId, (d) => { d.history.push({ date: today(), action: side === 'customer' ? 'Cancelled by Customer, Escrow Refunded On-chain' : 'Cancelled by Contractor, Escrow Refunded to Customer On-chain' }); }) ?? r));
   },
 };

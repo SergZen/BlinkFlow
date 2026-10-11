@@ -389,6 +389,24 @@ export const DealDetails = () => {
       if (!deal.contractor) {
         return <p className="text-gray-500 text-sm italic mt-4 pt-4 border-t border-gray-800/50">Waiting for a contractor to accept this deal</p>;
       }
+
+      if (task.deposited && task.status === 'CustomerCreated') {
+        return (
+          <div className="mt-4 pt-4 border-t border-gray-800/50 space-y-3">
+            <p className="text-sm text-gray-400">Waiting for the contractor to accept. Until then you can cancel and get your USDC back.</p>
+            {renderSolWarning()}
+            {!connected ? (
+              <Button variant="outline" onClick={() => setVisible(true)}>Connect Wallet to Cancel</Button>
+            ) : (
+              <Button variant="outline" onClick={() => handleTaskAction(index, () => client.cancelTask(deal.id, index))} disabled={loading || !hasEnoughSol}>
+                {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> : null}
+                Cancel & Refund
+              </Button>
+            )}
+            {err && <p className="text-red-400 text-xs">{err}</p>}
+          </div>
+        );
+      }
       
       if (!task.deposited && (task.status === 'CustomerCreated' || task.status === 'ContractorCreated')) {
         return (
@@ -446,16 +464,20 @@ export const DealDetails = () => {
         return (
           <div className="mt-4 pt-4 border-t border-gray-800/50 space-y-3">
             <p className="text-gray-500 text-sm italic">Waiting for the customer to fund this task</p>
-            {renderSolWarning()}
-            <div className="flex">
-              {!connected ? (
-                 <Button variant="outline" onClick={() => setVisible(true)}>Connect Wallet to Cancel</Button>
-              ) : (
-                <Button variant="outline" onClick={() => handleTaskAction(index, () => client.cancelTask(deal.id, index))} disabled={loading || !hasEnoughSol}>
-                  Cancel Task
-                </Button>
-              )}
-            </div>
+            {!isChainMode && (
+              <>
+                {renderSolWarning()}
+                <div className="flex">
+                  {!connected ? (
+                     <Button variant="outline" onClick={() => setVisible(true)}>Connect Wallet to Cancel</Button>
+                  ) : (
+                    <Button variant="outline" onClick={() => handleTaskAction(index, () => client.cancelTask(deal.id, index))} disabled={loading || !hasEnoughSol}>
+                      Cancel Task
+                    </Button>
+                  )}
+                </div>
+              </>
+            )}
             {err && <p className="text-red-400 text-xs">{err}</p>}
           </div>
         );
@@ -484,10 +506,11 @@ export const DealDetails = () => {
               )}
               {!connected ? null : (
                 <Button variant="outline" onClick={() => handleTaskAction(index, () => client.cancelTask(deal.id, index))} disabled={loading || !hasEnoughSol}>
-                  Cancel Task
+                  Cancel & Return Funds
                 </Button>
               )}
             </div>
+            <p className="text-xs text-gray-500">If you cannot complete this task, cancelling returns the full amount to the customer.</p>
             {err && <p className="text-red-400 text-xs">{err}</p>}
           </div>
         );
