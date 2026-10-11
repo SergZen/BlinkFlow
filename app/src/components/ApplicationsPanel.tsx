@@ -33,6 +33,7 @@ export const ApplicationsPanel = ({ deal, chainInfo, role }: ApplicationsPanelPr
   const [actionError, setActionError] = useState('');
   const [assigningWallet, setAssigningWallet] = useState<string | null>(null);
   const [assignError, setAssignError] = useState('');
+  const [declinedTick, setDeclinedTick] = useState(0);
 
   const me = publicKey?.toBase58();
 
@@ -117,6 +118,13 @@ export const ApplicationsPanel = ({ deal, chainInfo, role }: ApplicationsPanelPr
     setActionError('');
     setActionLoading(true);
     try {
+      const sigsCount = chainInfo.sigs?.length ?? 0;
+      try {
+        localStorage.setItem(`blinkflow_declined_${deal.id}_${me}`, String(sigsCount));
+      } catch {
+        // ignore
+      }
+      setDeclinedTick((t) => t + 1);
       await withdrawApplication(deal.id, me);
       await load();
     } catch (err: any) {
@@ -139,7 +147,21 @@ export const ApplicationsPanel = ({ deal, chainInfo, role }: ApplicationsPanelPr
     }
   };
 
-  const isSelected = !!chainInfo.contractor && me === chainInfo.contractor;
+  let storedDeclined: number | null = null;
+  if (me) {
+    try {
+      const raw = localStorage.getItem(`blinkflow_declined_${deal.id}_${me}`);
+      if (raw !== null) {
+        const parsed = parseInt(raw, 10);
+        if (!isNaN(parsed)) storedDeclined = parsed;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  const isDeclined = storedDeclined !== null && (chainInfo.sigs?.length ?? 0) <= storedDeclined;
+  const isSelected = !!chainInfo.contractor && me === chainInfo.contractor && !isDeclined;
   const hasApplied = !!me && apps.some((a) => a.wallet === me);
 
   return (
@@ -196,9 +218,11 @@ export const ApplicationsPanel = ({ deal, chainInfo, role }: ApplicationsPanelPr
             <div>
               <h3 className="text-lg font-medium mb-1">Apply to this deal</h3>
               <p className="text-sm text-gray-400 mb-2">The customer will pick one contractor from the applicants.</p>
-              {chainInfo.contractor && (
+              {isDeclined ? (
+                <p className="text-xs text-gray-500 mb-3">You declined. You can apply again.</p>
+              ) : chainInfo.contractor ? (
                 <p className="text-xs text-gray-500 mb-3">The customer already picked someone, but may still change their choice.</p>
-              )}
+              ) : null}
               <div className="space-y-3">
                 <textarea
                   maxLength={140}
@@ -223,9 +247,15 @@ export const ApplicationsPanel = ({ deal, chainInfo, role }: ApplicationsPanelPr
         <div>
           <h3 className="text-lg font-medium mb-1">Applications ({apps.length})</h3>
           {chainInfo.contractor ? (
-            <p className="text-xs text-gray-400 mb-4">
-              Selected: <span className="font-mono text-gray-300">{truncateAddress(chainInfo.contractor)}</span>. Waiting for them to accept. You can choose another contractor until they accept.
-            </p>
+            apps.some((a) => a.wallet === chainInfo.contractor) ? (
+              <p className="text-xs text-gray-400 mb-4">
+                Selected: <span className="font-mono text-gray-300">{truncateAddress(chainInfo.contractor)}</span>. Waiting for them to accept. You can choose another contractor until they accept.
+              </p>
+            ) : (
+              <p className="text-xs text-gray-400 mb-4">
+                Selected: <span className="font-mono text-gray-300">{truncateAddress(chainInfo.contractor)}</span> (not in the applicants list any more). Choose another contractor if they do not respond.
+              </p>
+            )
           ) : null}
 
           {apps.length === 0 ? (
