@@ -18,6 +18,7 @@ import { BlinkflowClient } from './types';
 import { mockClient, getDeals, replaceDeals } from './mockClient';
 import { syncNow, push } from './sync';
 import { taskHashInput } from '../fileHash';
+import { friendlyError } from '../errors';
 
 export const PROGRAM_ID = new PublicKey('3vJWWymQCHkntbWTgPfL2ujrquLrYHLneqzebr7bnkik');
 export const MINT = new PublicKey('Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr');
@@ -82,17 +83,25 @@ async function sendTx(ixs: TransactionInstruction[]): Promise<string> {
   tx.feePayer = new PublicKey(p.publicKey.toString());
   const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash('confirmed');
   tx.recentBlockhash = blockhash;
-  const signed = await p.signTransaction(tx);
+  let signed: Transaction;
+  try {
+    signed = await p.signTransaction(tx);
+  } catch (e: any) {
+    throw new Error(friendlyError(e));
+  }
   let sig: string;
   try {
     sig = await conn.sendRawTransaction(signed.serialize(), { skipPreflight: false });
   } catch (e: any) {
-    const logs: string[] | undefined = e.logs ?? e.transactionLogs;
-    const hint = logs?.slice(-4).join(' | ');
-    throw new Error(`On-chain error: ${e.message}${hint ? ' — ' + hint : ''}`);
+    console.error('[sendTx]', e);
+    throw new Error(friendlyError(e));
   }
   const res = await conn.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, 'confirmed');
-  if (res.value.err) throw new Error('Transaction failed: ' + JSON.stringify(res.value.err));
+  if (res.value.err) {
+    console.error('[sendTx confirm error]', res.value.err);
+    const logsStr = (res.value as any)?.logs ? (res.value as any).logs.join(' ') : '';
+    throw new Error(friendlyError(JSON.stringify(res.value.err) + (logsStr ? ' ' + logsStr : '')));
+  }
   return sig;
 }
 
@@ -167,6 +176,29 @@ export const chainClient: BlinkflowClient = {
     const contractor = contractorStr ? new PublicKey(contractorStr) : null;
     const seed = BigInt(Date.now());
     const a = addrs(customer, contractor ?? customer, seed);
+    try {
+      const balRes = await conn.getTokenAccountBalance(a.customerAta);
+      const have = balRes?.value?.uiAmount ?? (Number(balRes?.value?.amount || 0) / 10 ** DECIMALS);
+      if (have < input.amount) {
+        throw new Error(`Not enough USDC-Dev: you have ${have}, the deal needs ${input.amount}. Use "Get USDC-Dev" in the header.`);
+      }
+    } catch (err: any) {
+      if (err.message && err.message.startsWith('Not enough USDC-Dev:')) {
+        throw err;
+      }
+      const errMsg = (err?.message || String(err)).toLowerCase();
+      if (
+        errMsg.includes('could not find account') ||
+        errMsg.includes('not found') ||
+        errMsg.includes('account not initialized') ||
+        errMsg.includes('accountnotinitialized') ||
+        errMsg.includes('does not exist') ||
+        errMsg.includes('invalid param')
+      ) {
+        throw new Error(friendlyError('could not find account'));
+      }
+      console.warn('[createDeal] balance pre-check skipped due to RPC error:', err?.message || err);
+    }
     const seconds = Math.max(86400, Math.floor((new Date(input.deadline).getTime() - Date.now()) / 1000) || 604800);
     const taskHash = await sha256(taskHashInput(input.title, input.successCriteria, input.requirementsFile?.sha256));
     const trust = await trustAuthority();
