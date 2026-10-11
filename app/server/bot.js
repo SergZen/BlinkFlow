@@ -134,7 +134,7 @@ function setupBot(app, baseUrl, frontendUrl, dealsData) {
                       `💰 Amount: ${foundDeal.amount} USDC\n` +
                       `📊 Status: ${foundDeal.status}\n` +
                       `📅 Deadline: ${foundDeal.deadline}\n\n` +
-                      `Share this Blink with your counterparty or open it on the website.`;
+                      `Share this deal link with your counterparty or open it on the website.`;
 
       bot.sendPhoto(chatId, ogImageUrl, {
         caption,
@@ -266,7 +266,7 @@ function setupBot(app, baseUrl, frontendUrl, dealsData) {
         const ogImageUrl = `${baseUrl}/api/deal/${dealId}/og-image.png?${queryParams}`;
 
         bot.sendPhoto(chatId, ogImageUrl, {
-          caption: "✅ Deal created! Share this Blink with your counterparty by forwarding this message, or by sending them the link below.",
+          caption: "✅ Deal created! Share this deal link with your counterparty by forwarding this message, or by sending them the link below.",
           reply_markup: {
             inline_keyboard: [
               [{ text: "🔗 Open deal", url: rawActionUrl }],
@@ -369,7 +369,7 @@ function setupBot(app, baseUrl, frontendUrl, dealsData) {
         const ogImageUrl = `${baseUrl}/api/deal/${dealId}/og-image.png?${queryParams}`;
 
         bot.sendPhoto(chatId, ogImageUrl, {
-          caption: "✅ Deal created! Share this Blink with your counterparty by forwarding this message, or by sending them the link below.",
+          caption: "✅ Deal created! Share this deal link with your counterparty by forwarding this message, or by sending them the link below.",
           reply_markup: {
             inline_keyboard: [
               [{ text: "🔗 Open deal", url: rawActionUrl }],
