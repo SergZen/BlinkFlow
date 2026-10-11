@@ -17,7 +17,8 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
   const { network, setNetwork, isTestMode } = useNetwork();
   const { solBalance } = useSolBalance();
   const MIN_SOL_REQUIRED = 0.01; // Estimate for rent + network fees
-  const hasEnoughSol = solBalance !== null && solBalance >= MIN_SOL_REQUIRED;
+  const balanceKnown = solBalance !== null;
+  const lowSol = balanceKnown && solBalance < MIN_SOL_REQUIRED;
 
   const [step, setStep] = useState<1 | 2>(1);
   const [rawActionUrl, setRawActionUrl] = useState('');
@@ -33,6 +34,7 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
   const [error, setError] = useState('');
   const [reqFile, setReqFile] = useState<{ name: string; sha256: string } | null>(null);
   const [isHashing, setIsHashing] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
@@ -68,6 +70,7 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     if (!connected) {
       setError("Please connect your Solana wallet to create a deal.");
       return;
@@ -101,6 +104,7 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
     let dealId = `ESC-${Math.floor(1000 + Math.random() * 9000)}`;
     const walletAddr = connected && publicKey ? publicKey.toBase58() : '';
     
+    setIsSubmitting(true);
     try {
       const deal = await client.createDeal({
         role,
@@ -119,6 +123,8 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
         setError(err instanceof Error ? err.message : String(err));
         return;
       }
+    } finally {
+      setIsSubmitting(false);
     }
     
     const customerWallet = role === 'customer' ? walletAddr : '';
@@ -239,9 +245,10 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
                 />
               </div>
               <div className="pt-4 space-y-4">
-                {!hasEnoughSol && role === 'customer' && (
+                {lowSol && role === 'customer' && (
                   <div className="mb-4 bg-orange-500/10 border border-orange-500/20 rounded-lg p-3 text-sm text-orange-400">
                     You need a small amount of SOL (~0.01) to cover network fees and account rent.
+                    {balanceKnown && ` Your SOL balance: ${solBalance.toFixed(3)} SOL.`}
                     {isTestMode && (
                       <a href="https://faucet.solana.com" target="_blank" rel="noopener noreferrer" className="ml-1 text-orange-300 font-medium hover:underline">
                         Get devnet SOL →
@@ -261,11 +268,12 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
                 ) : (
                   <Button 
                     variant="gradient" 
-                    className={`w-full py-2.5 text-base ${(!hasEnoughSol && role === 'customer') ? 'opacity-50 cursor-not-allowed' : ''}`} 
+                    className={`w-full py-2.5 text-base ${(lowSol && role === 'customer') || isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`} 
                     type="submit"
-                    disabled={!hasEnoughSol && role === 'customer'}
+                    disabled={(lowSol && role === 'customer') || isSubmitting}
+                    title={lowSol && role === 'customer' ? "Not enough SOL for network fees" : undefined}
                   >
-                    Create Deal Link
+                    {isSubmitting ? 'Creating… confirm in Phantom' : 'Create Deal Link'}
                   </Button>
                 )}
               </div>

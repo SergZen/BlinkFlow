@@ -25,7 +25,7 @@ export const ApplicationsPanel = ({ deal, chainInfo, role }: ApplicationsPanelPr
   const { solBalance } = useSolBalance();
   const { isTestMode } = useNetwork();
   const MIN_SOL_REQUIRED = 0.01;
-  const hasEnoughSol = solBalance !== null && solBalance >= MIN_SOL_REQUIRED;
+  const hasEnoughSol = solBalance === null || solBalance >= MIN_SOL_REQUIRED;
 
   const [apps, setApps] = useState<Application[]>([]);
   const [note, setNote] = useState('');

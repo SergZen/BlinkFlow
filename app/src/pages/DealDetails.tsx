@@ -229,7 +229,7 @@ export const DealDetails = () => {
   const { solBalance } = useSolBalance();
   const { symbol } = useToken();
   const MIN_SOL_REQUIRED = 0.01;
-  const hasEnoughSol = solBalance !== null && solBalance >= MIN_SOL_REQUIRED;
+  const hasEnoughSol = solBalance === null || solBalance >= MIN_SOL_REQUIRED;
 
   const renderSolWarning = () => {
     if (hasEnoughSol) return null;
