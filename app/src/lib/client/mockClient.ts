@@ -107,6 +107,10 @@ export const mockClient: BlinkflowClient = {
     return JSON.parse(JSON.stringify(newDeal));
   },
 
+  async assignContractor() {
+    throw new Error('Choosing a contractor on-chain is available in on-chain mode only.');
+  },
+
   async acceptDeal(dealId, wallet) {
     await delay(300);
     const deal = deals.find(d => d.id === dealId);

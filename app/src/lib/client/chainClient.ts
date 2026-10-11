@@ -2,13 +2,14 @@
 // (signed by the connected Phantom account) and then updates the same UI state as mockClient.
 //
 // Scope for the demo: task 0 of a customer-created deal.
-//   createDeal (customer)  -> init_deal_by_customer + add_contractor_to_deal   (one tx, customer signs)
-//   acceptDeal (contractor)-> accept_deal_by_contractor
-//   depositTask(0)         -> no tx (init_deal_by_customer already funded the vault); UI state only
-//   finishTask(0)          -> finish_task_by_contractor
-//   completeTask(0, true)  -> complete_task_by_customer
-//   completeTask(0, false) -> complete_task_by_customer(approved=false), moves the task to Disputed
-//   cancelTask(0)          -> cancel_task_by_customer (CustomerCreated) / cancel_task_by_contractor (Started)
+//   createDeal (customer)      -> init_deal_by_customer (+ add_contractor_to_deal only if a contractor wallet was given)
+//   assignContractor (customer)-> add_contractor_to_deal (picks pending contractor before acceptance)
+//   acceptDeal (contractor)    -> accept_deal_by_contractor
+//   depositTask(0)             -> no tx (init_deal_by_customer already funded the vault); UI state only
+//   finishTask(0)              -> finish_task_by_contractor
+//   completeTask(0, true)      -> complete_task_by_customer
+//   completeTask(0, false)     -> complete_task_by_customer(approved=false), moves the task to Disputed
+//   cancelTask(0)              -> cancel_task_by_customer (CustomerCreated) / cancel_task_by_contractor (Started)
 // Anything else (extra tasks, disputes) falls through to mockClient only.
 import {
   Connection, PublicKey, Transaction, TransactionInstruction, SystemProgram, ComputeBudgetProgram,
@@ -25,8 +26,6 @@ const ATA_PROGRAM = new PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL'
 const TOKEN_PROGRAM = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
 const DECIMALS = 6;
 const RPC = (import.meta as any).env?.VITE_CHAIN_RPC || 'https://api.devnet.solana.com';
-// Demo-only: the contractor wallet used when the create form has no contractor field.
-const DEMO_CONTRACTOR = (import.meta as any).env?.VITE_DEMO_CONTRACTOR || 'HHEA9zcdBXdy9pTxzrG7UUKCfsjtKNwTJYU8inWsN9b7';
 
 const DISC = {
   initDealByCustomer: [2, 51, 89, 167, 112, 219, 175, 236],
@@ -124,7 +123,8 @@ async function ctx(dealId: string) {
   await syncNow(); // pick up the other browser's latest state first
   const info = getChainInfo(dealId);
   if (!info) return null; // deal was not created on-chain (seed/mock deal): mock only
-  const customer = new PublicKey(info.customer), contractor = new PublicKey(info.contractor);
+  const customer = new PublicKey(info.customer);
+  const contractor = info.contractor ? new PublicKey(info.contractor) : customer; // placeholder: contractor-derived addresses are unused until a contractor is picked
   return { info, customer, contractor, a: addrs(customer, contractor, BigInt(info.seed)) };
 }
 
@@ -163,32 +163,50 @@ export const chainClient: BlinkflowClient = {
     if (input.role !== 'customer') return mockClient.createDeal(input);
     requireWallet(input.wallet, 'customer');
     const customer = new PublicKey(input.wallet);
-    const contractor = new PublicKey((input as any).contractorWallet || DEMO_CONTRACTOR);
+    const contractorStr: string = ((input as any).contractorWallet || '').trim();
+    const contractor = contractorStr ? new PublicKey(contractorStr) : null;
     const seed = BigInt(Date.now());
-    const a = addrs(customer, contractor, seed);
+    const a = addrs(customer, contractor ?? customer, seed);
     const seconds = Math.max(86400, Math.floor((new Date(input.deadline).getTime() - Date.now()) / 1000) || 604800);
     const taskHash = await sha256(taskHashInput(input.title, input.successCriteria, input.requirementsFile?.sha256));
     const trust = await trustAuthority();
-    const sig = await sendTx([
+    const ixs = [
       ix(cat(Uint8Array.from(DISC.initDealByCustomer), u64(seed), u64(BigInt(Math.round(input.amount * 10 ** DECIMALS))), taskHash, i64(BigInt(seconds))), [
         meta(customer, true, true), meta(trust), meta(a.protocol), meta(a.deal, false, true), meta(a.task0, false, true), meta(MINT),
         meta(a.dealVault, false, true), meta(a.customerAta, false, true), meta(a.sbtCollection, false, true), meta(a.sbtCustomer, false, true),
         meta(MPL_CORE), meta(ATA_PROGRAM), meta(TOKEN_PROGRAM), meta(SystemProgram.programId)]),
-      ix(Uint8Array.from(DISC.addContractorToDeal), [meta(customer, true), meta(contractor), meta(a.deal, false, true), meta(a.task0, false, true)]),
-    ]);
+    ];
+    if (contractor) {
+      ixs.push(ix(Uint8Array.from(DISC.addContractorToDeal), [meta(customer, true), meta(contractor), meta(a.deal, false, true), meta(a.task0, false, true)]));
+    }
+    const sig = await sendTx(ixs);
     const deal = await mockClient.createDeal(input);
     // the mock deal records the contractor too, so the contractor-side UI matches the chain
     const all = readChainStore();
-    all[deal.id] = { seed: seed.toString(), customer: customer.toBase58(), contractor: contractor.toBase58(), deal: a.deal.toBase58(), sigs: [{ step: 'create', sig, at: new Date().toISOString() }] };
+    all[deal.id] = { seed: seed.toString(), customer: customer.toBase58(), contractor: contractorStr, deal: a.deal.toBase58(), sigs: [{ step: 'create', sig, at: new Date().toISOString() }] };
     writeChainStore(all);
     patchDeal(deal.id, (d) => { d.tasks[0].deposited = true; d.history.push({ date: today(), action: 'Escrow Funded On-chain' }); });
     void (async () => { for (let i = 0; i < 4; i++) { await push(); await new Promise((res) => setTimeout(res, 700)); } })();
     return deal;
   },
 
+  async assignContractor(dealId, contractorWallet) {
+    const c = await ctx(dealId); if (!c) throw new Error('This deal is not on-chain.');
+    requireWallet(c.info.customer, 'customer');
+    let picked: PublicKey; try { picked = new PublicKey(contractorWallet); } catch { throw new Error('Invalid contractor wallet.'); }
+    if (picked.toBase58() === c.info.customer) throw new Error('The customer cannot be the contractor.');
+    const d = getDeals().find((x) => x.id === dealId);
+    if (!d || d.contractor || d.tasks?.[0]?.status !== 'CustomerCreated') throw new Error('The contractor already accepted this deal. It can no longer be changed.');
+    const a = c.a;
+    const sig = await sendTx([ix(Uint8Array.from(DISC.addContractorToDeal), [meta(c.customer, true), meta(picked), meta(a.deal, false, true), meta(a.task0, false, true)])]);
+    const all = readChainStore(); all[dealId].contractor = picked.toBase58(); all[dealId].sigs.push({ step: 'assign', sig, at: new Date().toISOString() }); writeChainStore(all);
+    return afterStep(Promise.resolve(patchDeal(dealId, (x) => { x.history.push({ date: today(), action: `Contractor selected: ${picked.toBase58().slice(0, 4)}…${picked.toBase58().slice(-4)}` }); })) as Promise<any>);
+  },
+
   async acceptDeal(dealId, wallet) {
     const c = await ctx(dealId);
     if (!c) return mockClient.acceptDeal(dealId, wallet);
+    if (!c.info.contractor) throw new Error('The customer has not picked a contractor yet.');
     requireWallet(c.info.contractor, 'contractor');
     const a = c.a;
     const sig = await sendTx([ix(Uint8Array.from(DISC.acceptDealByContractor), [
