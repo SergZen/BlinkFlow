@@ -55,7 +55,7 @@ function setupBot(app, baseUrl, frontendUrl, dealsData) {
     bot.sendMessage(
       chatId, 
       "Welcome to *BlinkFlow* — the trust layer for deals made in chat.\n\n" +
-      "I can help you create a secure escrow deal via Solana Blinks right here. " +
+      "Create and track escrow deals on Solana. " +
       "Use /newdeal to get started, or visit our website for more info.",
       { 
         parse_mode: 'Markdown', 
@@ -99,7 +99,16 @@ function setupBot(app, baseUrl, frontendUrl, dealsData) {
   };
 
   const sendHowItWorks = (chatId) => {
-    bot.sendMessage(chatId, "ℹ️ *How it works*\n1. Create a deal and set the terms.\n2. Forward the Blink to your client.\n3. They deposit funds securely into the smart contract.\n4. Funds are released when the work is done.", { parse_mode: 'Markdown' }).catch(err => console.error("Telegram API Error:", err));
+    bot.sendMessage(
+      chatId,
+      "ℹ️ *How it works*\n" +
+      "1. Customer creates a deal on the BlinkFlow site and locks USDC in escrow.\n" +
+      "2. Customer shares the deal link in any chat or social network.\n" +
+      "3. Contractors open the link and apply; the customer picks one.\n" +
+      "4. Contractor accepts, does the work and marks it finished.\n" +
+      "5. Customer approves and the payment is released. If there is a disagreement, an arbiter decides.",
+      { parse_mode: 'Markdown' }
+    ).catch(err => console.error("Telegram API Error:", err));
   };
 
   bot.onText(/^\/deal(?: (.+))?/, (msg, match) => {
