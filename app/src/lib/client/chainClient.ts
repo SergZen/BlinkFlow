@@ -7,8 +7,9 @@
 //   depositTask(0)         -> no tx (init_deal_by_customer already funded the vault); UI state only
 //   finishTask(0)          -> finish_task_by_contractor
 //   completeTask(0, true)  -> complete_task_by_customer
+//   completeTask(0, false) -> complete_task_by_customer(approved=false), moves the task to Disputed
 //   cancelTask(0)          -> cancel_task_by_customer (CustomerCreated) / cancel_task_by_contractor (Started)
-// Anything else (extra tasks, disputes, rejecting) falls through to mockClient only.
+// Anything else (extra tasks, disputes) falls through to mockClient only.
 import {
   Connection, PublicKey, Transaction, TransactionInstruction, SystemProgram, ComputeBudgetProgram,
 } from '@solana/web3.js';
@@ -220,15 +221,17 @@ export const chainClient: BlinkflowClient = {
 
   async completeTask(dealId, taskIndex, approved) {
     const c = await ctx(dealId);
-    if (!c || taskIndex !== 0 || !approved) return mockClient.completeTask(dealId, taskIndex, approved);
+    if (!c || taskIndex !== 0) return mockClient.completeTask(dealId, taskIndex, approved);
     requireWallet(c.info.customer, 'customer');
     const a = c.a;
-    const sig = await sendTx([ix(cat(Uint8Array.from(DISC.completeTaskByCustomer), Uint8Array.of(0), Uint8Array.of(1)), [
+    const sig = await sendTx([ix(cat(Uint8Array.from(DISC.completeTaskByCustomer), Uint8Array.of(0), Uint8Array.of(approved ? 1 : 0)), [
       meta(c.customer, true, true), meta(c.contractor), meta(a.protocol), meta(a.deal, false, true), meta(a.task0, false, true), meta(MINT),
       meta(a.dealVault, false, true), meta(a.protocolVault, false, true), meta(a.contractorAta, false, true), meta(a.sbtCollection, false, true),
       meta(a.sbtCustomer, false, true), meta(a.sbtContractor, false, true), meta(MPL_CORE), meta(ATA_PROGRAM), meta(TOKEN_PROGRAM), meta(SystemProgram.programId)])]);
-    addSig(dealId, 'complete', sig);
-    return afterStep(mockClient.completeTask(dealId, taskIndex, approved));
+    addSig(dealId, approved ? 'complete' : 'dispute', sig);
+    if (approved) return afterStep(mockClient.completeTask(dealId, taskIndex, approved));
+    return afterStep(mockClient.completeTask(dealId, taskIndex, approved).then((r) =>
+      patchDeal(dealId, (d) => { d.history.push({ date: today(), action: 'Dispute Opened On-chain (funds stay locked in escrow)' }); }) ?? r));
   },
 
   async cancelTask(dealId, taskIndex) {
