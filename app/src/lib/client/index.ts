@@ -11,9 +11,10 @@ try {
   if (chainParam === '1') {
     window.localStorage.setItem('blinkflow_chain_mode', '1');
   } else if (chainParam === '0') {
-    window.localStorage.removeItem('blinkflow_chain_mode');
+    window.localStorage.setItem('blinkflow_chain_mode', '0');
   }
-  isChainMode = import.meta.env.VITE_CHAIN_MODE === 'devnet' || window.localStorage.getItem('blinkflow_chain_mode') === '1';
+  const stored = window.localStorage.getItem('blinkflow_chain_mode');
+  isChainMode = stored !== '0' && (import.meta.env.VITE_CHAIN_MODE === 'devnet' || stored === '1');
 } catch (e) {
   isChainMode = import.meta.env.VITE_CHAIN_MODE === 'devnet';
 }

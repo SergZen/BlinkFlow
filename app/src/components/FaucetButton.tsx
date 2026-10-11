@@ -15,6 +15,10 @@ export const FaucetButton = () => {
     window.open('https://spl-token-faucet.com/?token-name=USDC-Dev', '_blank', 'noopener,noreferrer');
   };
 
+  const handleSolFaucetClick = () => {
+    window.open('https://faucet.solana.com', '_blank', 'noopener,noreferrer');
+  };
+
   return (
     <div className="relative">
       <Button 
@@ -54,6 +58,19 @@ export const FaucetButton = () => {
             <p className="text-[10px] text-gray-500 mt-2 text-center">
               Opens spl-token-faucet.com in a new tab.
             </p>
+
+            <div className="pt-4 border-t border-gray-800 space-y-3">
+              <p className="text-xs text-gray-400">
+                Also need devnet SOL? You need ~0.01 SOL for network fees and ~0.005 SOL for the reputation badge.
+              </p>
+              <Button
+                variant="outline"
+                onClick={handleSolFaucetClick}
+                className="w-full h-9 text-sm"
+              >
+                Get devnet SOL <ExternalLink className="w-3.5 h-3.5 ml-1.5" />
+              </Button>
+            </div>
           </div>
         </div>
       )}
