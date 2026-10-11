@@ -40,9 +40,9 @@ export const FaucetButton = () => {
               <Droplets className="w-5 h-5 text-blue-500" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-white">Get {symbol}</h2>
+              <h2 className="text-base font-bold text-white">Get {symbol} / SOL</h2>
               <p className="text-xs text-gray-400 leading-tight mt-0.5">
-                Mint Devnet {symbol} using the community SPL Faucet.
+                Free devnet tokens for testing: {symbol} and SOL.
               </p>
             </div>
           </div>
@@ -64,9 +64,9 @@ export const FaucetButton = () => {
                 Also need devnet SOL? You need ~0.01 SOL for network fees and ~0.005 SOL for the reputation badge.
               </p>
               <Button
-                variant="outline"
+                variant="gradient"
                 onClick={handleSolFaucetClick}
-                className="w-full h-9 text-sm"
+                className="w-full h-9 from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-sm"
               >
                 Get devnet SOL <ExternalLink className="w-3.5 h-3.5 ml-1.5" />
               </Button>
