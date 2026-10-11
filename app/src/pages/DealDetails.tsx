@@ -375,23 +375,11 @@ export const DealDetails = () => {
     
     if (task.status === 'Disputed') {
       return (
-        <div className="mt-4 pt-4 border-t border-gray-800/50 space-y-3">
+        <div className="mt-4 pt-4 border-t border-gray-800/50 space-y-2">
           <p className="text-yellow-500/80 text-sm">Awaiting arbiter decision.</p>
-          {isTestMode && (
-             <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
-               <p className="text-xs text-yellow-500 mb-2 font-medium">Demo: arbiter decision {/* TEMP: real arbiter UI is a separate page */}</p>
-               {isChainMode && (
-                 <p className="text-xs text-yellow-500/80 mb-2">
-                   Simulation: this button only updates the status on this site. The real on-chain arbiter step (resolve_dispute, signed by the protocol's trust authority) is the next milestone, so the USDC stay locked in escrow.
-                 </p>
-               )}
-               <div className="flex flex-col sm:flex-row gap-2">
-                 <Button variant="outline" onClick={() => handleTaskAction(index, () => client.resolveDispute(deal.id, index, true))} disabled={loading}>Customer wins</Button>
-                 <Button variant="outline" onClick={() => handleTaskAction(index, () => client.resolveDispute(deal.id, index, false))} disabled={loading}>Contractor wins</Button>
-               </div>
-             </div>
-          )}
-          {err && <p className="text-red-400 text-xs">{err}</p>}
+          <p className="text-xs text-gray-500">
+            The arbiter review step is the next milestone. The funds stay locked in escrow until then.
+          </p>
         </div>
       );
     }
