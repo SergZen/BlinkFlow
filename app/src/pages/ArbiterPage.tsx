@@ -11,6 +11,7 @@ import { friendlyError } from '../lib/errors';
 import { client } from '../lib/client';
 import {
   fetchProtocolConfig,
+  fetchDealTrustAuthority,
   setTrustAuthority,
   clearTrustAuthorityCache,
   explorerAddr,
@@ -45,6 +46,7 @@ export const ArbiterPage = ({ view }: ArbiterPageProps) => {
 
   const [deals, setDeals] = useState<Deal[]>([]);
   const [dealsLoading, setDealsLoading] = useState(true);
+  const [dealTrustAuthorities, setDealTrustAuthorities] = useState<Record<string, string | null>>({});
 
   // Admin state
   const [newTrustAuthInput, setNewTrustAuthInput] = useState('');
@@ -86,6 +88,20 @@ export const ArbiterPage = ({ view }: ArbiterPageProps) => {
       setDealsLoading(true);
       const allDeals = await client.listDeals();
       setDeals(allDeals);
+
+      const disputed = allDeals.filter((d) => d.tasks?.some((t) => t.status === 'Disputed'));
+      const authMap: Record<string, string | null> = {};
+      await Promise.all(
+        disputed.map(async (deal) => {
+          try {
+            const ta = await fetchDealTrustAuthority(deal.id);
+            authMap[deal.id] = ta;
+          } catch {
+            authMap[deal.id] = null;
+          }
+        })
+      );
+      setDealTrustAuthorities((prev) => ({ ...prev, ...authMap }));
     } catch (err: any) {
       console.error('[ArbiterPage] Failed to load deals:', err);
     } finally {
@@ -107,7 +123,7 @@ export const ArbiterPage = ({ view }: ArbiterPageProps) => {
     }
   }, [loadConfig, loadDeals, view]);
 
-  // Allowed viewers gate (shared between admin and arbiter views)
+  // Allowed viewers gate: VITE_ARBITER_VIEWERS + Config.admin + Config.trustAuthority + distinct arbiters from disputed deals
   const allowedViewers = useMemo(() => {
     const envStr = (import.meta as any).env?.VITE_ARBITER_VIEWERS || '';
     const viewers = envStr
@@ -116,8 +132,11 @@ export const ArbiterPage = ({ view }: ArbiterPageProps) => {
       .filter(Boolean);
     if (config?.admin) viewers.push(config.admin);
     if (config?.trustAuthority) viewers.push(config.trustAuthority);
+    Object.values(dealTrustAuthorities).forEach((ta) => {
+      if (ta) viewers.push(ta);
+    });
     return new Set(viewers.map((k: string) => k.toLowerCase()));
-  }, [config]);
+  }, [config, dealTrustAuthorities]);
 
   const isAllowedViewer = useMemo(() => {
     if (!walletAddress) return false;
@@ -129,10 +148,12 @@ export const ArbiterPage = ({ view }: ArbiterPageProps) => {
     return walletAddress.toLowerCase() === config.admin.toLowerCase();
   }, [walletAddress, config]);
 
-  const isArbiter = useMemo(() => {
-    if (!walletAddress || !config) return false;
-    return walletAddress.toLowerCase() === config.trustAuthority.toLowerCase();
-  }, [walletAddress, config]);
+  const isAnyArbiter = useMemo(() => {
+    if (!walletAddress) return false;
+    const wa = walletAddress.toLowerCase();
+    if (config?.trustAuthority?.toLowerCase() === wa) return true;
+    return Object.values(dealTrustAuthorities).some((ta) => ta?.toLowerCase() === wa);
+  }, [walletAddress, config, dealTrustAuthorities]);
 
   // Disputed deals list for arbiter view
   const disputedDeals = useMemo(() => {
@@ -170,13 +191,15 @@ export const ArbiterPage = ({ view }: ArbiterPageProps) => {
     );
   }
 
-  // 2. Loading config gate
-  if (configLoading && !config) {
+  // 2. Loading config / deals gate
+  if (configLoading || (view === 'arbiter' && dealsLoading && deals.length === 0)) {
     return (
       <div className="min-h-screen bg-gray-950 text-gray-100 flex items-center justify-center p-4">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
-          <p className="text-sm text-gray-400">Loading protocol configuration...</p>
+          <p className="text-sm text-gray-400">
+            Loading {view === 'admin' ? 'protocol configuration' : 'disputed deals and arbiters'}...
+          </p>
         </div>
       </div>
     );
@@ -294,12 +317,12 @@ export const ArbiterPage = ({ view }: ArbiterPageProps) => {
                   Admin
                 </span>
               )}
-              {isArbiter && (
+              {!isAdmin && isAnyArbiter && (
                 <span className="ml-1 text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded bg-purple-950 border border-purple-800 text-purple-300">
                   Arbiter
                 </span>
               )}
-              {!isAdmin && !isArbiter && (
+              {!isAdmin && !isAnyArbiter && (
                 <span className="ml-1 text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded bg-gray-800 text-gray-400">
                   Viewer
                 </span>
@@ -363,7 +386,7 @@ export const ArbiterPage = ({ view }: ArbiterPageProps) => {
                       Trust Authority (Arbiter)
                     </div>
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-mono text-sm text-purple-300">
+                      <span className="font-mono text-purple-300">
                         {truncateAddress(config.trustAuthority, 6)}
                       </span>
                       <a
@@ -539,20 +562,7 @@ export const ArbiterPage = ({ view }: ArbiterPageProps) => {
                   {disputedDeals.length}
                 </span>
               </div>
-              {!isArbiter && config && (
-                <span className="text-xs text-gray-500 flex items-center gap-1.5">
-                  <Lock className="w-3.5 h-3.5" /> Read-only mode
-                </span>
-              )}
             </div>
-
-            {!isArbiter && config && (
-              <div className="p-3 bg-amber-950/20 border border-amber-900/40 rounded-lg text-xs text-amber-300 flex items-center gap-2">
-                <Lock className="w-4 h-4 shrink-0" />
-                Only the arbiter wallet ({truncateAddress(config.trustAuthority)}) can sign. Switch
-                Phantom to that account.
-              </div>
-            )}
 
             {/* Arbiter success notification */}
             {resolveSuccessTx && (
@@ -590,10 +600,10 @@ export const ArbiterPage = ({ view }: ArbiterPageProps) => {
             )}
 
             {/* Deals list */}
-            {dealsLoading ? (
+            {dealsLoading && disputedDeals.length === 0 ? (
               <div className="p-12 text-center text-gray-400 flex flex-col items-center gap-3">
                 <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
-                <p className="text-sm">Loading disputed deals...</p>
+                <p className="text-sm">Loading disputed deals and arbiters...</p>
               </div>
             ) : disputedDeals.length === 0 ? (
               <Card className="p-12 text-center text-gray-500 border-gray-800/80 bg-gray-900/50">
@@ -609,6 +619,12 @@ export const ArbiterPage = ({ view }: ArbiterPageProps) => {
                   const chainInfo = getChainInfo(deal.id);
                   const disputeSig = chainInfo?.sigs?.find(
                     (s) => s.step === 'dispute' || s.step === 'complete'
+                  );
+                  const dealArbiter = dealTrustAuthorities[deal.id] || config?.trustAuthority || '';
+                  const isDealArbiter = Boolean(
+                    walletAddress &&
+                      dealArbiter &&
+                      walletAddress.toLowerCase() === dealArbiter.toLowerCase()
                   );
 
                   return (
@@ -661,8 +677,8 @@ export const ArbiterPage = ({ view }: ArbiterPageProps) => {
                         </div>
                       </div>
 
-                      {/* Parties Grid */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                      {/* Parties Grid (Customer, Contractor, Deal Arbiter) */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
                         <div className="p-3 bg-gray-950/60 border border-gray-800/60 rounded-lg">
                           <span className="text-gray-500 uppercase font-semibold block mb-1">
                             Customer
@@ -704,13 +720,46 @@ export const ArbiterPage = ({ view }: ArbiterPageProps) => {
                             )}
                           </div>
                         </div>
+
+                        <div className="p-3 bg-gray-950/60 border border-gray-800/60 rounded-lg">
+                          <span className="text-gray-500 uppercase font-semibold block mb-1">
+                            Arbiter for this deal
+                          </span>
+                          <div className="flex items-center justify-between">
+                            <span className="font-mono text-purple-300">
+                              {dealArbiter ? truncateAddress(dealArbiter, 6) : 'Loading...'}
+                            </span>
+                            {dealArbiter && (
+                              <a
+                                href={explorerAddr(dealArbiter)}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-gray-400 hover:text-white"
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                              </a>
+                            )}
+                          </div>
+                        </div>
                       </div>
 
                       {/* Disputed Tasks */}
                       <div className="space-y-3">
-                        <div className="text-xs text-gray-400 font-semibold uppercase tracking-wider">
-                          Disputed Tasks
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-gray-400 font-semibold uppercase tracking-wider">
+                            Disputed Tasks
+                          </span>
+                          <span className="text-xs text-gray-400">
+                            Arbiter for this deal: <span className="font-mono text-purple-300">{dealArbiter ? truncateAddress(dealArbiter) : '...'}</span>
+                          </span>
                         </div>
+
+                        {!isDealArbiter && (
+                          <div className="p-3 bg-amber-950/20 border border-amber-900/40 rounded-lg text-xs text-amber-300 flex items-center gap-2">
+                            <Lock className="w-3.5 h-3.5 shrink-0" />
+                            Only the arbiter of this deal ({truncateAddress(dealArbiter)}) can sign. Switch Phantom to that account.
+                          </div>
+                        )}
 
                         {deal.tasks
                           ?.map((task, idx) => ({ task, idx }))
@@ -742,7 +791,7 @@ export const ArbiterPage = ({ view }: ArbiterPageProps) => {
                                       customerWins: true,
                                     })
                                   }
-                                  disabled={!isArbiter || isSubmittingResolve}
+                                  disabled={!isDealArbiter || isSubmittingResolve}
                                   className="text-xs border-amber-600/40 text-amber-300 hover:bg-amber-950/30"
                                 >
                                   Refund customer
@@ -757,7 +806,7 @@ export const ArbiterPage = ({ view }: ArbiterPageProps) => {
                                       customerWins: false,
                                     })
                                   }
-                                  disabled={!isArbiter || isSubmittingResolve}
+                                  disabled={!isDealArbiter || isSubmittingResolve}
                                   className="text-xs bg-emerald-600 hover:bg-emerald-500 text-white"
                                 >
                                   Pay contractor

@@ -329,6 +329,20 @@ async function ctx(dealId: string) {
   return { info, customer, contractor, a: addrs(customer, contractor, BigInt(info.seed)) };
 }
 
+export async function fetchDealTrustAuthority(dealId: string): Promise<string | null> {
+  const c = await ctx(dealId);
+  if (!c) return null;
+  try {
+    const dealAccount = await withRetry(() => conn.getAccountInfo(c.a.deal));
+    if (dealAccount && dealAccount.data.length >= 136) {
+      return new PublicKey(dealAccount.data.subarray(104, 136)).toBase58();
+    }
+  } catch (e) {
+    console.warn('[fetchDealTrustAuthority]', e);
+  }
+  return null;
+}
+
 function requireWallet(expected: string, role: string) {
   const me = provider().publicKey.toString();
   if (me !== expected) throw new Error(`Switch Phantom to the ${role} account (${expected.slice(0, 4)}…${expected.slice(-4)}).`);
@@ -527,17 +541,10 @@ export const chainClient: BlinkflowClient = {
     const c = await ctx(dealId);
     if (!c) return mockClient.resolveDispute(dealId, taskIndex, customerWins);
 
-    let dealTrustAuth: PublicKey;
-    try {
-      const dealAccount = await withRetry(() => conn.getAccountInfo(c.a.deal));
-      if (dealAccount && dealAccount.data.length >= 136) {
-        dealTrustAuth = new PublicKey(dealAccount.data.subarray(104, 136));
-      } else {
-        dealTrustAuth = await trustAuthority();
-      }
-    } catch {
-      dealTrustAuth = await trustAuthority();
-    }
+    const onChainTrustAuth = await fetchDealTrustAuthority(dealId);
+    const dealTrustAuth: PublicKey = onChainTrustAuth
+      ? new PublicKey(onChainTrustAuth)
+      : await trustAuthority();
 
     requireWallet(dealTrustAuth.toBase58(), 'arbiter / trust authority');
 
