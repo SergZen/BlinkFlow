@@ -711,7 +711,85 @@ app.get('/sbt/:file', async (req, res) => {
 });
 
 const syncStore = new Map(); // id -> { id, deal, chain, updatedAt }
+const appStore = new Map(); // dealId -> Array<{ wallet: string, note: string, createdAt: number }>
 const SYNC_ID = /^[A-Za-z0-9_-]{1,40}$/;
+const WALLET_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/; // base58 Solana address
+const MAX_APPS_PER_DEAL = 25;
+
+const DATA_DIR = process.env.DATA_DIR || (process.env.RAILWAY_ENVIRONMENT ? '/data' : path.join(__dirname, 'data'));
+let persistEnabled = true;
+try {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+} catch (err) {
+  persistEnabled = false;
+  console.warn(`[persist] warning: failed to create data dir ${DATA_DIR}, running in memory-only mode:`, err.message);
+}
+const SYNC_FILE = path.join(DATA_DIR, 'sync-store.json');   // array of syncStore values
+const APPS_FILE = path.join(DATA_DIR, 'applications.json'); // object { dealId: [applications] }
+
+if (persistEnabled && fs.existsSync(SYNC_FILE)) {
+  try {
+    const raw = fs.readFileSync(SYNC_FILE, 'utf-8');
+    const items = JSON.parse(raw);
+    if (Array.isArray(items)) {
+      for (const item of items) {
+        if (item && item.id) {
+          syncStore.set(item.id, item);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn(`[persist] warning: failed to parse ${SYNC_FILE}, starting empty:`, err.message);
+  }
+}
+
+if (persistEnabled && fs.existsSync(APPS_FILE)) {
+  try {
+    const raw = fs.readFileSync(APPS_FILE, 'utf-8');
+    const obj = JSON.parse(raw);
+    if (obj && typeof obj === 'object') {
+      for (const [dealId, apps] of Object.entries(obj)) {
+        if (Array.isArray(apps)) {
+          appStore.set(dealId, apps);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn(`[persist] warning: failed to parse ${APPS_FILE}, starting empty:`, err.message);
+  }
+}
+
+console.log(`[persist] data dir: ${DATA_DIR}, deals: ${syncStore.size}, applications deals: ${appStore.size}`);
+
+let saveTimer = null;
+function saveNow() {
+  if (!persistEnabled) return;
+  try {
+    const syncData = JSON.stringify([...syncStore.values()], null, 2);
+    const syncTmp = `${SYNC_FILE}.tmp`;
+    fs.writeFileSync(syncTmp, syncData, 'utf-8');
+    fs.renameSync(syncTmp, SYNC_FILE);
+
+    const appObj = {};
+    for (const [dealId, apps] of appStore.entries()) {
+      appObj[dealId] = apps;
+    }
+    const appData = JSON.stringify(appObj, null, 2);
+    const appTmp = `${APPS_FILE}.tmp`;
+    fs.writeFileSync(appTmp, appData, 'utf-8');
+    fs.renameSync(appTmp, APPS_FILE);
+  } catch (err) {
+    console.error('[persist] error saving data:', err.message);
+  }
+}
+
+function scheduleSave() {
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    saveTimer = null;
+    saveNow();
+  }, 300);
+}
 
 app.get('/api/sync/deals', (req, res) => {
   res.json([...syncStore.values()]);
@@ -725,12 +803,9 @@ app.post('/api/sync/deals/:id', (req, res) => {
   }
   if (!syncStore.has(id) && syncStore.size >= 500) return res.status(507).json({ error: 'store full' });
   syncStore.set(id, { id, deal, chain, updatedAt: Date.now() });
+  scheduleSave();
   res.json({ ok: true });
 });
-
-const appStore = new Map(); // dealId -> Array<{ wallet: string, note: string, createdAt: number }>
-const WALLET_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/; // base58 Solana address
-const MAX_APPS_PER_DEAL = 25;
 
 app.get('/api/sync/deals/:id/applications', (req, res) => {
   const { id } = req.params;
@@ -767,6 +842,7 @@ app.post('/api/sync/deals/:id/applications', (req, res) => {
   const existing = apps.find(a => a.wallet === wallet);
   if (existing) {
     existing.note = safeNote;
+    scheduleSave();
     console.log(`[apps] updated application for deal ${id}`);
     return res.json({ ok: true });
   }
@@ -776,6 +852,7 @@ app.post('/api/sync/deals/:id/applications', (req, res) => {
   }
 
   apps.push({ wallet, note: safeNote, createdAt: Date.now() });
+  scheduleSave();
   console.log(`[apps] added application for deal ${id}`);
   res.json({ ok: true });
 });
@@ -794,6 +871,7 @@ app.post('/api/sync/deals/:id/applications/withdraw', (req, res) => {
     const idx = apps.findIndex(a => a.wallet === wallet);
     if (idx !== -1) {
       apps.splice(idx, 1);
+      scheduleSave();
       console.log(`[apps] withdrawn application for deal ${id}`);
     }
   }
