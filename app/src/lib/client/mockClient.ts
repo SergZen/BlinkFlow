@@ -1,6 +1,7 @@
 import { BlinkflowClient } from './types';
 import { Deal, Task, TaskStatus } from '../types';
 import { seedDeals } from '../../mockData';
+import { taskHashInput } from '../fileHash';
 
 // In-memory store
 let deals: Deal[] = [];
@@ -69,9 +70,15 @@ export const mockClient: BlinkflowClient = {
   async createDeal(input) {
     await delay(300);
     const id = `ESC-${Math.floor(1000 + Math.random() * 9000)}`;
-    const taskHash = await createHash(JSON.stringify({ title: input.title, successCriteria: input.successCriteria }));
+    const taskHash = await createHash(taskHashInput(input.title, input.successCriteria, input.requirementsFile?.sha256));
     const now = getNow();
     
+    const meta: Task['meta'] = {
+      title: input.title,
+      successCriteria: input.successCriteria,
+      ...(input.requirementsFile ? { requirementsFile: input.requirementsFile } : {})
+    };
+
     const task: Task = {
       taskIndex: 0,
       amount: input.amount,
@@ -82,7 +89,7 @@ export const mockClient: BlinkflowClient = {
       deadline: input.deadline,
       createdAt: now,
       deposited: false,
-      meta: { title: input.title, successCriteria: input.successCriteria }
+      meta
     };
 
     const newDeal: Deal = {

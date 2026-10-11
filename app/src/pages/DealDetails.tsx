@@ -7,7 +7,8 @@ import { Badge, getStatusLabel } from '../components/Badge';
 import { Button } from '../components/Button';
 import { useRole } from '../RoleContext';
 import { ArrowLeft, CheckCircle2, History, Loader2, Share2, X } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { MAX_REQ_FILE_BYTES, sha256HexOfFile } from '../lib/fileHash';
 import { ShareDealPanel } from '../components/ShareDealPanel';
 import { useToken } from '../lib/constants';
 import { truncateAddress } from '../lib/utils';
@@ -17,6 +18,80 @@ import type { Deal, Task } from '../lib/types';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { useWalletModal } from '@solana/wallet-adapter-react-ui';
 import { Transaction } from '@solana/web3.js';
+
+const TaskRequirementsFile = ({ requirementsFile }: { requirementsFile: { name: string; sha256: string } }) => {
+  const [verifyStatus, setVerifyStatus] = useState<'match' | 'mismatch' | 'too_large' | null>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleVerify = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > MAX_REQ_FILE_BYTES) {
+      setVerifyStatus('too_large');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    try {
+      setIsVerifying(true);
+      setVerifyStatus(null);
+      const hash = await sha256HexOfFile(file);
+      if (hash.toLowerCase() === requirementsFile.sha256.toLowerCase()) {
+        setVerifyStatus('match');
+      } else {
+        setVerifyStatus('mismatch');
+      }
+    } catch (err) {
+      console.error('Failed to verify file hash', err);
+      setVerifyStatus('mismatch');
+    } finally {
+      setIsVerifying(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  return (
+    <div className="mt-4 pt-4 border-t border-gray-800/50 space-y-2">
+      <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Requirements File</h4>
+      <div className="bg-gray-900 border border-gray-800 rounded-lg p-3 space-y-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <span className="text-sm font-medium text-white break-all">{requirementsFile.name}</span>
+          <button
+            type="button"
+            disabled={isVerifying}
+            onClick={() => fileInputRef.current?.click()}
+            className="text-xs px-2.5 py-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 transition-colors w-fit shrink-0 disabled:opacity-50"
+          >
+            {isVerifying ? 'Verifying…' : 'Verify file'}
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            onChange={handleVerify}
+          />
+        </div>
+        <div className="font-mono text-xs text-gray-400 break-all bg-gray-950 px-2.5 py-1.5 rounded border border-gray-800/60 select-all">
+          {requirementsFile.sha256}
+        </div>
+        {verifyStatus === 'match' && (
+          <p className="text-xs text-green-400 font-medium">✓ Match: this file is the one attached to the deal</p>
+        )}
+        {verifyStatus === 'mismatch' && (
+          <p className="text-xs text-red-400 font-medium">✗ Does not match the attached requirements</p>
+        )}
+        {verifyStatus === 'too_large' && (
+          <p className="text-xs text-red-400 font-medium">✗ File is too large (max 20 MB)</p>
+        )}
+      </div>
+      <p className="text-xs text-gray-500">
+        BlinkFlow does not store the file. The fingerprint is part of the deal's on-chain task hash.
+      </p>
+    </div>
+  );
+};
 
 const EscrowActionCard = ({ deal, escrowState }: { deal: Deal, escrowState: string }) => {
   const { isTestMode } = useNetwork();
@@ -542,6 +617,9 @@ export const DealDetails = () => {
                             <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Success Criteria</h4>
                             <p className="whitespace-pre-wrap">{task.meta.successCriteria}</p>
                           </div>
+                          {task.meta.requirementsFile && (
+                            <TaskRequirementsFile requirementsFile={task.meta.requirementsFile} />
+                          )}
                           {task.solutionNote && (
                             <div className="mt-4 pt-4 border-t border-gray-800/50">
                               <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Solution Note</h4>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Card } from './Card';
 import { Button } from './Button';
 import { X, Link2, Check } from 'lucide-react';
@@ -10,6 +10,7 @@ import { useToken } from '../lib/constants';
 import { useSolBalance } from '../hooks/useSolBalance';
 import { useNetwork } from '../NetworkContext';
 import { client, isChainMode } from '../lib/client';
+import { MAX_REQ_FILE_BYTES, sha256HexOfFile } from '../lib/fileHash';
 
 export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) => {
   const { symbol } = useToken();
@@ -24,14 +25,46 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
   const { connected, publicKey } = useWallet();
   const { setVisible } = useWalletModal();
 
-  if (!isOpen) return null;
-
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
   const [criteria, setCriteria] = useState('');
   const [deadline, setDeadline] = useState('');
   const [contractorWalletInput, setContractorWalletInput] = useState(import.meta.env.VITE_DEMO_CONTRACTOR || '');
   const [error, setError] = useState('');
+  const [reqFile, setReqFile] = useState<{ name: string; sha256: string } | null>(null);
+  const [isHashing, setIsHashing] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  if (!isOpen) return null;
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > MAX_REQ_FILE_BYTES) {
+      setError('File is too large (max 20 MB)');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    try {
+      setIsHashing(true);
+      setError('');
+      const sha256 = await sha256HexOfFile(file);
+      setReqFile({ name: file.name, sha256 });
+    } catch (err) {
+      console.error('Failed to hash file', err);
+      setError('Failed to compute file hash');
+    } finally {
+      setIsHashing(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveFile = () => {
+    setReqFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -76,7 +109,8 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
         successCriteria: criteria.trim(),
         amount: parseFloat(amount),
         deadline,
-        ...(role === 'customer' && contractorWalletInput.trim() ? { contractorWallet: contractorWalletInput.trim() } : {})
+        ...(role === 'customer' && contractorWalletInput.trim() ? { contractorWallet: contractorWalletInput.trim() } : {}),
+        ...(reqFile ? { requirementsFile: reqFile } : {})
       });
       dealId = deal.id;
     } catch (err) {
@@ -153,10 +187,41 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
               <div>
                 <label htmlFor="deal-criteria" className="block text-sm font-medium text-gray-300 mb-1.5">Success Criteria</label>
                 <textarea id="deal-criteria" required maxLength={1000} rows={4} value={criteria} onChange={(e) => setCriteria(e.target.value)} placeholder="Describe exactly what needs to be delivered to release the funds..." className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-2.5 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all text-white resize-none"></textarea>
-                <div className="flex items-center gap-2 mt-2">
-                  <button type="button" className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1 transition-colors">
-                    <Link2 className="w-3 h-3" /> Attach File (Requirements)
+                <div className="flex flex-col gap-1.5 mt-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    className="hidden"
+                    onChange={handleFileSelect}
+                  />
+                  <button
+                    type="button"
+                    disabled={isHashing}
+                    onClick={() => fileInputRef.current?.click()}
+                    className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1 transition-colors w-fit disabled:opacity-50"
+                  >
+                    <Link2 className="w-3 h-3" />
+                    {isHashing ? 'Hashing file…' : 'Attach File (Requirements)'}
                   </button>
+                  {reqFile && (
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-xs text-gray-300">
+                        <span className="font-medium text-white truncate max-w-[200px]" title={reqFile.name}>{reqFile.name}</span>
+                        <span className="font-mono text-gray-400">({reqFile.sha256.slice(0, 10)}…)</span>
+                        <button
+                          type="button"
+                          onClick={handleRemoveFile}
+                          className="text-gray-400 hover:text-white p-0.5 rounded transition-colors"
+                          aria-label="Remove attached file"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-gray-500 leading-tight">
+                        The file is not uploaded. Only its SHA-256 fingerprint is stored in the deal. Send the file to your contractor separately.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
 

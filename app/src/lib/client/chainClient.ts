@@ -14,6 +14,7 @@ import {
 import { BlinkflowClient } from './types';
 import { mockClient, getDeals, replaceDeals } from './mockClient';
 import { syncNow, push } from './sync';
+import { taskHashInput } from '../fileHash';
 
 export const PROGRAM_ID = new PublicKey('3vJWWymQCHkntbWTgPfL2ujrquLrYHLneqzebr7bnkik');
 export const MINT = new PublicKey('Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr');
@@ -162,7 +163,7 @@ export const chainClient: BlinkflowClient = {
     const seed = BigInt(Date.now());
     const a = addrs(customer, contractor, seed);
     const seconds = Math.max(86400, Math.floor((new Date(input.deadline).getTime() - Date.now()) / 1000) || 604800);
-    const taskHash = await sha256(JSON.stringify({ title: input.title, successCriteria: input.successCriteria }));
+    const taskHash = await sha256(taskHashInput(input.title, input.successCriteria, input.requirementsFile?.sha256));
     const trust = await trustAuthority();
     const sig = await sendTx([
       ix(cat(Uint8Array.from(DISC.initDealByCustomer), u64(seed), u64(BigInt(Math.round(input.amount * 10 ** DECIMALS))), taskHash, i64(BigInt(seconds))), [

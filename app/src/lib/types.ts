@@ -5,6 +5,7 @@ export type DealStatus = 'searching' | 'in_progress' | 'pending_approval' | 'dis
 export interface TaskMeta {
   title: string;
   successCriteria: string;
+  requirementsFile?: { name: string; sha256: string };
 }
 
 export interface Task {
