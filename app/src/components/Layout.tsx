@@ -1,13 +1,14 @@
 import { ReactNode, useState, useEffect } from 'react';
 import { useRole } from '../RoleContext';
 import { NavLink, Link } from 'react-router-dom';
-import { Zap, Home, ScrollText, ShieldCheck, Shield, Menu, X, Send } from 'lucide-react';
+import { Zap, Home, ScrollText, ShieldCheck, Shield, Menu, X, Send, Sliders, Scale } from 'lucide-react';
 import { WalletMultiButton, useWalletModal } from '@solana/wallet-adapter-react-ui';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { NetworkControls } from './NetworkControls';
 import { BalanceDisplay } from './BalanceDisplay';
 import { FaucetButton } from './FaucetButton';
 import { useNetwork } from '../NetworkContext';
+import { useOpsAccess } from '../hooks/useOpsAccess';
 
 export const Layout = ({ children }: { children: ReactNode }) => {
   const { role, setRole } = useRole();
@@ -15,6 +16,7 @@ export const Layout = ({ children }: { children: ReactNode }) => {
   const { connected } = useWallet();
   const { isTestMode } = useNetwork();
   const [showToast, setShowToast] = useState(false);
+  const { canSeeOps } = useOpsAccess();
 
   useEffect(() => {
     if (connected) {
@@ -81,6 +83,18 @@ export const Layout = ({ children }: { children: ReactNode }) => {
             <ScrollText className="w-4 h-4" />
             Public Dispute Log
           </NavLink>
+          {canSeeOps && (
+            <>
+              <NavLink to="/ops-k7r2x9" onClick={() => setIsMobileMenuOpen(false)} className={({isActive}) => `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all font-medium text-sm ${isActive ? 'bg-gray-800 text-white shadow-sm' : 'text-gray-400 hover:text-white hover:bg-gray-800/50'}`}>
+                <Sliders className="w-4 h-4" />
+                Admin
+              </NavLink>
+              <NavLink to="/arb-m4q8w3" onClick={() => setIsMobileMenuOpen(false)} className={({isActive}) => `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all font-medium text-sm ${isActive ? 'bg-gray-800 text-white shadow-sm' : 'text-gray-400 hover:text-white hover:bg-gray-800/50'}`}>
+                <Scale className="w-4 h-4" />
+                Arbiter
+              </NavLink>
+            </>
+          )}
         </nav>
 
         {(import.meta.env.VITE_TELEGRAM_BOT_URL || import.meta.env.VITE_TWITTER_URL) && (
