@@ -82,7 +82,7 @@ export function friendlyError(e: unknown): string {
     }
   }
 
-  // h) our own already-clean messages (they start with "Switch Phantom", "The contractor", "The customer", "This deal", "Connect Phantom", "Invalid") → return e.message unchanged.
+  // h) our own already-clean messages (they start with "Switch Phantom", "The contractor", "The customer", "This deal", "Connect Phantom", "Invalid", "The transaction") → return e.message unchanged.
   const cleanPrefixes = [
     'Switch Phantom',
     'The contractor',
@@ -90,6 +90,7 @@ export function friendlyError(e: unknown): string {
     'This deal',
     'Connect Phantom',
     'Invalid',
+    'The transaction',
   ];
   const origMsg = (e as any)?.message || (typeof e === 'string' ? e : '');
   if (typeof origMsg === 'string' && cleanPrefixes.some((p) => origMsg.startsWith(p))) {

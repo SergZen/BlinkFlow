@@ -115,7 +115,60 @@ async function sendTx(ixs: TransactionInstruction[]): Promise<string> {
     console.error('[sendTx]', e);
     throw new Error(friendlyError(e));
   }
-  const res = await conn.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, 'confirmed');
+  let res: any;
+  try {
+    res = await conn.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, 'confirmed');
+  } catch (confirmErr: any) {
+    const confirmMsg = (confirmErr?.message || String(confirmErr)).toLowerCase();
+    const isTimeout =
+      confirmMsg.includes('not confirmed in') ||
+      confirmMsg.includes('timeout') ||
+      confirmMsg.includes('timed out') ||
+      confirmMsg.includes('block height exceeded') ||
+      confirmMsg.includes('expired');
+
+    if (!isTimeout) {
+      console.error('[sendTx confirm error]', confirmErr);
+      throw new Error(friendlyError(confirmErr));
+    }
+
+    console.warn('[sendTx] confirmTransaction timed out, polling signature status for sig:', sig);
+
+    const maxPollTimeMs = 40_000;
+    const intervalMs = 2_000;
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < maxPollTimeMs) {
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+      let statusRes: any = null;
+      try {
+        statusRes = await withRetry(() =>
+          conn.getSignatureStatuses([sig], { searchTransactionHistory: true })
+        );
+      } catch (pollErr: any) {
+        console.warn('[sendTx] signature status poll error:', pollErr?.message || pollErr);
+        continue;
+      }
+      const status = statusRes?.value?.[0];
+      if (status) {
+        if (status.err) {
+          console.error('[sendTx confirm error]', status.err);
+          throw new Error(friendlyError(JSON.stringify(status.err)));
+        }
+        if (
+          status.confirmationStatus === 'confirmed' ||
+          status.confirmationStatus === 'finalized'
+        ) {
+          return sig;
+        }
+      }
+    }
+
+    throw new Error(
+      'The transaction was sent but is not confirmed yet. Wait 30 seconds, refresh the page and check the deal status before trying again.'
+    );
+  }
+
   if (res.value.err) {
     console.error('[sendTx confirm error]', res.value.err);
     const logsStr = (res.value as any)?.logs ? (res.value as any).logs.join(' ') : '';
