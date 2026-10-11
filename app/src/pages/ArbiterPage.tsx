@@ -30,6 +30,7 @@ import {
   Loader2,
   Lock,
   ArrowRight,
+  ArrowLeft,
 } from 'lucide-react';
 
 export interface ArbiterPageProps {
@@ -186,6 +187,15 @@ export const ArbiterPage = ({ view }: ArbiterPageProps) => {
           <div className="flex justify-center pt-2">
             <WalletMultiButton />
           </div>
+          <div className="pt-2">
+            <Link
+              to="/"
+              className="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-white transition-colors"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              Back to dashboard
+            </Link>
+          </div>
         </Card>
       </div>
     );
@@ -280,9 +290,20 @@ export const ArbiterPage = ({ view }: ArbiterPageProps) => {
     <div className="min-h-screen bg-gray-950 text-gray-100 p-4 md:p-8 font-sans selection:bg-purple-500/30">
       <div className="max-w-6xl mx-auto space-y-8">
         {/* Top Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-800 pb-6">
+        <div className="space-y-4 border-b border-gray-800 pb-6">
           <div>
-            <div className="flex items-center gap-3">
+            <Link
+              to="/"
+              className="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-white transition-colors"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              Back to dashboard
+            </Link>
+          </div>
+
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-3">
               <div className="p-2 bg-gradient-to-br from-purple-600 to-blue-600 rounded-lg shadow-lg shadow-purple-500/20 text-white">
                 <Shield className="w-6 h-6" />
               </div>
@@ -330,6 +351,7 @@ export const ArbiterPage = ({ view }: ArbiterPageProps) => {
             </div>
           </div>
         </div>
+      </div>
 
         {/* Global Error Notice if Config fetch failed */}
         {configError && (
