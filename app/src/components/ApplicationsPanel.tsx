@@ -243,65 +243,74 @@ export const ApplicationsPanel = ({ deal, chainInfo, role }: ApplicationsPanelPr
         </>
       )}
 
-      {role === 'customer' && (
-        <div>
-          <h3 className="text-lg font-medium mb-1">Applications ({apps.length})</h3>
-          {chainInfo.contractor ? (
-            apps.some((a) => a.wallet === chainInfo.contractor) ? (
-              <p className="text-xs text-gray-400 mb-4">
-                Selected: <span className="font-mono text-gray-300">{truncateAddress(chainInfo.contractor)}</span>. Waiting for them to accept. You can choose another contractor until they accept.
-              </p>
-            ) : (
-              <p className="text-xs text-gray-400 mb-4">
-                Selected: <span className="font-mono text-gray-300">{truncateAddress(chainInfo.contractor)}</span> (not in the applicants list any more). Choose another contractor if they do not respond.
-              </p>
-            )
-          ) : null}
+      {role === 'customer' && (() => {
+        const isWrongCustomer = Boolean(connected && me && me !== chainInfo.customer);
+        return (
+          <div>
+            <h3 className="text-lg font-medium mb-1">Applications ({apps.length})</h3>
+            {chainInfo.contractor ? (
+              apps.some((a) => a.wallet === chainInfo.contractor) ? (
+                <p className="text-xs text-gray-400 mb-4">
+                  Selected: <span className="font-mono text-gray-300">{truncateAddress(chainInfo.contractor)}</span>. Waiting for them to accept. You can choose another contractor until they accept.
+                </p>
+              ) : (
+                <p className="text-xs text-gray-400 mb-4">
+                  Selected: <span className="font-mono text-gray-300">{truncateAddress(chainInfo.contractor)}</span> (not in the applicants list any more). Choose another contractor if they do not respond.
+                </p>
+              )
+            ) : null}
 
-          {apps.length === 0 ? (
-            <p className="text-sm text-gray-500 italic mt-3">No applications yet. Share the deal link with contractors.</p>
-          ) : (
-            <div className="space-y-2 mt-3">
-              {apps.map((a) => {
-                const isItemChosen = a.wallet === chainInfo.contractor;
-                return (
-                  <div key={a.wallet} className="bg-gray-950 border border-gray-800 rounded-lg p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-mono text-sm text-gray-200">{truncateAddress(a.wallet)}</span>
-                        <span className="text-xs text-gray-500">{new Date(a.createdAt).toLocaleString()}</span>
+            {isWrongCustomer && (
+              <p className="text-sm text-gray-400 mb-3">
+                Only the customer wallet ({truncateAddress(chainInfo.customer)}) can do this. Switch Phantom to that account.
+              </p>
+            )}
+
+            {apps.length === 0 ? (
+              <p className="text-sm text-gray-500 italic mt-3">No applications yet. Share the deal link with contractors.</p>
+            ) : (
+              <div className="space-y-2 mt-3">
+                {apps.map((a) => {
+                  const isItemChosen = a.wallet === chainInfo.contractor;
+                  return (
+                    <div key={a.wallet} className="bg-gray-950 border border-gray-800 rounded-lg p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-mono text-sm text-gray-200">{truncateAddress(a.wallet)}</span>
+                          <span className="text-xs text-gray-500">{new Date(a.createdAt).toLocaleString()}</span>
+                        </div>
+                        {a.note && <p className="text-sm text-gray-400 mt-1 break-words">{a.note}</p>}
                       </div>
-                      {a.note && <p className="text-sm text-gray-400 mt-1 break-words">{a.note}</p>}
+                      <div className="shrink-0">
+                        {isItemChosen ? (
+                          <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-green-500/10 text-green-400 border border-green-500/20">
+                            Selected
+                          </span>
+                        ) : !connected ? (
+                          <Button variant="outline" onClick={() => setVisible(true)}>
+                            Connect Wallet to Choose
+                          </Button>
+                        ) : isWrongCustomer ? null : (
+                          <Button
+                            variant="outline"
+                            onClick={() => handleAssign(a.wallet)}
+                            disabled={assigningWallet === a.wallet || !hasEnoughSol}
+                          >
+                            {assigningWallet === a.wallet ? <Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> : null}
+                            {chainInfo.contractor ? 'Choose instead' : 'Choose'}
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                    <div className="shrink-0">
-                      {isItemChosen ? (
-                        <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-green-500/10 text-green-400 border border-green-500/20">
-                          Selected
-                        </span>
-                      ) : !connected ? (
-                        <Button variant="outline" onClick={() => setVisible(true)}>
-                          Connect Wallet to Choose
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="outline"
-                          onClick={() => handleAssign(a.wallet)}
-                          disabled={assigningWallet === a.wallet || !hasEnoughSol}
-                        >
-                          {assigningWallet === a.wallet ? <Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> : null}
-                          {chainInfo.contractor ? 'Choose instead' : 'Choose'}
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          {renderSolWarning()}
-          {assignError && <p className="text-red-400 text-xs mt-3">{assignError}</p>}
-        </div>
-      )}
+                  );
+                })}
+              </div>
+            )}
+            {!isWrongCustomer && renderSolWarning()}
+            {assignError && <p className="text-red-400 text-xs mt-3">{assignError}</p>}
+          </div>
+        );
+      })()}
     </Card>
   );
 };

@@ -224,6 +224,7 @@ export const DealDetails = () => {
   };
   
   const { connected, publicKey } = useWallet();
+  const myWallet = publicKey?.toBase58();
   const { setVisible } = useWalletModal();
   const { isTestMode } = useNetwork();
   const { solBalance } = useSolBalance();
@@ -396,13 +397,19 @@ export const DealDetails = () => {
     }
 
     if (role === 'customer') {
+      const isWrongCustomer = Boolean(chainInfo && connected && myWallet && myWallet !== chainInfo.customer);
+
       if (task.deposited && task.status === 'CustomerCreated') {
         return (
           <div className="mt-4 pt-4 border-t border-gray-800/50 space-y-3">
             <p className="text-sm text-gray-400">Waiting for the contractor to accept. Until then you can cancel and get your USDC back.</p>
-            {renderSolWarning()}
+            {!isWrongCustomer && renderSolWarning()}
             {!connected ? (
               <Button variant="outline" onClick={() => setVisible(true)}>Connect Wallet to Cancel</Button>
+            ) : isWrongCustomer ? (
+              <p className="text-sm text-gray-400">
+                Only the customer wallet ({truncateAddress(chainInfo!.customer)}) can do this. Switch Phantom to that account.
+              </p>
             ) : (
               <Button variant="outline" onClick={() => handleTaskAction(index, () => client.cancelTask(deal.id, index))} disabled={loading || !hasEnoughSol}>
                 {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> : null}
@@ -444,10 +451,14 @@ export const DealDetails = () => {
         return (
           <div className="mt-4 pt-4 border-t border-gray-800/50 space-y-3">
             <p className="text-sm text-gray-400">Review the contractor's submission above.</p>
-            {renderSolWarning()}
+            {!isWrongCustomer && renderSolWarning()}
             <div className="flex flex-col sm:flex-row gap-2 items-center">
                {!connected ? (
                  <Button onClick={() => setVisible(true)}>Connect Wallet to Act</Button>
+               ) : isWrongCustomer ? (
+                 <p className="text-sm text-gray-400">
+                   Only the customer wallet ({truncateAddress(chainInfo!.customer)}) can do this. Switch Phantom to that account.
+                 </p>
                ) : (
                  <>
                    <Button variant="primary" className="bg-green-600 hover:bg-green-500" onClick={() => handleTaskAction(index, () => client.completeTask(deal.id, index, true))} disabled={loading || !hasEnoughSol} >
@@ -494,33 +505,43 @@ export const DealDetails = () => {
       }
       
       if (task.status === 'Started') {
-         return (
+        const contractorAddr = (chainInfo ? (chainInfo.contractor || deal.contractor) : deal.contractor) || '';
+        const isWrongContractor = Boolean(chainInfo && connected && myWallet && contractorAddr && myWallet !== contractorAddr);
+        return (
           <div className="mt-4 pt-4 border-t border-gray-800/50 space-y-3">
-            <textarea 
-              rows={2} 
-              value={submissionText}
-              onChange={(e) => setTaskSubmissions(prev => ({...prev, [index]: e.target.value}))}
-              placeholder="Link to deliverable (e.g. GitHub PR, Figma link)..." 
-              className="w-full bg-gray-950 border border-gray-800 rounded-lg p-3 text-sm focus:outline-none focus:border-purple-500/50"
-              disabled={loading}
-            />
-            {renderSolWarning()}
+            {!isWrongContractor && (
+              <textarea 
+                rows={2} 
+                value={submissionText}
+                onChange={(e) => setTaskSubmissions(prev => ({...prev, [index]: e.target.value}))}
+                placeholder="Link to deliverable (e.g. GitHub PR, Figma link)..." 
+                className="w-full bg-gray-950 border border-gray-800 rounded-lg p-3 text-sm focus:outline-none focus:border-purple-500/50"
+                disabled={loading}
+              />
+            )}
+            {!isWrongContractor && renderSolWarning()}
             <div className="flex flex-col sm:flex-row gap-2">
               {!connected ? (
                  <Button onClick={() => setVisible(true)}>Connect Wallet to Submit</Button>
+              ) : isWrongContractor ? (
+                <p className="text-sm text-gray-400">
+                  Only the selected contractor wallet ({truncateAddress(contractorAddr)}) can do this. Switch Phantom to that account.
+                </p>
               ) : (
-                <Button variant="primary" onClick={() => handleTaskAction(index, () => client.finishTask(deal.id, index, submissionText))} disabled={loading || !submissionText.trim() || !hasEnoughSol}>
-                  {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> : null}
-                  Submit Work
-                </Button>
-              )}
-              {!connected ? null : (
-                <Button variant="outline" onClick={() => handleTaskAction(index, () => client.cancelTask(deal.id, index))} disabled={loading || !hasEnoughSol}>
-                  Cancel & Return Funds
-                </Button>
+                <>
+                  <Button variant="primary" onClick={() => handleTaskAction(index, () => client.finishTask(deal.id, index, submissionText))} disabled={loading || !submissionText.trim() || !hasEnoughSol}>
+                    {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> : null}
+                    Submit Work
+                  </Button>
+                  <Button variant="outline" onClick={() => handleTaskAction(index, () => client.cancelTask(deal.id, index))} disabled={loading || !hasEnoughSol}>
+                    Cancel & Return Funds
+                  </Button>
+                </>
               )}
             </div>
-            <p className="text-xs text-gray-500">If you cannot complete this task, cancelling returns the full amount to the customer.</p>
+            {!isWrongContractor && (
+              <p className="text-xs text-gray-500">If you cannot complete this task, cancelling returns the full amount to the customer.</p>
+            )}
             {err && <p className="text-red-400 text-xs">{err}</p>}
           </div>
         );
