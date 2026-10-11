@@ -351,7 +351,7 @@ export const ArbiterPage = ({ view }: ArbiterPageProps) => {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                <h2 className="text-lg font-semibold text-white">Block A &middot; Protocol Admin</h2>
+                <h2 className="text-lg font-semibold text-white">Protocol configuration</h2>
               </div>
               {!isAdmin && (
                 <span className="text-xs text-gray-500 flex items-center gap-1.5">
@@ -557,7 +557,7 @@ export const ArbiterPage = ({ view }: ArbiterPageProps) => {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-purple-500"></span>
-                <h2 className="text-lg font-semibold text-white">Block B &middot; Disputed Deals</h2>
+                <h2 className="text-lg font-semibold text-white">Disputed deals</h2>
                 <span className="text-xs px-2 py-0.5 rounded-full bg-gray-800 text-gray-300 font-mono">
                   {disputedDeals.length}
                 </span>
@@ -745,13 +745,8 @@ export const ArbiterPage = ({ view }: ArbiterPageProps) => {
 
                       {/* Disputed Tasks */}
                       <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-gray-400 font-semibold uppercase tracking-wider">
-                            Disputed Tasks
-                          </span>
-                          <span className="text-xs text-gray-400">
-                            Arbiter for this deal: <span className="font-mono text-purple-300">{dealArbiter ? truncateAddress(dealArbiter) : '...'}</span>
-                          </span>
+                        <div className="text-xs text-gray-400 font-semibold uppercase tracking-wider">
+                          Disputed Tasks
                         </div>
 
                         {!isDealArbiter && (
