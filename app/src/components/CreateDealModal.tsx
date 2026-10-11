@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { Card } from './Card';
 import { Button } from './Button';
-import { X, Link2, Check } from 'lucide-react';
+import { X, Link2, Check, Loader2 } from 'lucide-react';
 import { ShareDealPanel } from './ShareDealPanel';
 import { useRole } from '../RoleContext';
 import { useWallet } from '@solana/wallet-adapter-react';
@@ -285,7 +285,14 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
                     disabled={(lowSol && role === 'customer') || isSubmitting}
                     title={lowSol && role === 'customer' ? "Not enough SOL for network fees" : undefined}
                   >
-                    {isSubmitting ? 'Creating… confirm in Phantom' : 'Create Deal Link'}
+                    {isSubmitting ? (
+                      <span className="inline-flex items-center justify-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Creating... confirm in Phantom
+                      </span>
+                    ) : (
+                      'Create Deal Link'
+                    )}
                   </Button>
                 )}
               </div>
