@@ -27,7 +27,7 @@ const dealsData = JSON.parse(fs.readFileSync(path.join(__dirname, 'deals.json'),
 // Setup Telegram Bot
 const defaultBaseUrl = process.env.PUBLIC_BASE_URL || 'http://localhost:3001';
 const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-setupBot(app, defaultBaseUrl, frontendUrl, dealsData);
+setupBot(app, defaultBaseUrl, frontendUrl);
 
 // Solana Actions require specific CORS headers
 const corsOptions = {
