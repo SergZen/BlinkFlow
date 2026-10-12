@@ -1,12 +1,12 @@
 import { BlinkflowClient } from './types';
 import { Deal, Task, TaskStatus } from '../types';
-import { seedDeals } from '../../mockData';
 import { taskHashInput } from '../fileHash';
 
 // In-memory store
 let deals: Deal[] = [];
 
 const STORAGE_KEY = 'blinkflow_mock_deals_v1';
+const SEED_DEAL_IDS = new Set(['ESC-1001', 'ESC-1002', 'ESC-1003', 'ESC-1004', 'ESC-1005']);
 
 const saveDeals = () => {
   try {
@@ -25,21 +25,23 @@ try {
     if (stored) {
       const parsed = JSON.parse(stored);
       if (Array.isArray(parsed)) {
-        deals = parsed;
+        deals = parsed.filter((d: any) => d && !SEED_DEAL_IDS.has(d.id));
+        if (deals.length !== parsed.length) {
+          saveDeals();
+        }
       } else {
-        deals = [...seedDeals];
+        deals = [];
         saveDeals();
       }
     } else {
-      deals = [...seedDeals];
-      saveDeals();
+      deals = [];
     }
   } else {
-    deals = [...seedDeals];
+    deals = [];
   }
 } catch (err) {
   console.warn('Failed to read from localStorage', err);
-  deals = [...seedDeals];
+  deals = [];
 }
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -230,4 +232,4 @@ export const mockClient: BlinkflowClient = {
 };
 
 export const getDeals = () => deals;
-export const replaceDeals = (list: Deal[]) => { deals = list; try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(deals)); } catch {} window.dispatchEvent(new Event('blinkflow:deals-changed')); };
+export const replaceDeals = (list: Deal[]) => { deals = list.filter((d: any) => d && !SEED_DEAL_IDS.has(d.id)); try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(deals)); } catch {} window.dispatchEvent(new Event('blinkflow:deals-changed')); };
