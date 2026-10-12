@@ -50,12 +50,7 @@ app.use((req, res, next) => {
 // Solana Actions root metadata
 app.get('/actions.json', (req, res) => {
   res.json({
-    rules: [
-      {
-        pathPattern: "/deal/*",
-        apiPath: "/api/deal/*"
-      }
-    ]
+    rules: []
   });
 });
 
@@ -100,10 +95,7 @@ function buildMetaTags(profile, { safeTitle, safeId, imageUrl, baseUrl }) {
     <meta property="og:image" content="${imageUrl}">
     
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:image" content="${imageUrl}">
-
-    <!-- CRITICAL: The Solana Action Tag -->
-    <meta name="solana:action" content="${baseUrl}/api/deal/${safeId}">`;
+    <meta name="twitter:image" content="${imageUrl}">`;
 
   if (profile.title) {
     tags += `
@@ -452,56 +444,11 @@ app.get('/api/deal/:id', (req, res) => {
     description: "Deposit funds into the BlinkFlow escrow to start the deal.",
     label: "Fund Escrow",
     links: {
-      actions: [
-        {
-          label: "Fund Escrow (USDC)",
-          href: `/api/deal/${req.params.id}/tx`
-        }
-      ]
+      actions: []
     }
   });
 });
 
-app.post('/api/deal/:id/tx', async (req, res) => {
-  try {
-    const { account } = req.body;
-    if (!account) {
-      return res.status(400).json({ error: "No account provided" });
-    }
-
-    const userPubkey = new PublicKey(account);
-
-    // TODO: replace with real escrow instruction once Anchor program is deployed
-    // For now, this is a mock transaction that transfers 0 SOL to the user themselves
-    // so it's structurally valid for devnet without losing funds.
-    const ix = SystemProgram.transfer({
-      fromPubkey: userPubkey,
-      toPubkey: userPubkey,
-      lamports: 0,
-    });
-
-    const tx = new Transaction();
-    tx.add(ix);
-    tx.feePayer = userPubkey;
-    
-    const { blockhash } = await connection.getLatestBlockhash('finalized');
-    tx.recentBlockhash = blockhash;
-
-    // Serialize unsigned transaction
-    const serializedTx = tx.serialize({
-      requireAllSignatures: false,
-      verifySignatures: false
-    });
-
-    res.json({
-      transaction: serializedTx.toString('base64'),
-      message: "Demo transaction: no funds were moved. The escrow contract is in development."
-    });
-  } catch (error) {
-    console.error("Error creating transaction in /api/deal/:id/tx:", error);
-    res.status(500).json({ error: "Internal server error building transaction" });
-  }
-});
 
 
 app.get('/sbt/:file', async (req, res) => {
