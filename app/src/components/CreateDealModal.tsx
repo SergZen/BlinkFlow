@@ -12,7 +12,21 @@ import { useNetwork } from '../NetworkContext';
 import { client, isChainMode } from '../lib/client';
 import { MAX_REQ_FILE_BYTES, sha256HexOfFile } from '../lib/fileHash';
 
-export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) => {
+export interface CreateDealInitialValues {
+  title?: string;
+  amount?: string;
+  deadline?: string;
+}
+
+export const CreateDealModal = ({
+  isOpen,
+  onClose,
+  initialValues,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  initialValues?: CreateDealInitialValues;
+}) => {
   const { symbol } = useToken();
   const { network, setNetwork, isTestMode } = useNetwork();
   const { solBalance } = useSolBalance();
@@ -26,10 +40,10 @@ export const CreateDealModal = ({ isOpen, onClose }: { isOpen: boolean, onClose:
   const { connected, publicKey } = useWallet();
   const { setVisible } = useWalletModal();
 
-  const [title, setTitle] = useState('');
-  const [amount, setAmount] = useState('');
+  const [title, setTitle] = useState(initialValues?.title || '');
+  const [amount, setAmount] = useState(initialValues?.amount || '');
   const [criteria, setCriteria] = useState('');
-  const [deadline, setDeadline] = useState('');
+  const [deadline, setDeadline] = useState(initialValues?.deadline || '');
   const [contractorWalletInput, setContractorWalletInput] = useState('');
   const [error, setError] = useState('');
   const [reqFile, setReqFile] = useState<{ name: string; sha256: string } | null>(null);

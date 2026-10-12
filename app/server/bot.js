@@ -61,7 +61,7 @@ function setupBot(app, baseUrl, frontendUrl, dealsData) {
         parse_mode: 'Markdown', 
         reply_markup: { 
           inline_keyboard: [
-            [{ text: "➕ New deal", callback_data: "nd" }, { text: "📂 Demo deals", callback_data: "demo" }],
+            [{ text: "➕ New deal", callback_data: "nd" }],
             [{ text: "🌐 Website", url: frontendUrl }, { text: "ℹ️ How it works", callback_data: "how" }]
           ] 
         } 
@@ -74,7 +74,7 @@ function setupBot(app, baseUrl, frontendUrl, dealsData) {
     bot.sendMessage(chatId, "👇 Choose an option below:", {
       reply_markup: {
         keyboard: [
-          ["➕ New deal", "📂 Demo deals"],
+          ["➕ New deal"],
           ["ℹ️ How it works", "🌐 Website"]
         ],
         resize_keyboard: true,
@@ -91,13 +91,6 @@ function setupBot(app, baseUrl, frontendUrl, dealsData) {
     showMenu(chatId);
   });
 
-  const sendDemoDeals = (chatId) => {
-    const keyboard = dealsData.map(d => ([{ text: `${d.title} · ${d.id}`, callback_data: `dl:${d.id}` }]));
-    bot.sendMessage(chatId, "Select a demo deal:", {
-      reply_markup: { inline_keyboard: keyboard }
-    }).catch(err => console.error("Telegram API Error:", err));
-  };
-
   const sendHowItWorks = (chatId) => {
     bot.sendMessage(
       chatId,
@@ -113,10 +106,10 @@ function setupBot(app, baseUrl, frontendUrl, dealsData) {
 
   bot.onText(/^\/deal(?: (.+))?/, (msg, match) => {
     const chatId = msg.chat.id;
-    const dealId = match[1];
+    const dealId = match ? match[1] : null;
 
     if (!dealId) {
-      sendDemoDeals(chatId);
+      bot.sendMessage(chatId, "Please specify a deal ID, e.g. `/deal ESC-7249`", { parse_mode: 'Markdown' }).catch(err => console.error("Telegram API Error:", err));
       return;
     }
 
@@ -154,6 +147,46 @@ function setupBot(app, baseUrl, frontendUrl, dealsData) {
     }
   };
 
+  const finishNewDeal = (chatId, session, days) => {
+    let targetUrl;
+    try {
+      const u = new URL(frontendUrl);
+      u.searchParams.set('new', '1');
+      u.searchParams.set('title', session.dealData.title);
+      u.searchParams.set('amount', session.dealData.amount.toString());
+      u.searchParams.set('days', days.toString());
+      targetUrl = u.toString();
+    } catch {
+      const cleanUrl = (frontendUrl || '').replace(/\/+$/, '');
+      const queryParams = new URLSearchParams({
+        new: '1',
+        title: session.dealData.title,
+        amount: session.dealData.amount.toString(),
+        days: days.toString()
+      }).toString();
+      targetUrl = `${cleanUrl}/?${queryParams}`;
+    }
+
+    const summary =
+      `📋 *Deal Summary*\n\n` +
+      `• *Title:* ${escapeMarkdown(session.dealData.title)}\n` +
+      `• *Amount:* ${session.dealData.amount} USDC\n` +
+      `• *Deadline:* ${days} day${days === 1 ? '' : 's'}\n\n` +
+      `Ready to finalize? Click below to connect your wallet and lock funds in escrow on the website.`;
+
+    bot.sendMessage(chatId, summary, {
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "Create & fund on website", url: targetUrl }],
+          [{ text: "➕ New deal", callback_data: "nd" }, { text: "🏠 Menu", callback_data: "menu" }]
+        ]
+      }
+    }).catch(err => console.error("Telegram API Error:", err));
+
+    conversations.delete(chatId);
+  };
+
   const startNewDeal = (chatId) => {
     conversations.set(chatId, {
       step: 'AWAITING_TITLE',
@@ -179,11 +212,6 @@ function setupBot(app, baseUrl, frontendUrl, dealsData) {
     if (text === "➕ New deal") {
       conversations.delete(chatId);
       startNewDeal(chatId);
-      return;
-    }
-    if (text === "📂 Demo deals") {
-      conversations.delete(chatId);
-      sendDemoDeals(chatId);
       return;
     }
     if (text === "ℹ️ How it works") {
@@ -252,40 +280,8 @@ function setupBot(app, baseUrl, frontendUrl, dealsData) {
           bot.sendMessage(chatId, "Please enter a valid number of days between 1 and 365:").catch(err => console.error("Telegram API Error:", err));
           return;
         }
-        
-        const dealId = `ESC-${Math.floor(1000 + Math.random() * 9000)}`;
-        
-        const queryParams = new URLSearchParams({
-          title: session.dealData.title,
-          amount: session.dealData.amount.toString(),
-          token: 'USDC-Dev',
-          status: 'Awaiting Funding'
-        }).toString();
 
-        const rawActionUrl = `${baseUrl}/deal/${dealId}?${queryParams}`;
-        const ogImageUrl = `${baseUrl}/api/deal/${dealId}/og-image.png?${queryParams}`;
-
-        bot.sendPhoto(chatId, ogImageUrl, {
-          caption: "✅ Deal created! Share this deal link with your counterparty by forwarding this message, or by sending them the link below.",
-          reply_markup: {
-            inline_keyboard: [
-              [{ text: "🔗 Open deal", url: rawActionUrl }],
-              [{ text: "➕ New deal", callback_data: "nd" }, { text: "🏠 Menu", callback_data: "menu" }]
-            ]
-          }
-        }).catch(err => {
-          console.error("Failed to send photo in Telegram:", err);
-          bot.sendMessage(chatId, "✅ Deal created!\n\nLink: " + rawActionUrl, {
-            reply_markup: { 
-              inline_keyboard: [
-                [{ text: "🔗 Open deal", url: rawActionUrl }],
-                [{ text: "➕ New deal", callback_data: "nd" }, { text: "🏠 Menu", callback_data: "menu" }]
-              ] 
-            }
-          }).catch(err => console.error("Telegram API Error:", err));
-        });
-
-        conversations.delete(chatId);
+        finishNewDeal(chatId, session, days);
         break;
     }
   });
@@ -309,11 +305,6 @@ function setupBot(app, baseUrl, frontendUrl, dealsData) {
     if (data === 'cancel') {
       conversations.delete(chatId);
       showMenu(chatId);
-      return;
-    }
-
-    if (data === 'demo') {
-      sendDemoDeals(chatId);
       return;
     }
 
@@ -356,39 +347,7 @@ function setupBot(app, baseUrl, frontendUrl, dealsData) {
     if (data.startsWith('days:') && session.step === 'AWAITING_DEADLINE_DAYS') {
       const days = parseInt(data.substring(5), 10);
       if (!isNaN(days) && days >= 1 && days <= 365) {
-        const dealId = `ESC-${Math.floor(1000 + Math.random() * 9000)}`;
-        
-        const queryParams = new URLSearchParams({
-          title: session.dealData.title,
-          amount: session.dealData.amount.toString(),
-          token: 'USDC-Dev',
-          status: 'Awaiting Funding'
-        }).toString();
-
-        const rawActionUrl = `${baseUrl}/deal/${dealId}?${queryParams}`;
-        const ogImageUrl = `${baseUrl}/api/deal/${dealId}/og-image.png?${queryParams}`;
-
-        bot.sendPhoto(chatId, ogImageUrl, {
-          caption: "✅ Deal created! Share this deal link with your counterparty by forwarding this message, or by sending them the link below.",
-          reply_markup: {
-            inline_keyboard: [
-              [{ text: "🔗 Open deal", url: rawActionUrl }],
-              [{ text: "➕ New deal", callback_data: "nd" }, { text: "🏠 Menu", callback_data: "menu" }]
-            ]
-          }
-        }).catch(err => {
-          console.error("Failed to send photo in Telegram:", err);
-          bot.sendMessage(chatId, "✅ Deal created!\n\nLink: " + rawActionUrl, {
-            reply_markup: { 
-              inline_keyboard: [
-                [{ text: "🔗 Open deal", url: rawActionUrl }],
-                [{ text: "➕ New deal", callback_data: "nd" }, { text: "🏠 Menu", callback_data: "menu" }]
-              ] 
-            }
-          }).catch(err => console.error("Telegram API Error:", err));
-        });
-
-        conversations.delete(chatId);
+        finishNewDeal(chatId, session, days);
       }
       return;
     }

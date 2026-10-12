@@ -5,9 +5,9 @@ import { Button } from '../components/Button';
 import { client } from '../lib/client';
 import { dealTotal, deriveDealStatus, dealEscrowTotal, getEarliestDeadline } from '../lib/dealStatus';
 import { Plus, ArrowRight, DollarSign, Briefcase, Clock, Search, Loader2, Inbox, Wallet } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { CreateDealModal } from '../components/CreateDealModal';
+import { CreateDealModal, type CreateDealInitialValues } from '../components/CreateDealModal';
 import { truncateAddress } from '../lib/utils';
 import type { Deal } from '../lib/types';
 import { useToken } from '../lib/constants';
@@ -19,12 +19,14 @@ export const Dashboard = () => {
   const { role } = useRole();
   const { isTestMode } = useNetwork();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalInitialValues, setModalInitialValues] = useState<CreateDealInitialValues | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [filter, setFilter] = useState<string>('all');
   
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { publicKey, connected } = useWallet();
   const { solBalance } = useSolBalance();
   const MIN_SOL_REQUIRED = 0.01;
@@ -62,6 +64,61 @@ export const Dashboard = () => {
       window.removeEventListener('blinkflow:deals-changed', handleDealsChanged);
     };
   }, []);
+
+  useEffect(() => {
+    if (searchParams.get('new') === '1') {
+      const rawTitle = (searchParams.get('title') || '').trim().slice(0, 100);
+
+      const parsedAmount = parseFloat(searchParams.get('amount') || '');
+      const validAmount = !isNaN(parsedAmount) && parsedAmount >= 0.01 ? String(parsedAmount) : '';
+
+      const parsedDays = parseInt(searchParams.get('days') || '', 10);
+      let deadlineStr = '';
+      if (!isNaN(parsedDays) && parsedDays > 0 && parsedDays <= 365) {
+        const d = new Date();
+        d.setDate(d.getDate() + parsedDays);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        deadlineStr = `${y}-${m}-${day}`;
+      } else {
+        const rawDeadline = searchParams.get('deadline');
+        if (rawDeadline && /^\d{4}-\d{2}-\d{2}$/.test(rawDeadline)) {
+          const parsedDate = new Date(rawDeadline);
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          if (!isNaN(parsedDate.getTime()) && parsedDate >= today) {
+            deadlineStr = rawDeadline;
+          }
+        }
+      }
+
+      setModalInitialValues({
+        title: rawTitle,
+        amount: validAmount,
+        deadline: deadlineStr,
+      });
+      setIsModalOpen(true);
+
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete('new');
+      nextParams.delete('title');
+      nextParams.delete('amount');
+      nextParams.delete('days');
+      nextParams.delete('deadline');
+      setSearchParams(nextParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
+  const handleOpenCreateModal = () => {
+    setModalInitialValues(undefined);
+    setIsModalOpen(true);
+  };
+
+  const handleCloseCreateModal = () => {
+    setIsModalOpen(false);
+    setModalInitialValues(undefined);
+  };
 
   const isResolved = (status: string) => status === 'resolved' || status === 'resolved_refunded' || status === 'resolved_paid_out';
   const myDeals = deals.filter(d => {
@@ -134,7 +191,7 @@ export const Dashboard = () => {
           </h2>
           <p className="text-gray-400 text-sm mt-1">Manage your escrow agreements and release payments securely.</p>
         </div>
-        <Button variant="gradient" onClick={() => setIsModalOpen(true)} className="px-5">
+        <Button variant="gradient" onClick={handleOpenCreateModal} className="px-5">
           <Plus className="w-4 h-4" />
           Create Deal
         </Button>
@@ -311,7 +368,7 @@ export const Dashboard = () => {
               </div>
               <h3 className="text-lg font-medium text-gray-200">No deals found</h3>
               <p className="text-sm text-gray-400 mt-1 max-w-sm">You haven't created or participated in any deals yet. Create a new deal to get started.</p>
-              <Button variant="outline" onClick={() => setIsModalOpen(true)} className="mt-4">
+              <Button variant="outline" onClick={handleOpenCreateModal} className="mt-4">
                 <Plus className="w-4 h-4 mr-2" />
                 Create First Deal
               </Button>
@@ -407,7 +464,13 @@ export const Dashboard = () => {
         </div>
       </Card>
 
-      {isModalOpen && <CreateDealModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />}
+      {isModalOpen && (
+        <CreateDealModal
+          isOpen={isModalOpen}
+          initialValues={modalInitialValues}
+          onClose={handleCloseCreateModal}
+        />
+      )}
     </div>
   );
 };
