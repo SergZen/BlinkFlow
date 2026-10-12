@@ -16,7 +16,7 @@ import { useWallet } from '@solana/wallet-adapter-react';
 import { useSolBalance } from '../hooks/useSolBalance';
 
 export const Dashboard = () => {
-  const { role } = useRole();
+  const { role, setRole } = useRole();
   const { isTestMode } = useNetwork();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalInitialValues, setModalInitialValues] = useState<CreateDealInitialValues | undefined>(undefined);
@@ -67,6 +67,7 @@ export const Dashboard = () => {
 
   useEffect(() => {
     if (searchParams.get('new') === '1') {
+      setRole('customer');
       const rawTitle = (searchParams.get('title') || '').trim().slice(0, 100);
 
       const parsedAmount = parseFloat(searchParams.get('amount') || '');
@@ -111,6 +112,7 @@ export const Dashboard = () => {
   }, [searchParams, setSearchParams]);
 
   const handleOpenCreateModal = () => {
+    setRole('customer');
     setModalInitialValues(undefined);
     setIsModalOpen(true);
   };

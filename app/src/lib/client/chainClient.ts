@@ -375,7 +375,9 @@ export const chainClient: BlinkflowClient = {
   ...mockClient,
 
   async createDeal(input) {
-    if (input.role !== 'customer') return mockClient.createDeal(input);
+    if (input.role !== 'customer') {
+      throw new Error('Deal creation requires the Customer role.');
+    }
     requireWallet(input.wallet, 'customer');
     const customer = new PublicKey(input.wallet);
     const contractorStr: string = ((input as any).contractorWallet || '').trim();
