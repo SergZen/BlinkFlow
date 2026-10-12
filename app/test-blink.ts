@@ -1,1 +1,0 @@
-import { Action } from '@dialectlabs/blinks'; async function run() { try { const action = await Action.fetch('http://localhost:3001/api/deal/ESC-1006'); console.log('Action fetched successfully:', action.url); } catch (e) { console.error('Error fetching action:', e); } } run();
