@@ -306,7 +306,6 @@ export const Dashboard = () => {
         <div className="p-4 border-b border-gray-800/60 flex flex-col sm:flex-row items-start sm:items-center justify-between bg-gray-900/60 gap-4">
           <h3 className="font-medium text-lg flex items-center gap-2">
             All Deals
-            <span className="text-xs font-normal bg-orange-500/10 text-orange-400 px-2 py-1 rounded border border-orange-500/20">Demo data</span>
           </h3>
           <div className="flex items-center gap-3 w-full sm:w-auto">
             <div className="flex bg-gray-950 border border-gray-800 rounded-lg p-0.5 shrink-0">
