@@ -88,7 +88,7 @@ impl<'info> InitProtocol<'info> {
         );
 
         require!(name.len() <= COLLECTION_NAME_MAX_SIZE as usize, BlinkFlowError::CollectionNameTooLong);
-        require!(uri.len() <= COLLECTION_URI_MAX_SIZE as usize, BlinkFlowError::CollectionNameTooLong);
+        require!(uri.len() <= COLLECTION_URI_MAX_SIZE as usize, BlinkFlowError::CollectionUriTooLong);
     
         self.protocol.set_inner(Protocol {
             admin: self.admin.key(),
