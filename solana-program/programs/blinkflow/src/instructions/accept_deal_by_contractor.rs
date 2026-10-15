@@ -67,8 +67,7 @@ impl<'info> AcceptDealByContractor<'info> {
             BlinkFlowError::ContractorMustBeEmpty
         );
         require!(
-            self.deal.pending_contractor.is_some()
-                && self.deal.pending_contractor.unwrap() == self.contractor.key(),
+            self.deal.pending_contractor.as_ref() == Some(&self.contractor.key()),
             BlinkFlowError::ContractorMustBePending
         );
 

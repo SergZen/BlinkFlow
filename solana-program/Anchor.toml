@@ -9,7 +9,7 @@ skip-lint = false
 blinkflow = "3vJWWymQCHkntbWTgPfL2ujrquLrYHLneqzebr7bnkik"
 
 [programs.localnet]
-blinkflow = "G8twaYoLecP7q9vgQqytuJwuEuPxzo19hQvWoTHD17TX"
+blinkflow = "3vJWWymQCHkntbWTgPfL2ujrquLrYHLneqzebr7bnkik"
 
 [registry]
 url = "https://api.apr.dev"
