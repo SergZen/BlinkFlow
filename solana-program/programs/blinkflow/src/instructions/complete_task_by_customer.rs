@@ -199,15 +199,15 @@ impl<'info> CompleteTaskByCustomer<'info> {
                 customer_amount,
                 contractor_amount,
             )?;
-        }
 
-        emit!(TaskCompleted {
-            deal: self.deal.key(),
-            task: self.task.key(),
-            customer: self.customer.key(),
-            completed_at: current_time,
-            task_index
-        });
+            emit!(TaskCompleted {
+                deal: self.deal.key(),
+                task: self.task.key(),
+                customer: self.customer.key(),
+                completed_at: current_time,
+                task_index
+            });
+        }
 
         Ok(())
     }

@@ -76,7 +76,7 @@ impl<'info> AddTaskByCustomer<'info> {
         require!(deadline > 0, BlinkFlowError::InvalidDeadline);
         require!(task_hash != [0; 32], BlinkFlowError::InvalidTaskHash);
         require!(
-            self.deal.task_total_count <= MAX_COUNT_TASK_BY_DIAL,
+            self.deal.task_total_count < MAX_COUNT_TASK_BY_DIAL,
             BlinkFlowError::MaxTasksPerDealExceeded
         );
 
