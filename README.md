@@ -6,6 +6,7 @@
 
 - Live app: https://blinkflow-frontend-production.up.railway.app/
 - Pitch video: https://youtu.be/M6uh-EREFq8
+- Demo video: https://youtu.be/W6kXnhmxcLs
 - X: https://x.com/blinkflowapp
 - Telegram bot: [@BlinkFlowApp_bot](https://t.me/BlinkFlowApp_bot)
 - Escrow program (devnet): [`3vJWWymQCHkntbWTgPfL2ujrquLrYHLneqzebr7bnkik`](https://explorer.solana.com/address/3vJWWymQCHkntbWTgPfL2ujrquLrYHLneqzebr7bnkik?cluster=devnet)
