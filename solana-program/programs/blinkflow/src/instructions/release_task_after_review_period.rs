@@ -7,17 +7,14 @@ use anchor_spl::{
 use mpl_core::ID as MPL_CORE_ID;
 
 use crate::{
-    DIAL_SEED, Deal, PROTOCOL_SEED, Protocol, REVIEW_PERIOD_SECS, SBT_COLLECTION_SEED, SBT_SEED, TASK_SEED, Task, TaskStatus, error::BlinkFlowError, events::TaskCompleted, sbt::{SbtContext, update_sbt},
+    DIAL_SEED, Deal, PROTOCOL_SEED, Protocol, REVIEW_PERIOD_SECS, SBT_COLLECTION_SEED, SBT_SEED, TASK_SEED, Task, TaskStatus, error::BlinkFlowError, events::TaskReleasedAfterReview, sbt::{SbtContext, update_sbt},
 };
 
 #[derive(Accounts)]
 #[instruction(task_index: u8)]
 pub struct ReleaseTaskAfterReviewPeriod<'info> {
     #[account(mut)]
-    pub customer: Signer<'info>,
-
-    /// CHECK:
-    pub contractor: UncheckedAccount<'info>,
+    pub contractor: Signer<'info>,
 
     #[account(
         seeds = [PROTOCOL_SEED],
@@ -29,7 +26,6 @@ pub struct ReleaseTaskAfterReviewPeriod<'info> {
         mut,
         has_one = mint @ BlinkFlowError::InvalidMint,
         has_one = contractor @ BlinkFlowError::Unauthorized,
-        has_one = customer @ BlinkFlowError::Unauthorized,
         seeds = [DIAL_SEED, deal.customer.as_ref(), deal.seed.to_le_bytes().as_ref()],
         bump = deal.bump,
     )]
@@ -179,12 +175,12 @@ impl<'info> ReleaseTaskAfterReviewPeriod<'info> {
             signer_seeds,
         )?;
 
-        let payer = &self.customer.to_account_info();
+        let payer = &self.contractor.to_account_info();
 
         update_sbt(
             &*self,
             &self.sbt_customer.to_account_info(),
-            &self.customer.key(), 
+            &self.deal.customer,
             &payer,
             bumps.sbt_collection,
             true,
@@ -209,11 +205,11 @@ impl<'info> ReleaseTaskAfterReviewPeriod<'info> {
             contractor_amount,
         )?;
 
-        emit!(TaskCompleted {
+        emit!(TaskReleasedAfterReview {
             deal: self.deal.key(),
             task: self.task.key(),
-            customer: self.customer.key(),
-            completed_at: current_time,
+            contractor: self.contractor.key(),
+            released_at: current_time,
             task_index
         });
 

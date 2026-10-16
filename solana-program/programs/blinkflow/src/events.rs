@@ -84,6 +84,15 @@ pub struct TaskCompleted {
 }
 
 #[event]
+pub struct TaskReleasedAfterReview {
+    pub deal: Pubkey,
+    pub task: Pubkey,
+    pub contractor: Pubkey,
+    pub released_at: i64,
+    pub task_index: u8,
+}
+
+#[event]
 pub struct TaskDeposited {
     pub deal: Pubkey,
     pub task: Pubkey,

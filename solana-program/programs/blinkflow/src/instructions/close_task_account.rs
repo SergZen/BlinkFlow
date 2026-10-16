@@ -12,7 +12,7 @@ pub struct CloseTaskAccount<'info> {
 
     #[account(
         mut,
-        has_one = creator @ BlinkFlowError::Unauthorized,
+        constraint = creator.key() == deal.customer || creator.key() == deal.contractor @ BlinkFlowError::Unauthorized,
         seeds = [DIAL_SEED, deal.customer.as_ref(), deal.seed.to_le_bytes().as_ref()],
         bump = deal.bump,
     )]
