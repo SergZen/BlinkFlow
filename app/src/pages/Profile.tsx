@@ -1,26 +1,64 @@
 import { Card } from '../components/Card';
 import { ShieldCheck, Calendar, Loader2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useWallet } from '@solana/wallet-adapter-react';
+import { PublicKey } from '@solana/web3.js';
 import { truncateAddress } from '../lib/utils';
+import { fetchReputation, Reputation, RoleReputation } from '../lib/client/sbt';
 
 export const Profile = () => {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [searchParams] = useSearchParams();
   const { publicKey } = useWallet();
 
+  const walletParam = searchParams.get('wallet')?.trim() || '';
+  let queryWallet: string | null = null;
+  if (walletParam) {
+    try {
+      new PublicKey(walletParam);
+      queryWallet = walletParam;
+    } catch {
+      queryWallet = null;
+    }
+  }
+
+  const targetWallet = queryWallet || (publicKey ? publicKey.toBase58() : null);
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [reputation, setReputation] = useState<Reputation | null>(null);
+
   useEffect(() => {
-    const timer = setTimeout(() => {
-      try {
-        // Mock fetch
-      } catch (err: any) {
-        setError("Failed to load profile data");
-      } finally {
-        setLoading(false);
-      }
-    }, 800);
-    return () => clearTimeout(timer);
-  }, []);
+    if (!targetWallet) {
+      setReputation(null);
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
+    let active = true;
+    setLoading(true);
+    setError(null);
+
+    fetchReputation(targetWallet)
+      .then((rep) => {
+        if (!active) return;
+        setReputation(rep);
+        setError(null);
+      })
+      .catch((err) => {
+        if (!active) return;
+        console.error('Failed to load reputation:', err);
+        setError('Failed to load profile data');
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [targetWallet]);
 
   if (loading) {
     return <div className="flex justify-center items-center py-20"><Loader2 className="w-8 h-8 animate-spin text-purple-500" /></div>;
@@ -30,9 +68,27 @@ export const Profile = () => {
     return <div className="p-12 text-center text-red-400 font-medium">{error}</div>;
   }
 
-  const mockStats = {
-    contractor: { won: 11, arbitratedWon: 1, lost: 1, volume: 4500 },
-    customer: { won: 5, arbitratedWon: 0, lost: 0, volume: 1200 }
+  const mapStats = (roleRep?: RoleReputation) => {
+    if (!roleRep) {
+      return { won: 0, arbitratedWon: 0, lost: 0, volume: 0 };
+    }
+    const arbitratedWon = Math.max(roleRep.disputes - roleRep.lost, 0);
+    const won = Math.max(roleRep.success - arbitratedWon, 0);
+    const lost = roleRep.lost;
+    const volume = roleRep.volumeUsdc;
+    return { won, arbitratedWon, lost, volume };
+  };
+
+  const contractorStats = mapStats(reputation?.contractor);
+  const customerStats = mapStats(reputation?.customer);
+
+  const formatDate = (date: Date | null | undefined): string => {
+    if (!date) return '—';
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const month = months[date.getUTCMonth()];
+    const day = String(date.getUTCDate()).padStart(2, '0');
+    const year = date.getUTCFullYear();
+    return `${month} ${day}, ${year}`;
   };
 
   const renderRoleStats = (title: string, stats: { won: number, arbitratedWon: number, lost: number, volume: number }) => {
@@ -93,7 +149,7 @@ export const Profile = () => {
     <div className="space-y-6 animate-in fade-in duration-500">
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Reputation Profile (SBT)</h2>
-        <p className="text-gray-400 text-sm mt-1">Reputation badge (demo data)</p>
+        <p className="text-gray-400 text-sm mt-1">On-chain soulbound reputation badge</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -104,23 +160,22 @@ export const Profile = () => {
               <ShieldCheck className="w-12 h-12 text-white" />
             </div>
             <h3 className="font-mono text-lg font-bold text-gray-200">
-              {publicKey ? truncateAddress(publicKey.toString(), 6) : 'Not Connected'}
+              {targetWallet ? truncateAddress(targetWallet, 6) : 'Not Connected'}
             </h3>
             <p className="text-sm text-purple-400 font-medium mt-1">
-              {publicKey ? 'No reputation badge yet' : 'Connect your wallet to see your reputation'}
+              {targetWallet
+                ? (reputation ? 'Reputation badge on Solana Devnet' : 'No reputation badge yet')
+                : 'Connect your wallet to see your reputation'}
             </p>
             
             <div className="flex flex-col gap-2 w-full text-sm text-gray-400 mt-4 bg-gray-950/50 p-3 rounded-lg border border-gray-800">
-              <div className="flex justify-center mb-1">
-                <span className="text-[10px] font-normal bg-orange-500/10 text-orange-400 px-1.5 py-0.5 rounded border border-orange-500/20">Demo data</span>
-              </div>
               <div className="flex flex-wrap items-center gap-x-2">
                 <span className="flex items-center gap-1.5"><Calendar className="w-4 h-4 shrink-0" />First seen:</span>
-                <span className="whitespace-nowrap">Jul 01, 2026</span>
+                <span className="whitespace-nowrap">{formatDate(reputation?.firstSeen)}</span>
               </div>
               <div className="flex flex-wrap items-center gap-x-2">
                 <span className="flex items-center gap-1.5"><Calendar className="w-4 h-4 shrink-0" />Last seen:</span>
-                <span className="whitespace-nowrap">Oct 07, 2026</span>
+                <span className="whitespace-nowrap">{formatDate(reputation?.lastSeen)}</span>
               </div>
             </div>
 
@@ -134,12 +189,11 @@ export const Profile = () => {
           <Card className="p-6 bg-gray-900/40 backdrop-blur-sm border-gray-800/60">
             <h3 className="text-lg font-medium mb-6">
               Historical Track Record
-              <span className="text-xs font-normal bg-orange-500/10 text-orange-400 px-2 py-1 rounded ml-2 border border-orange-500/20">Demo data</span>
             </h3>
             
             <div className="space-y-8">
-              {renderRoleStats("As Contractor", mockStats.contractor)}
-              {renderRoleStats("As Customer", mockStats.customer)}
+              {renderRoleStats("As Contractor", contractorStats)}
+              {renderRoleStats("As Customer", customerStats)}
             </div>
 
             {/* Shared Legend */}
