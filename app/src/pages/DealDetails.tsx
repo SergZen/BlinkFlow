@@ -397,6 +397,39 @@ export const DealDetails = () => {
   if (error) return <div className="p-8 text-center text-red-400">{error}</div>;
   if (!deal) return <div className="p-8 text-center text-gray-400">Deal not found</div>;
 
+  const getTaskStatusLabel = (task: Task) => {
+    if (task.status === 'ContractorCreated' && !task.deposited) {
+      const customerAddr = chainInfo?.customer || deal?.customer;
+      const contractorAddr = (chainInfo ? (chainInfo.contractor || deal?.contractor) : deal?.contractor) || '';
+
+      if (connected && myWallet && customerAddr && contractorAddr && myWallet !== customerAddr && myWallet !== contractorAddr) {
+        return 'Awaiting funding';
+      }
+      if (role === 'customer') return 'Awaiting your funding';
+      if (role === 'contractor') return 'Awaiting customer funding';
+      return 'Awaiting funding';
+    }
+    return taskStatusLabel(task);
+  };
+
+  const getDealStatusLabel = (deal: Deal) => {
+    const status = deriveDealStatus(deal);
+    if (status === 'awaiting_funding') {
+      const firstActive = deal.tasks.find(t => t.status !== 'Cancelled');
+      if (firstActive?.status === 'ContractorCreated') {
+        const customerAddr = chainInfo?.customer || deal.customer;
+        const contractorAddr = (chainInfo ? (chainInfo.contractor || deal.contractor) : deal.contractor) || '';
+        if (connected && myWallet && customerAddr && contractorAddr && myWallet !== customerAddr && myWallet !== contractorAddr) {
+          return 'Awaiting funding';
+        }
+        if (role === 'customer') return 'Awaiting your funding';
+        if (role === 'contractor') return 'Awaiting customer funding';
+        return 'Awaiting funding';
+      }
+    }
+    return getStatusLabel(status);
+  };
+
   // deleted handleSubmitWork
 
   const handleTaskAction = async (taskIndex: number, action: () => Promise<any>) => {
@@ -666,7 +699,7 @@ export const DealDetails = () => {
             {isVirtualDeal && virtualStatusLabel ? (
               <Badge>{virtualStatusLabel}</Badge>
             ) : (
-              <Badge status={deriveDealStatus(deal)}>{getStatusLabel(deriveDealStatus(deal))}</Badge>
+              <Badge status={deriveDealStatus(deal)}>{getDealStatusLabel(deal)}</Badge>
             )}
           </div>
           <p className="text-gray-400 text-sm font-mono">{deal.id}</p>
@@ -906,7 +939,7 @@ export const DealDetails = () => {
                         </div>
                         <div className="flex flex-wrap sm:flex-nowrap items-center gap-3 shrink-0">
                           <span className="font-semibold text-gray-200">${task.amount.toLocaleString()}</span>
-                          <Badge status={taskStatusKind(task)}>{taskStatusLabel(task)}</Badge>
+                          <Badge status={taskStatusKind(task)}>{getTaskStatusLabel(task)}</Badge>
                           <span className="text-gray-500 text-xs w-24 text-right truncate" title={task.deadline}>{task.deadline === 'TBD' ? 'TBD' : task.deadline}</span>
                         </div>
                       </button>

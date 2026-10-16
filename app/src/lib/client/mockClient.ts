@@ -99,8 +99,8 @@ export const mockClient: BlinkflowClient = {
     const newDeal: Deal = {
       id,
       creator: input.wallet,
-      customer: input.role === 'customer' ? input.wallet : null,
-      contractor: input.role === 'contractor' ? input.wallet : null,
+      customer: input.role === 'customer' ? input.wallet : (input.customerWallet || null),
+      contractor: input.role === 'contractor' ? input.wallet : (input.contractorWallet || null),
       createdAt: now,
       tasks: [task],
       history: [{ date: now, action: 'Deal Created' }]

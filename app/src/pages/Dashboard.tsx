@@ -112,7 +112,6 @@ export const Dashboard = () => {
   }, [searchParams, setSearchParams]);
 
   const handleOpenCreateModal = () => {
-    setRole('customer');
     setModalInitialValues(undefined);
     setIsModalOpen(true);
   };

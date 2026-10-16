@@ -33,6 +33,7 @@ const DECIMALS = 6;
 
 const DISC = {
   initDealByCustomer: [2, 51, 89, 167, 112, 219, 175, 236],
+  initDealByContractor: [99, 68, 242, 203, 3, 58, 176, 238],
   addContractorToDeal: [35, 214, 50, 125, 152, 202, 35, 227],
   acceptDealByContractor: [207, 198, 203, 167, 223, 81, 158, 196],
   addTaskByCustomer: [29, 228, 69, 54, 127, 227, 60, 113],
@@ -402,9 +403,94 @@ export const chainClient: BlinkflowClient = {
   ...mockClient,
 
   async createDeal(input) {
-    if (input.role !== 'customer') {
-      throw new Error('Deal creation requires the Customer role.');
+    if (input.role !== 'customer' && input.role !== 'contractor') {
+      throw new Error('Deal creation requires the Customer or Contractor role.');
     }
+
+    if (input.role === 'contractor') {
+      requireWallet(input.wallet, 'contractor');
+      const contractor = new PublicKey(input.wallet);
+      const customerStr = (input.customerWallet || '').trim();
+      let customer: PublicKey;
+      try {
+        customer = new PublicKey(customerStr);
+      } catch {
+        throw new Error('Invalid customer wallet.');
+      }
+      if (customer.equals(contractor)) {
+        throw new Error('The customer cannot be the contractor.');
+      }
+
+      let trust: PublicKey;
+      try {
+        trust = await trustAuthority();
+      } catch (e: any) {
+        throw new Error(friendlyError(e));
+      }
+      if (trust.equals(customer) || trust.equals(contractor)) {
+        throw new Error('The trust authority cannot be the customer or the contractor.');
+      }
+
+      const seed = BigInt(Date.now());
+      const a = addrs(customer, contractor, seed);
+      const seconds = Math.max(86400, Math.floor((new Date(input.deadline).getTime() - Date.now()) / 1000) || 604800);
+      const taskHash = await sha256(taskHashInput(input.title, input.successCriteria, input.requirementsFile?.sha256));
+
+      const data = cat(
+        Uint8Array.from(DISC.initDealByContractor),
+        u64(seed),
+        u64(BigInt(Math.round(input.amount * 10 ** DECIMALS))),
+        taskHash,
+        i64(BigInt(seconds))
+      );
+
+      const keys = [
+        meta(contractor, true, true),
+        meta(customer, false, false),
+        meta(trust, false, false),
+        meta(a.protocol, false, false),
+        meta(a.deal, false, true),
+        meta(a.task0, false, true),
+        meta(MINT, false, false),
+        meta(a.dealVault, false, true),
+        meta(a.sbtCollection, false, true),
+        meta(a.sbtContractor, false, true),
+        meta(MPL_CORE, false, false),
+        meta(ATA_PROGRAM, false, false),
+        meta(TOKEN_PROGRAM, false, false),
+        meta(SystemProgram.programId, false, false),
+      ];
+
+      const sig = await sendTx([ix(data, keys)]);
+      const deal = await mockClient.createDeal(input);
+      const all = readChainStore();
+      all[deal.id] = {
+        seed: seed.toString(),
+        customer: customer.toBase58(),
+        contractor: contractor.toBase58(),
+        deal: a.deal.toBase58(),
+        sigs: [{ step: 'create', sig, at: new Date().toISOString() }],
+      };
+      writeChainStore(all);
+      patchDeal(deal.id, (d) => {
+        d.tasks[0].status = 'ContractorCreated';
+        d.tasks[0].deposited = false;
+        d.customer = customer.toBase58();
+        d.contractor = contractor.toBase58();
+        d.history.push({
+          date: today(),
+          action: 'Deal proposed on-chain by contractor, awaiting customer funding',
+        });
+      });
+      void (async () => {
+        for (let i = 0; i < 4; i++) {
+          await push();
+          await new Promise((res) => setTimeout(res, 700));
+        }
+      })();
+      return deal;
+    }
+
     requireWallet(input.wallet, 'customer');
     const customer = new PublicKey(input.wallet);
     const contractorStr: string = ((input as any).contractorWallet || '').trim();

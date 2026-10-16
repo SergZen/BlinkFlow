@@ -11,6 +11,7 @@ import { useSolBalance } from '../hooks/useSolBalance';
 import { useNetwork } from '../NetworkContext';
 import { client, isChainMode } from '../lib/client';
 import { MAX_REQ_FILE_BYTES, sha256HexOfFile } from '../lib/fileHash';
+import { PublicKey } from '@solana/web3.js';
 
 export interface CreateDealInitialValues {
   title?: string;
@@ -46,6 +47,7 @@ export const CreateDealModal = ({
   const [criteria, setCriteria] = useState('');
   const [deadline, setDeadline] = useState(initialValues?.deadline || '');
   const [contractorWalletInput, setContractorWalletInput] = useState('');
+  const [customerWalletInput, setCustomerWalletInput] = useState('');
   const [error, setError] = useState('');
   const [reqFile, setReqFile] = useState<{ name: string; sha256: string } | null>(null);
   const [isHashing, setIsHashing] = useState(false);
@@ -111,6 +113,24 @@ export const CreateDealModal = ({
       setError('Deadline cannot be in the past');
       return;
     }
+
+    if (role === 'contractor') {
+      const trimmedCustomer = customerWalletInput.trim();
+      if (!trimmedCustomer) {
+        setError('Customer wallet is required');
+        return;
+      }
+      try {
+        new PublicKey(trimmedCustomer);
+      } catch {
+        setError('Invalid customer wallet: must be a valid Solana public key');
+        return;
+      }
+      if (publicKey && trimmedCustomer === publicKey.toBase58()) {
+        setError('The customer cannot be the contractor.');
+        return;
+      }
+    }
     
     setError('');
     // TODO: replace with real transaction once Anchor program is deployed
@@ -129,6 +149,7 @@ export const CreateDealModal = ({
         amount: parseFloat(amount),
         deadline,
         ...(role === 'customer' && contractorWalletInput.trim() ? { contractorWallet: contractorWalletInput.trim() } : {}),
+        ...(role === 'contractor' && customerWalletInput.trim() ? { customerWallet: customerWalletInput.trim() } : {}),
         ...(reqFile ? { requirementsFile: reqFile } : {})
       });
       dealId = deal.id;
@@ -142,7 +163,7 @@ export const CreateDealModal = ({
       setIsSubmitting(false);
     }
     
-    const customerWallet = role === 'customer' ? walletAddr : '';
+    const customerWallet = role === 'customer' ? walletAddr : customerWalletInput.trim();
     const finalContractorWallet = role === 'contractor' ? walletAddr : (role === 'customer' ? contractorWalletInput.trim() : '');
     
     const truncatedCriteria = criteria.trim().substring(0, 500);
@@ -174,6 +195,7 @@ export const CreateDealModal = ({
     setCriteria('');
     setDeadline('');
     setContractorWalletInput('');
+    setCustomerWalletInput('');
     setError('');
     setReqFile(null);
     setCreatedDealId('');
@@ -209,6 +231,14 @@ export const CreateDealModal = ({
                   <label htmlFor="deal-contractor" className="block text-sm font-medium text-gray-300 mb-1.5">Contractor Wallet (Optional)</label>
                   <input id="deal-contractor" type="text" placeholder="Leave empty: contractors will apply and you choose one" value={contractorWalletInput} onChange={(e) => setContractorWalletInput(e.target.value)} className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-2.5 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all text-white font-mono text-sm" />
                   <p className="text-xs text-gray-500 mt-1">You can also invite a specific contractor by pasting their wallet.</p>
+                </div>
+              )}
+
+              {role === 'contractor' && (
+                <div>
+                  <label htmlFor="deal-customer" className="block text-sm font-medium text-gray-300 mb-1.5">Customer Wallet</label>
+                  <input id="deal-customer" type="text" required placeholder="Paste customer's Solana wallet address" value={customerWalletInput} onChange={(e) => setCustomerWalletInput(e.target.value)} className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-2.5 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all text-white font-mono text-sm" />
+                  <p className="text-xs text-gray-500 mt-1">The customer pays into escrow after opening the link.</p>
                 </div>
               )}
 
@@ -274,7 +304,7 @@ export const CreateDealModal = ({
                 />
               </div>
               <div className="pt-4 space-y-4">
-                {lowSol && role === 'customer' && (
+                {lowSol && (role === 'customer' || role === 'contractor') && (
                   <div className="mb-4 bg-orange-500/10 border border-orange-500/20 rounded-lg p-3 text-sm text-orange-400">
                     You need a small amount of SOL (~0.01) to cover network fees and account rent.
                     {balanceKnown && ` Your SOL balance: ${solBalance.toFixed(3)} SOL.`}
@@ -297,10 +327,10 @@ export const CreateDealModal = ({
                 ) : (
                   <Button 
                     variant="gradient" 
-                    className={`w-full py-2.5 text-base ${(lowSol && role === 'customer') || isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`} 
+                    className={`w-full py-2.5 text-base ${(lowSol && (role === 'customer' || role === 'contractor')) || isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`} 
                     type="submit"
-                    disabled={(lowSol && role === 'customer') || isSubmitting}
-                    title={lowSol && role === 'customer' ? "Not enough SOL for network fees" : undefined}
+                    disabled={(lowSol && (role === 'customer' || role === 'contractor')) || isSubmitting}
+                    title={lowSol && (role === 'customer' || role === 'contractor') ? "Not enough SOL for network fees" : undefined}
                   >
                     {isSubmitting ? (
                       <span className="inline-flex items-center justify-center gap-2">
