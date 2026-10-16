@@ -36,6 +36,7 @@ export const CreateDealModal = ({
 
   const [step, setStep] = useState<1 | 2>(1);
   const [rawActionUrl, setRawActionUrl] = useState('');
+  const [createdDealId, setCreatedDealId] = useState('');
   const { role } = useRole();
   const { connected, publicKey } = useWallet();
   const { setVisible } = useWalletModal();
@@ -159,6 +160,7 @@ export const CreateDealModal = ({
     
     // The HTML wrapper URL format expected by X/Telegram unfurling bots
     setRawActionUrl(`${baseUrl}/deal/${dealId}${queryString}`);
+    setCreatedDealId(dealId);
     
     setStep(2);
   };
@@ -174,6 +176,7 @@ export const CreateDealModal = ({
     setContractorWalletInput('');
     setError('');
     setReqFile(null);
+    setCreatedDealId('');
     onClose();
   };
 
@@ -331,7 +334,7 @@ export const CreateDealModal = ({
               
               <ShareDealPanel 
                 rawActionUrl={rawActionUrl} 
-                dealId="ESC-1006" 
+                dealId={createdDealId} 
               />
 
               <Button

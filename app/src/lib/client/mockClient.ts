@@ -1,6 +1,7 @@
 import { BlinkflowClient } from './types';
 import { Deal, Task, TaskStatus } from '../types';
 import { taskHashInput } from '../fileHash';
+import { HIDDEN_DEAL_IDS } from '../hiddenDeals';
 
 // In-memory store
 let deals: Deal[] = [];
@@ -60,11 +61,12 @@ const getNow = () => new Date().toISOString().split('T')[0];
 export const mockClient: BlinkflowClient = {
   async listDeals() {
     await delay(300);
-    return JSON.parse(JSON.stringify(deals));
+    return JSON.parse(JSON.stringify(deals.filter(d => d && !HIDDEN_DEAL_IDS.has(d.id))));
   },
   
   async getDeal(id: string) {
     await delay(300);
+    if (HIDDEN_DEAL_IDS.has(id)) return null;
     const deal = deals.find(d => d.id === id);
     return deal ? JSON.parse(JSON.stringify(deal)) : null;
   },
