@@ -1,5 +1,6 @@
-import { Connection, PublicKey } from '@solana/web3.js';
+import { PublicKey } from '@solana/web3.js';
 import { PROGRAM_ID } from './chainClient';
+import { createConnection } from '../rpc';
 
 export interface RoleReputation {
   success: number;
@@ -15,12 +16,7 @@ export interface Reputation {
   lastSeen: Date | null;
 }
 
-const RPC =
-  (import.meta as any).env?.VITE_CHAIN_RPC ||
-  (import.meta as any).env?.VITE_SOLANA_RPC_URL_DEVNET ||
-  'https://api.devnet.solana.com';
-
-const conn = new Connection(RPC, 'confirmed');
+const conn = createConnection('confirmed');
 
 const KEYS = [
   'contractor_success',

@@ -15,13 +15,14 @@
 //   cancelTask(N)                   -> cancel_task_by_customer (CustomerCreated) / cancel_task_by_contractor (Started)
 //   resolveDispute(N, customerWins) -> resolve_dispute
 import {
-  Connection, PublicKey, Transaction, TransactionInstruction, SystemProgram, ComputeBudgetProgram,
+  PublicKey, Transaction, TransactionInstruction, SystemProgram, ComputeBudgetProgram,
 } from '@solana/web3.js';
 import { BlinkflowClient } from './types';
 import { mockClient, getDeals, replaceDeals } from './mockClient';
 import { syncNow, push } from './sync';
 import { taskHashInput } from '../fileHash';
 import { friendlyError } from '../errors';
+import { createConnection } from '../rpc';
 
 export const PROGRAM_ID = new PublicKey('3vJWWymQCHkntbWTgPfL2ujrquLrYHLneqzebr7bnkik');
 export const MINT = new PublicKey('Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr');
@@ -29,7 +30,6 @@ const MPL_CORE = new PublicKey('CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d');
 const ATA_PROGRAM = new PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
 const TOKEN_PROGRAM = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
 const DECIMALS = 6;
-const RPC = (import.meta as any).env?.VITE_CHAIN_RPC || (import.meta as any).env?.VITE_SOLANA_RPC_URL_DEVNET || 'https://api.devnet.solana.com';
 
 const DISC = {
   initDealByCustomer: [2, 51, 89, 167, 112, 219, 175, 236],
@@ -47,7 +47,7 @@ const DISC = {
   resolveDispute: [231, 6, 202, 6, 96, 103, 12, 230],
 };
 
-const conn = new Connection(RPC, 'confirmed');
+const conn = createConnection('confirmed');
 const enc = new TextEncoder();
 const pda = (seeds: Uint8Array[]) => PublicKey.findProgramAddressSync(seeds, PROGRAM_ID)[0];
 const ata = (owner: PublicKey) =>

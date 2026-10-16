@@ -6,6 +6,8 @@ import { useWallet } from '@solana/wallet-adapter-react';
 import { PublicKey } from '@solana/web3.js';
 import { truncateAddress } from '../lib/utils';
 import { fetchReputation, Reputation, RoleReputation } from '../lib/client/sbt';
+import { Button } from '../components/Button';
+import { isRpcUnavailable } from '../lib/rpc';
 
 export const Profile = () => {
   const [searchParams] = useSearchParams();
@@ -26,13 +28,16 @@ export const Profile = () => {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isUnavailable, setIsUnavailable] = useState(false);
   const [reputation, setReputation] = useState<Reputation | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     if (!targetWallet) {
       setReputation(null);
       setLoading(false);
       setError(null);
+      setIsUnavailable(false);
       return;
     }
 
@@ -45,11 +50,18 @@ export const Profile = () => {
         if (!active) return;
         setReputation(rep);
         setError(null);
+        setIsUnavailable(false);
       })
       .catch((err) => {
         if (!active) return;
         console.error('Failed to load reputation:', err);
-        setError('Failed to load profile data');
+        if (isRpcUnavailable(err)) {
+          setIsUnavailable(true);
+          setError('Solana Devnet is not responding right now. Retrying…');
+        } else {
+          setIsUnavailable(false);
+          setError('Failed to load profile data');
+        }
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -58,14 +70,36 @@ export const Profile = () => {
     return () => {
       active = false;
     };
-  }, [targetWallet]);
+  }, [targetWallet, retryCount]);
 
-  if (loading) {
+  useEffect(() => {
+    if (!isUnavailable || !targetWallet) return;
+
+    const timer = setInterval(() => {
+      setRetryCount((c) => c + 1);
+    }, 15000);
+
+    return () => {
+      clearInterval(timer);
+    };
+  }, [isUnavailable, targetWallet]);
+
+  if (loading && !isUnavailable) {
     return <div className="flex justify-center items-center py-20"><Loader2 className="w-8 h-8 animate-spin text-purple-500" /></div>;
   }
   
   if (error) {
-    return <div className="p-12 text-center text-red-400 font-medium">{error}</div>;
+    return (
+      <div className="p-12 text-center space-y-4">
+        <p className="text-red-400 font-medium">{error}</p>
+        {isUnavailable && (
+          <Button variant="outline" onClick={() => setRetryCount((c) => c + 1)} disabled={loading} className="mx-auto text-xs px-3 py-1.5">
+            {loading ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin inline" /> : null}
+            Retry now
+          </Button>
+        )}
+      </div>
+    );
   }
 
   const mapStats = (roleRep?: RoleReputation) => {

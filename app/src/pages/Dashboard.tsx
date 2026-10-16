@@ -30,7 +30,7 @@ export const Dashboard = () => {
   const { publicKey, connected } = useWallet();
   const { solBalance } = useSolBalance();
   const MIN_SOL_REQUIRED = 0.01;
-  const hasEnoughSol = solBalance !== null && solBalance >= MIN_SOL_REQUIRED;
+  const hasEnoughSol = solBalance === null || solBalance >= MIN_SOL_REQUIRED;
 
   const [walletFilter, setWalletFilter] = useState<'all' | 'mine'>('all');
   const [actionLoading, setActionLoading] = useState<string | null>(null);

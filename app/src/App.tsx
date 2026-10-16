@@ -19,20 +19,27 @@ import { CookieBanner } from './components/CookieBanner';
 
 import '@solana/wallet-adapter-react-ui/styles.css';
 import { NetworkProvider, useNetwork } from './NetworkContext';
+import { DEVNET_ENDPOINTS, failoverFetch } from './lib/rpc';
 
 function InnerApp() {
   const { network } = useNetwork();
   const endpoint = useMemo(() => {
     if (network === 'devnet') {
-      return import.meta.env.VITE_SOLANA_RPC_URL_DEVNET || clusterApiUrl('devnet');
+      return DEVNET_ENDPOINTS[0] || import.meta.env.VITE_SOLANA_RPC_URL_DEVNET || clusterApiUrl('devnet');
     } else {
       return import.meta.env.VITE_SOLANA_RPC_URL_MAINNET || clusterApiUrl('mainnet-beta');
     }
   }, [network]);
+  const connectionConfig = useMemo(() => {
+    if (network === 'devnet') {
+      return { commitment: 'confirmed' as const, fetch: failoverFetch };
+    }
+    return undefined;
+  }, [network]);
   const wallets = useMemo(() => [], []);
 
   return (
-    <ConnectionProvider endpoint={endpoint}>
+    <ConnectionProvider endpoint={endpoint} config={connectionConfig}>
       <WalletProvider wallets={wallets} autoConnect>
         <WalletModalProvider>
           <RoleProvider>
