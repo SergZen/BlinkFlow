@@ -15,5 +15,5 @@ blinkflow = "3vJWWymQCHkntbWTgPfL2ujrquLrYHLneqzebr7bnkik"
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "devnet"
+cluster = "localnet"
 wallet = "~/.config/solana/id.json"
