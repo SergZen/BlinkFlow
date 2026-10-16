@@ -8,6 +8,7 @@ export interface BlinkflowClient {
   assignContractor(dealId: string, contractorWallet: string): Promise<Deal>;
   acceptDeal(dealId: string, wallet: string): Promise<Deal>;
   addTask(dealId: string, input: { role: Role; title: string; successCriteria: string; amount: number; deadline: string }): Promise<Deal>;
+  acceptTask(dealId: string, taskIndex: number, wallet: string): Promise<Deal>;
   depositTask(dealId: string, taskIndex: number, wallet: string): Promise<Deal>;
   finishTask(dealId: string, taskIndex: number, solutionNote: string): Promise<Deal>;
   completeTask(dealId: string, taskIndex: number, approved: boolean): Promise<Deal>;

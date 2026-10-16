@@ -155,6 +155,18 @@ export const mockClient: BlinkflowClient = {
     return JSON.parse(JSON.stringify(deal));
   },
 
+  async acceptTask(dealId, taskIndex, wallet) {
+    await delay(300);
+    const deal = deals.find(d => d.id === dealId);
+    if (!deal) throw new Error("Deal not found");
+    const task = deal.tasks[taskIndex];
+    if (!task) throw new Error("Task not found");
+    task.status = 'Started';
+    deal.history.push({ date: getNow(), action: `Task #${taskIndex} Started` });
+    saveDeals();
+    return JSON.parse(JSON.stringify(deal));
+  },
+
   async depositTask(dealId, taskIndex, wallet) {
     await delay(300);
     const deal = deals.find(d => d.id === dealId);

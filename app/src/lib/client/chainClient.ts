@@ -6,6 +6,8 @@
 //   createDeal (customer)           -> init_deal_by_customer (+ add_contractor_to_deal only if contractor given)
 //   assignContractor (customer)     -> add_contractor_to_deal (picks pending contractor before acceptance)
 //   acceptDeal (contractor)         -> accept_deal_by_contractor
+//   addTask(input)                  -> add_task_by_customer (customer) / add_task_by_contractor (contractor)
+//   acceptTask(N)                   -> accept_task_by_contractor (for N > 0) / acceptDeal (for N = 0)
 //   depositTask(N)                  -> deposit_task_by_customer (ContractorCreated) / UI state only (CustomerCreated)
 //   finishTask(N)                   -> finish_task_by_contractor
 //   completeTask(N, true)           -> complete_task_by_customer(approved=true)
@@ -33,6 +35,9 @@ const DISC = {
   initDealByCustomer: [2, 51, 89, 167, 112, 219, 175, 236],
   addContractorToDeal: [35, 214, 50, 125, 152, 202, 35, 227],
   acceptDealByContractor: [207, 198, 203, 167, 223, 81, 158, 196],
+  addTaskByCustomer: [29, 228, 69, 54, 127, 227, 60, 113],
+  addTaskByContractor: [223, 35, 171, 89, 137, 239, 196, 40],
+  acceptTaskByContractor: [169, 149, 164, 233, 78, 231, 98, 150],
   depositTaskByCustomer: [177, 242, 167, 14, 160, 252, 193, 176],
   finishTaskByContractor: [196, 235, 52, 233, 27, 16, 254, 233],
   completeTaskByCustomer: [166, 182, 255, 19, 234, 8, 253, 49],
@@ -240,6 +245,24 @@ async function sendTx(ixs: TransactionInstruction[]): Promise<string> {
 // ---- addresses ------------------------------------------------------------------------------------
 const taskPda = (deal: PublicKey, index: number) =>
   pda([enc.encode('task'), deal.toBuffer(), Uint8Array.of(index)]);
+
+async function readTaskTotalCount(deal: PublicKey): Promise<number> {
+  const account = await withRetry(() => conn.getAccountInfo(deal));
+  if (!account || !account.data) {
+    throw new Error('Could not find on-chain deal account.');
+  }
+  const data = account.data;
+  const tagOffset = 8 + 192 + 8;
+  if (data.length <= tagOffset) {
+    throw new Error('Deal account data is truncated.');
+  }
+  const tag = data[tagOffset];
+  const countOffset = tagOffset + (tag !== 0 ? 33 : 1) + 8;
+  if (data.length <= countOffset) {
+    throw new Error('Deal account data is too short for task_total_count.');
+  }
+  return data[countOffset];
+}
 
 function addrs(customer: PublicKey, contractor: PublicKey, seed: bigint) {
   const protocol = pda([enc.encode('protocol')]);
@@ -464,6 +487,181 @@ export const chainClient: BlinkflowClient = {
     addSig(dealId, 'accept', sig);
     return afterStep(mockClient.acceptDeal(dealId, wallet).then((r) =>
       patchDeal(dealId, (d) => { d.tasks[0].status = 'Started'; d.history.push({ date: today(), action: 'Task Started' }); }) ?? r));
+  },
+
+  async addTask(dealId, input) {
+    const c = await ctx(dealId);
+    if (!c) throw new Error('This deal is not on-chain, so this action cannot be performed.');
+
+    const currentDeal = getDeals().find((d) => d.id === dealId);
+    if (!currentDeal?.contractor) {
+      throw new Error('A contractor must be assigned to the deal before adding new tasks.');
+    }
+
+    if (input.role !== 'customer' && input.role !== 'contractor') {
+      throw new Error('Adding a task requires customer or contractor role.');
+    }
+
+    if (!input.title || !input.title.trim()) {
+      throw new Error('Task title cannot be empty.');
+    }
+
+    if (!input.successCriteria || !input.successCriteria.trim()) {
+      throw new Error('Success criteria cannot be empty.');
+    }
+
+    if (!input.amount || input.amount < 10) {
+      throw new Error('Task amount must be at least 10 USDC.');
+    }
+
+    const config = await fetchProtocolConfig();
+    if (config.paused) {
+      throw new Error('Protocol is currently paused.');
+    }
+
+    const nextIndex = await readTaskTotalCount(c.a.deal);
+    if (nextIndex >= 255) {
+      throw new Error('Maximum tasks per deal reached (255).');
+    }
+
+    const seconds = Math.max(86400, Math.floor((new Date(input.deadline).getTime() - Date.now()) / 1000) || 604800);
+    if (seconds <= 0) {
+      throw new Error('Deadline must be in the future.');
+    }
+
+    const taskHash = await sha256(taskHashInput(input.title.trim(), input.successCriteria.trim()));
+    const amountU64 = u64(BigInt(Math.round(input.amount * 10 ** DECIMALS)));
+    const newTask = taskPda(c.a.deal, nextIndex);
+
+    let sig: string;
+    if (input.role === 'customer') {
+      requireWallet(c.info.customer, 'customer');
+
+      try {
+        const balRes = await withRetry(() => conn.getTokenAccountBalance(c.a.customerAta));
+        const have = balRes?.value?.uiAmount ?? (Number(balRes?.value?.amount || 0) / 10 ** DECIMALS);
+        if (have < input.amount) {
+          throw new Error(`Not enough USDC-Dev: you have ${have}, the task needs ${input.amount}. Use "Get USDC-Dev" in the header.`);
+        }
+      } catch (err: any) {
+        if (err.message && err.message.startsWith('Not enough USDC-Dev:')) {
+          throw err;
+        }
+        const errMsg = (err?.message || String(err)).toLowerCase();
+        if (
+          errMsg.includes('could not find account') ||
+          errMsg.includes('not found') ||
+          errMsg.includes('account not initialized') ||
+          errMsg.includes('accountnotinitialized') ||
+          errMsg.includes('does not exist') ||
+          errMsg.includes('invalid param')
+        ) {
+          throw new Error(friendlyError('could not find account'));
+        }
+        console.warn('[addTask] balance pre-check skipped due to RPC error:', err?.message || err);
+      }
+
+      const data = cat(
+        Uint8Array.from(DISC.addTaskByCustomer),
+        amountU64,
+        taskHash,
+        i64(BigInt(seconds))
+      );
+
+      const keys = [
+        meta(c.customer, true, true),
+        meta(c.a.protocol, false, false),
+        meta(c.a.deal, false, true),
+        meta(newTask, false, true),
+        meta(MINT, false, false),
+        meta(c.a.dealVault, false, true),
+        meta(c.a.customerAta, false, true),
+        meta(ATA_PROGRAM, false, false),
+        meta(TOKEN_PROGRAM, false, false),
+        meta(SystemProgram.programId, false, false),
+      ];
+
+      sig = await sendTx([ix(data, keys)]);
+    } else {
+      if (!c.info.contractor) {
+        throw new Error('A contractor must be assigned to the deal before adding new tasks.');
+      }
+      requireWallet(c.info.contractor, 'contractor');
+
+      const data = cat(
+        Uint8Array.from(DISC.addTaskByContractor),
+        amountU64,
+        taskHash,
+        i64(BigInt(seconds))
+      );
+
+      const keys = [
+        meta(c.contractor, true, true),
+        meta(c.a.protocol, false, false),
+        meta(c.a.deal, false, true),
+        meta(newTask, false, true),
+        meta(SystemProgram.programId, false, false),
+      ];
+
+      sig = await sendTx([ix(data, keys)]);
+    }
+
+    addSig(dealId, 'add_task', sig);
+
+    const addedRole = input.role;
+    return afterStep(
+      mockClient.addTask(dealId, input).then((r) =>
+        patchDeal(dealId, (d) => {
+          const newTaskItem = d.tasks[d.tasks.length - 1];
+          if (newTaskItem) {
+            newTaskItem.taskIndex = nextIndex;
+            if (addedRole === 'customer') {
+              newTaskItem.status = 'CustomerCreated';
+              newTaskItem.deposited = true;
+            } else {
+              newTaskItem.status = 'ContractorCreated';
+              newTaskItem.deposited = false;
+            }
+          }
+          if (d.history.length > 0 && d.history[d.history.length - 1]?.action === 'Task Added') {
+            d.history.pop();
+          }
+          d.history.push({
+            date: today(),
+            action: `Task #${nextIndex} added on-chain by ${addedRole}`,
+          });
+        }) ?? r
+      )
+    );
+  },
+
+  async acceptTask(dealId, taskIndex, wallet) {
+    if (taskIndex === 0) {
+      return chainClient.acceptDeal(dealId, wallet);
+    }
+    const c = await ctx(dealId);
+    if (!c) throw new Error('This deal is not on-chain, so this action cannot be performed.');
+    if (!c.info.contractor) throw new Error('The customer has not picked a contractor yet.');
+    requireWallet(c.info.contractor, 'contractor');
+    const a = c.a;
+    const task = taskPda(a.deal, taskIndex);
+    const sig = await sendTx([
+      ix(cat(Uint8Array.from(DISC.acceptTaskByContractor), Uint8Array.of(taskIndex)), [
+        meta(c.contractor, true, true),
+        meta(a.deal, false, true),
+        meta(task, false, true),
+      ]),
+    ]);
+    addSig(dealId, 'accept_task', sig);
+    return afterStep(
+      mockClient.acceptTask(dealId, taskIndex, wallet).then((r) =>
+        patchDeal(dealId, (d) => {
+          if (d.tasks?.[taskIndex]) {
+            d.tasks[taskIndex].status = 'Started';
+          }
+        }) ?? r
+      )
+    );
   },
 
   async depositTask(dealId, taskIndex, wallet) {
