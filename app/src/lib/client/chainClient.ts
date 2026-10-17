@@ -623,7 +623,7 @@ export const chainClient: BlinkflowClient = {
       throw new Error('Deadline must be in the future.');
     }
 
-    const taskHash = await sha256(taskHashInput(input.title.trim(), input.successCriteria.trim()));
+    const taskHash = await sha256(taskHashInput(input.title.trim(), input.successCriteria.trim(), input.requirementsFile?.sha256));
     const amountU64 = u64(BigInt(Math.round(input.amount * 10 ** DECIMALS)));
     const newTask = taskPda(c.a.deal, nextIndex);
 

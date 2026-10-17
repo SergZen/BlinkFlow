@@ -8,6 +8,7 @@ import { useWallet } from '@solana/wallet-adapter-react';
 import { useWalletModal } from '@solana/wallet-adapter-react-ui';
 import { useToken } from '../lib/constants';
 import { useSolBalance } from '../hooks/useSolBalance';
+import { useUsdcBalance } from '../hooks/useUsdcBalance';
 import { useNetwork } from '../NetworkContext';
 import { client, isChainMode } from '../lib/client';
 import { MAX_REQ_FILE_BYTES, sha256HexOfFile } from '../lib/fileHash';
@@ -34,6 +35,7 @@ export const CreateDealModal = ({
   const { symbol } = useToken();
   const { network, setNetwork, isTestMode } = useNetwork();
   const { solBalance } = useSolBalance();
+  const { balance: usdcBalance } = useUsdcBalance();
   const MIN_SOL_REQUIRED = 0.01; // Estimate for rent + network fees
   const balanceKnown = solBalance !== null;
   const lowSol = balanceKnown && solBalance < MIN_SOL_REQUIRED;
@@ -47,6 +49,8 @@ export const CreateDealModal = ({
 
   const [title, setTitle] = useState(initialValues?.title || '');
   const [amount, setAmount] = useState(initialValues?.amount || '');
+  const parsedAmount = parseFloat(amount);
+  const isInsufficientUsdc = role === 'customer' && usdcBalance !== null && !isNaN(parsedAmount) && parsedAmount > 0 && usdcBalance < parsedAmount;
   const [criteria, setCriteria] = useState('');
   const [deadline, setDeadline] = useState(initialValues?.deadline || '');
   const [contractorWalletInput, setContractorWalletInput] = useState('');
@@ -304,7 +308,7 @@ export const CreateDealModal = ({
                         </button>
                       </div>
                       <p className="text-[11px] text-gray-500 leading-tight">
-                        The file is not uploaded. Only its SHA-256 fingerprint is stored in the deal. Send the file to your contractor separately.
+                        The file is not uploaded. Only its SHA-256 fingerprint is stored in the deal. Send the file to {role === 'contractor' ? 'the customer' : 'your contractor'} separately.
                       </p>
                     </div>
                   )}
@@ -325,6 +329,11 @@ export const CreateDealModal = ({
               </div>
               <div className="pt-4 space-y-4">
                 <NetworkDepositInfo type="deal" wallet={publicKey?.toBase58()} />
+                {isInsufficientUsdc && (
+                  <div className="mb-4 bg-orange-500/10 border border-orange-500/20 rounded-lg p-3 text-sm text-orange-400">
+                    You have {usdcBalance.toFixed(2)} {symbol}, this deal needs {parsedAmount.toFixed(2)}. Use "Get USDC/SOL" in the header.
+                  </div>
+                )}
                 {lowSol && (role === 'customer' || role === 'contractor') && (
                   <div className="mb-4 bg-orange-500/10 border border-orange-500/20 rounded-lg p-3 text-sm text-orange-400">
                     You need a small amount of SOL (~0.01) to cover network fees and account rent.
@@ -348,10 +357,10 @@ export const CreateDealModal = ({
                 ) : (
                   <Button 
                     variant="gradient" 
-                    className={`w-full py-2.5 text-base ${(lowSol && (role === 'customer' || role === 'contractor')) || isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`} 
+                    className={`w-full py-2.5 text-base ${(lowSol && (role === 'customer' || role === 'contractor')) || isInsufficientUsdc || isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`} 
                     type="submit"
-                    disabled={(lowSol && (role === 'customer' || role === 'contractor')) || isSubmitting}
-                    title={lowSol && (role === 'customer' || role === 'contractor') ? "Not enough SOL for network fees" : undefined}
+                    disabled={(lowSol && (role === 'customer' || role === 'contractor')) || isInsufficientUsdc || isSubmitting}
+                    title={lowSol && (role === 'customer' || role === 'contractor') ? "Not enough SOL for network fees" : isInsufficientUsdc ? `Not enough ${symbol} to fund deal` : undefined}
                   >
                     {isSubmitting ? (
                       <span className="inline-flex items-center justify-center gap-2">

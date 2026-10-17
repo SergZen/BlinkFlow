@@ -136,7 +136,7 @@ export const mockClient: BlinkflowClient = {
     const deal = deals.find(d => d.id === dealId);
     if (!deal) throw new Error("Deal not found");
 
-    const taskHash = await createHash(JSON.stringify({ title: input.title, successCriteria: input.successCriteria }));
+    const taskHash = await createHash(taskHashInput(input.title, input.successCriteria, input.requirementsFile?.sha256));
     const task: Task = {
       taskIndex: deal.tasks.length,
       amount: input.amount,
@@ -147,7 +147,11 @@ export const mockClient: BlinkflowClient = {
       deadline: input.deadline,
       createdAt: getNow(),
       deposited: false,
-      meta: { title: input.title, successCriteria: input.successCriteria }
+      meta: {
+        title: input.title,
+        successCriteria: input.successCriteria,
+        ...(input.requirementsFile ? { requirementsFile: input.requirementsFile } : {}),
+      }
     };
     deal.tasks.push(task);
     deal.history.push({ date: getNow(), action: 'Task Added' });

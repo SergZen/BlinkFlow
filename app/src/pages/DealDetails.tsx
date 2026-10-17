@@ -6,7 +6,7 @@ import { Card } from '../components/Card';
 import { Badge, getStatusLabel } from '../components/Badge';
 import { Button } from '../components/Button';
 import { useRole } from '../RoleContext';
-import { ArrowLeft, CheckCircle2, History, Loader2, Plus, Share2, X } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, History, Link2, Loader2, Plus, Share2, X } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { MAX_REQ_FILE_BYTES, sha256HexOfFile } from '../lib/fileHash';
 import { ShareDealPanel } from '../components/ShareDealPanel';
@@ -14,6 +14,7 @@ import { ApplicationsPanel } from '../components/ApplicationsPanel';
 import { useToken } from '../lib/constants';
 import { truncateAddress } from '../lib/utils';
 import { useSolBalance } from '../hooks/useSolBalance';
+import { useUsdcBalance } from '../hooks/useUsdcBalance';
 import { useNetwork } from '../NetworkContext';
 import type { Deal, Task } from '../lib/types';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
@@ -230,6 +231,7 @@ export const DealDetails = () => {
   const { setVisible } = useWalletModal();
   const { isTestMode } = useNetwork();
   const { solBalance } = useSolBalance();
+  const { balance: usdcBalance } = useUsdcBalance();
   const { symbol } = useToken();
   const MIN_SOL_REQUIRED = 0.01;
   const hasEnoughSol = solBalance === null || solBalance >= MIN_SOL_REQUIRED;
@@ -254,6 +256,10 @@ export const DealDetails = () => {
   const [taskAmount, setTaskAmount] = useState('');
   const [taskDeadline, setTaskDeadline] = useState('');
   const [addTaskLoading, setAddTaskLoading] = useState(false);
+  const [taskReqFile, setTaskReqFile] = useState<{ name: string; sha256: string } | null>(null);
+  const [isTaskHashing, setIsTaskHashing] = useState(false);
+  const [taskFileError, setTaskFileError] = useState('');
+  const taskFileInputRef = useRef<HTMLInputElement>(null);
   const [fieldErrors, setFieldErrors] = useState<{
     title?: string;
     amount?: string;
@@ -264,6 +270,44 @@ export const DealDetails = () => {
   const taskAmountRef = useRef<HTMLInputElement>(null);
   const taskDeadlineRef = useRef<HTMLInputElement>(null);
   const taskCriteriaRef = useRef<HTMLTextAreaElement>(null);
+
+  const parsedTaskAmount = parseFloat(taskAmount);
+  const isInsufficientUsdc = role === 'customer' && usdcBalance !== null && !isNaN(parsedTaskAmount) && parsedTaskAmount > 0 && usdcBalance < parsedTaskAmount;
+
+  const handleTaskFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > MAX_REQ_FILE_BYTES) {
+      setTaskFileError('File is too large (max 20 MB)');
+      setTaskReqFile(null);
+      if (taskFileInputRef.current) taskFileInputRef.current.value = '';
+      return;
+    }
+
+    try {
+      setIsTaskHashing(true);
+      setTaskFileError('');
+      const sha256 = await sha256HexOfFile(file);
+      setTaskReqFile({
+        name: file.name,
+        sha256,
+      });
+    } catch (err) {
+      console.error('Error hashing file:', err);
+      setTaskFileError('Failed to read and hash file.');
+      setTaskReqFile(null);
+    } finally {
+      setIsTaskHashing(false);
+      if (taskFileInputRef.current) taskFileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveTaskFile = () => {
+    setTaskReqFile(null);
+    setTaskFileError('');
+    if (taskFileInputRef.current) taskFileInputRef.current.value = '';
+  };
 
   const isWrongCustomer = Boolean(chainInfo && connected && myWallet && myWallet !== chainInfo.customer);
   const contractorAddr = (chainInfo ? (chainInfo.contractor || deal?.contractor) : deal?.contractor) || '';
@@ -332,6 +376,7 @@ export const DealDetails = () => {
           successCriteria: taskCriteria.trim(),
           amount: parsedAmount,
           deadline: taskDeadline,
+          requirementsFile: taskReqFile || undefined,
         });
         if (updatedDeal) {
           setDeal(updatedDeal);
@@ -341,6 +386,8 @@ export const DealDetails = () => {
         setTaskCriteria('');
         setTaskAmount('');
         setTaskDeadline('');
+        setTaskReqFile(null);
+        setTaskFileError('');
         setShowAddTaskForm(false);
         toast.success('Task added', getLastTxSig() || undefined);
       } catch (err: any) {
@@ -804,6 +851,7 @@ export const DealDetails = () => {
                   onClick={() => {
                     setShowAddTaskForm((prev) => !prev);
                     setFieldErrors({});
+                    handleRemoveTaskFile();
                   }}
                   className="w-fit text-xs px-3 py-1.5"
                 >
@@ -824,6 +872,7 @@ export const DealDetails = () => {
                     onClick={() => {
                       setShowAddTaskForm(false);
                       setFieldErrors({});
+                      handleRemoveTaskFile();
                     }}
                     className="text-gray-400 hover:text-white transition-colors"
                   >
@@ -852,53 +901,31 @@ export const DealDetails = () => {
                   {fieldErrors.title && <p className="text-xs text-red-400 mt-1">{fieldErrors.title}</p>}
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label htmlFor="new-task-amount" className="block text-xs font-medium text-gray-300 mb-1">
-                      Amount ({symbol}) (min 0.01)
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
-                      <input
-                        ref={taskAmountRef}
-                        id="new-task-amount"
-                        type="number"
-                        min="0.01"
-                        step="0.01"
-                        autoComplete="off"
-                        onWheel={(e) => e.currentTarget.blur()}
-                        required
-                        placeholder="0.01"
-                        value={taskAmount}
-                        onChange={(e) => {
-                          setTaskAmount(e.target.value);
-                          setFieldErrors((prev) => ({ ...prev, amount: '' }));
-                        }}
-                        className="w-full bg-gray-950 border border-gray-800 rounded-lg pl-7 pr-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500/50"
-                      />
-                    </div>
-                    {fieldErrors.amount && <p className="text-xs text-red-400 mt-1">{fieldErrors.amount}</p>}
-                  </div>
-
-                  <div>
-                    <label htmlFor="new-task-deadline" className="block text-xs font-medium text-gray-300 mb-1">
-                      Deadline
-                    </label>
+                <div>
+                  <label htmlFor="new-task-amount" className="block text-xs font-medium text-gray-300 mb-1">
+                    Amount ({symbol}) (min 0.01)
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
                     <input
-                      ref={taskDeadlineRef}
-                      id="new-task-deadline"
-                      type="date"
+                      ref={taskAmountRef}
+                      id="new-task-amount"
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      autoComplete="off"
+                      onWheel={(e) => e.currentTarget.blur()}
                       required
-                      value={taskDeadline}
+                      placeholder="0.01"
+                      value={taskAmount}
                       onChange={(e) => {
-                        setTaskDeadline(e.target.value);
-                        setFieldErrors((prev) => ({ ...prev, deadline: '' }));
+                        setTaskAmount(e.target.value);
+                        setFieldErrors((prev) => ({ ...prev, amount: '' }));
                       }}
-                      onClick={(e) => 'showPicker' in HTMLInputElement.prototype && e.currentTarget.showPicker()}
-                      className="w-full bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500/50 cursor-pointer [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:opacity-70 hover:[&::-webkit-calendar-picker-indicator]:opacity-100"
+                      className="w-full bg-gray-950 border border-gray-800 rounded-lg pl-7 pr-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500/50"
                     />
-                    {fieldErrors.deadline && <p className="text-xs text-red-400 mt-1">{fieldErrors.deadline}</p>}
                   </div>
+                  {fieldErrors.amount && <p className="text-xs text-red-400 mt-1">{fieldErrors.amount}</p>}
                 </div>
 
                 <div>
@@ -920,6 +947,63 @@ export const DealDetails = () => {
                     className="w-full bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500/50 resize-none"
                   />
                   {fieldErrors.criteria && <p className="text-xs text-red-400 mt-1">{fieldErrors.criteria}</p>}
+                  <div className="flex flex-col gap-1.5 mt-2">
+                    <input
+                      ref={taskFileInputRef}
+                      type="file"
+                      className="hidden"
+                      onChange={handleTaskFileSelect}
+                    />
+                    <button
+                      type="button"
+                      disabled={isTaskHashing}
+                      onClick={() => taskFileInputRef.current?.click()}
+                      className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1 transition-colors w-fit disabled:opacity-50"
+                    >
+                      <Link2 className="w-3 h-3" />
+                      {isTaskHashing ? 'Hashing file…' : 'Attach File (Requirements)'}
+                    </button>
+                    {taskFileError && <p className="text-red-400 text-xs mt-1">{taskFileError}</p>}
+                    {taskReqFile && (
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-xs text-gray-300">
+                          <span className="font-medium text-white truncate max-w-[200px]" title={taskReqFile.name}>{taskReqFile.name}</span>
+                          <span className="font-mono text-gray-400">({taskReqFile.sha256.slice(0, 10)}…)</span>
+                          <button
+                            type="button"
+                            onClick={handleRemoveTaskFile}
+                            className="text-gray-400 hover:text-white p-0.5 rounded transition-colors"
+                            aria-label="Remove attached file"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-gray-500 leading-tight">
+                          The file is not uploaded. Only its SHA-256 fingerprint is stored in the deal. Send the file to {role === 'contractor' ? 'the customer' : 'your contractor'} separately.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="new-task-deadline" className="block text-xs font-medium text-gray-300 mb-1">
+                    Deadline
+                  </label>
+                  <input
+                    ref={taskDeadlineRef}
+                    id="new-task-deadline"
+                    type="date"
+                    required
+                    value={taskDeadline}
+                    onChange={(e) => {
+                      setTaskDeadline(e.target.value);
+                      setFieldErrors((prev) => ({ ...prev, deadline: '' }));
+                    }}
+                    onClick={(e) => 'showPicker' in HTMLInputElement.prototype && e.currentTarget.showPicker()}
+                    className="w-full bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500/50 cursor-pointer [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:opacity-70 hover:[&::-webkit-calendar-picker-indicator]:opacity-100"
+                  />
+                  {fieldErrors.deadline && <p className="text-xs text-red-400 mt-1">{fieldErrors.deadline}</p>}
                 </div>
 
                 {role === 'customer' && (
@@ -935,6 +1019,12 @@ export const DealDetails = () => {
 
                 <NetworkDepositInfo type="task" wallet={publicKey?.toBase58()} />
 
+                {isInsufficientUsdc && (
+                  <div className="mb-4 bg-orange-500/10 border border-orange-500/20 rounded-lg p-3 text-sm text-orange-400">
+                    You have {usdcBalance.toFixed(2)} {symbol}, this task needs {parsedTaskAmount.toFixed(2)}. Use "Get USDC/SOL" in the header.
+                  </div>
+                )}
+
                 {renderSolWarning()}
 
                 {isWrongUserForAddTask ? (
@@ -948,7 +1038,8 @@ export const DealDetails = () => {
                     <Button
                       type="submit"
                       variant="primary"
-                      disabled={addTaskLoading || !hasEnoughSol}
+                      disabled={addTaskLoading || !hasEnoughSol || isInsufficientUsdc}
+                      title={!hasEnoughSol ? "Not enough SOL for network fees" : isInsufficientUsdc ? `Not enough ${symbol} to fund task` : undefined}
                     >
                       {addTaskLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> : null}
                       {role === 'customer' ? 'Add & Fund Task' : 'Add Task'}
@@ -956,7 +1047,11 @@ export const DealDetails = () => {
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={() => setShowAddTaskForm(false)}
+                      onClick={() => {
+                        setShowAddTaskForm(false);
+                        setFieldErrors({});
+                        handleRemoveTaskFile();
+                      }}
                       disabled={addTaskLoading}
                     >
                       Cancel
