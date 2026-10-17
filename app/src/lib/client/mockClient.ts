@@ -96,14 +96,43 @@ export const mockClient: BlinkflowClient = {
       meta
     };
 
+    const tasks: Task[] = [task];
+    if (input.extraTasks && input.extraTasks.length > 0) {
+      for (let i = 0; i < input.extraTasks.length; i++) {
+        const extra = input.extraTasks[i];
+        const extraTaskHash = await createHash(taskHashInput(extra.title, extra.successCriteria, extra.requirementsFile?.sha256));
+        tasks.push({
+          taskIndex: i + 1,
+          amount: extra.amount,
+          status: input.role === 'customer' ? 'CustomerCreated' : 'ContractorCreated',
+          taskHash: extraTaskHash,
+          solutionHash: null,
+          solutionNote: null,
+          deadline: extra.deadline,
+          createdAt: now,
+          deposited: false,
+          meta: {
+            title: extra.title,
+            successCriteria: extra.successCriteria,
+            ...(extra.requirementsFile ? { requirementsFile: extra.requirementsFile } : {})
+          }
+        });
+      }
+    }
+
     const newDeal: Deal = {
       id,
       creator: input.wallet,
       customer: input.role === 'customer' ? input.wallet : (input.customerWallet || null),
       contractor: input.role === 'contractor' ? input.wallet : (input.contractorWallet || null),
       createdAt: now,
-      tasks: [task],
-      history: [{ date: now, action: 'Deal Created' }]
+      tasks,
+      history: [{
+        date: now,
+        action: tasks.length > 1 ? `Deal Created with ${tasks.length} stages` : 'Deal Created'
+      }],
+      ...(input.dealTitle ? { title: input.dealTitle } : {}),
+      ...(input.dealDescription ? { description: input.dealDescription } : {})
     };
     
     deals.push(newDeal);

@@ -21,6 +21,7 @@ import {
 } from '../lib/client/chainClient';
 import type { Deal } from '../lib/types';
 import { dealTotal } from '../lib/dealStatus';
+import { dealTitle } from '../lib/dealTitle';
 import {
   Shield,
   AlertTriangle,
@@ -656,7 +657,7 @@ export const ArbiterPage = ({ view }: ArbiterPageProps) => {
                         <div>
                           <div className="flex items-center gap-2 flex-wrap">
                             <h3 className="text-lg font-bold text-white">
-                              {deal.tasks[0]?.meta?.title || 'Untitled Deal'}
+                              {dealTitle(deal)}
                             </h3>
                             <span className="text-xs px-2.5 py-0.5 rounded bg-red-950/80 border border-red-800 text-red-300 font-semibold">
                               Disputed
@@ -927,7 +928,7 @@ export const ArbiterPage = ({ view }: ArbiterPageProps) => {
                 <div className="flex justify-between">
                   <span className="text-gray-500">Deal:</span>
                   <span className="font-semibold text-white">
-                    {resolveModal.deal.tasks[0]?.meta?.title || resolveModal.deal.id}
+                    {dealTitle(resolveModal.deal)}
                   </span>
                 </div>
                 <div className="flex justify-between">

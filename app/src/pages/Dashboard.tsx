@@ -4,6 +4,7 @@ import { Badge, getStatusLabel } from '../components/Badge';
 import { Button } from '../components/Button';
 import { client } from '../lib/client';
 import { dealTotal, deriveDealStatus, dealEscrowTotal, getEarliestDeadline } from '../lib/dealStatus';
+import { dealTitle } from '../lib/dealTitle';
 import { Plus, ArrowRight, DollarSign, Briefcase, Clock, Search, Loader2, Inbox, Wallet } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
@@ -269,7 +270,7 @@ export const Dashboard = () => {
               >
                 <div>
                   <div className="font-semibold text-gray-200">
-                    {deal.tasks[0]?.meta.title}
+                    {dealTitle(deal)}
                     {deal.tasks.length > 1 && ` +${deal.tasks.length - 1}`}
                   </div>
                   <div className="text-sm text-gray-400 mt-1">
@@ -389,7 +390,7 @@ export const Dashboard = () => {
                   <div className="flex justify-between items-start gap-2">
                     <div className="min-w-0">
                       <div className="font-medium text-gray-200 truncate">
-                        {deal.tasks[0]?.meta.title}
+                        {dealTitle(deal)}
                         {deal.tasks.length > 1 && ` +${deal.tasks.length - 1}`}
                       </div>
                       <div className="text-[11px] text-gray-500 mt-0.5">
@@ -440,7 +441,7 @@ export const Dashboard = () => {
                   >
                     <td className="px-5 py-4">
                       <div className="font-medium text-gray-200 group-hover:text-purple-400 transition-colors">
-                        {deal.tasks[0]?.meta.title}
+                        {dealTitle(deal)}
                         {deal.tasks.length > 1 && ` +${deal.tasks.length - 1}`}
                       </div>
                       <div className="text-[11px] text-gray-500 mt-0.5">

@@ -2,6 +2,7 @@ import { useParams, Link, useLocation } from 'react-router-dom';
 import { client, isChainMode } from '../lib/client';
 import { getChainInfo, explorerAddr, explorerTx, type ChainInfo } from '../lib/client/chainClient';
 import { dealTotal, deriveDealStatus, getEarliestDeadline, taskStatusLabel, taskStatusKind } from '../lib/dealStatus';
+import { dealTitle } from '../lib/dealTitle';
 import { Card } from '../components/Card';
 import { Badge, getStatusLabel } from '../components/Badge';
 import { Button } from '../components/Button';
@@ -113,7 +114,7 @@ const EscrowActionCard = ({ deal, escrowState }: { deal: Deal, escrowState: stri
   const currentStatus = getStatusLabel(deriveDealStatus(deal));
 
   const params = new URLSearchParams({
-    title: deal.tasks[0]?.meta?.title || 'Escrow Deal',
+    title: dealTitle(deal),
     amount: dealTotal(deal).toString(),
     token: 'USDC',
     status: currentStatus,
@@ -179,7 +180,7 @@ const EscrowActionCard = ({ deal, escrowState }: { deal: Deal, escrowState: stri
             <p className="text-sm text-gray-400 mb-2">Send this link to your partner.</p>
             <ShareDealPanel 
               rawActionUrl={`${import.meta.env.VITE_ACTIONS_API_URL || 'http://localhost:3001'}/deal/${deal.id}?${new URLSearchParams({
-                title: deal.tasks[0]?.meta.title,
+                title: dealTitle(deal),
                 amount: dealTotal(deal).toString(),
                 token: 'USDC',
                 status: currentStatus,
@@ -762,7 +763,7 @@ export const DealDetails = () => {
         <div>
           <div className="flex flex-wrap items-center gap-3 mb-2">
             <h2 className="text-xl sm:text-2xl font-bold break-words">
-              {deal.tasks[0]?.meta.title}
+              {dealTitle(deal)}
               {deal.tasks.length > 1 && ` +${deal.tasks.length - 1}`}
             </h2>
             {/* TEMP: virtual deals go away in stage B. */}
@@ -772,6 +773,9 @@ export const DealDetails = () => {
               <Badge status={deriveDealStatus(deal)}>{getDealStatusLabel(deal)}</Badge>
             )}
           </div>
+          {deal.description && (
+            <p className="text-gray-400 text-sm mb-2 max-w-2xl whitespace-pre-wrap">{deal.description}</p>
+          )}
           <p className="text-gray-400 text-sm font-mono">{deal.id}</p>
         </div>
         <div className="text-left md:text-right mt-2 md:mt-0 flex flex-col items-start md:items-end gap-3">

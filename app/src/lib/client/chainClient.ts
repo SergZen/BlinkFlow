@@ -121,6 +121,10 @@ async function sendTx(ixs: TransactionInstruction[]): Promise<string> {
   tx.feePayer = new PublicKey(p.publicKey.toString());
   const { blockhash, lastValidBlockHeight } = await withRetry(() => conn.getLatestBlockhash('confirmed'));
   tx.recentBlockhash = blockhash;
+  const estimatedTxSize = tx.serializeMessage().length + 1 + 64;
+  if (estimatedTxSize > 1232) {
+    throw new Error('Too many stages for one transaction. Remove a stage now and add it later with Add task.');
+  }
   let signed: Transaction;
   try {
     signed = await p.signTransaction(tx);
@@ -469,7 +473,33 @@ export const chainClient: BlinkflowClient = {
         meta(SystemProgram.programId, false, false),
       ];
 
-      const sig = await sendTx([ix(data, keys)]);
+      const ixs = [ix(data, keys)];
+      if (input.extraTasks && input.extraTasks.length > 0) {
+        for (let i = 0; i < input.extraTasks.length; i++) {
+          const extra = input.extraTasks[i];
+          const extraTaskIndex = i + 1;
+          const extraSeconds = Math.max(86400, Math.floor((new Date(extra.deadline).getTime() - Date.now()) / 1000) || 604800);
+          const extraTaskHash = await sha256(taskHashInput(extra.title, extra.successCriteria, extra.requirementsFile?.sha256));
+          const extraAmountU64 = u64(BigInt(Math.round(extra.amount * 10 ** DECIMALS)));
+          const newTask = taskPda(a.deal, extraTaskIndex);
+          const extraData = cat(
+            Uint8Array.from(DISC.addTaskByContractor),
+            extraAmountU64,
+            extraTaskHash,
+            i64(BigInt(extraSeconds))
+          );
+          const extraKeys = [
+            meta(contractor, true, true),
+            meta(a.protocol, false, false),
+            meta(a.deal, false, true),
+            meta(newTask, false, true),
+            meta(SystemProgram.programId, false, false),
+          ];
+          ixs.push(ix(extraData, extraKeys));
+        }
+      }
+
+      const sig = await sendTx(ixs);
       const deal = await mockClient.createDeal(input);
       const all = readChainStore();
       all[deal.id] = {
@@ -481,13 +511,18 @@ export const chainClient: BlinkflowClient = {
       };
       writeChainStore(all);
       patchDeal(deal.id, (d) => {
-        d.tasks[0].status = 'ContractorCreated';
-        d.tasks[0].deposited = false;
+        d.tasks.forEach((t: any) => {
+          t.status = 'ContractorCreated';
+          t.deposited = false;
+        });
         d.customer = customer.toBase58();
         d.contractor = contractor.toBase58();
+        const stageCount = d.tasks.length;
         d.history.push({
           date: today(),
-          action: 'Deal proposed on-chain by contractor, awaiting customer funding',
+          action: stageCount > 1
+            ? `Deal created on-chain with ${stageCount} stages`
+            : 'Deal proposed on-chain by contractor, awaiting customer funding',
         });
       });
       void (async () => {
@@ -505,11 +540,12 @@ export const chainClient: BlinkflowClient = {
     const contractor = contractorStr ? new PublicKey(contractorStr) : null;
     const seed = BigInt(Date.now());
     const a = addrs(customer, contractor ?? customer, seed);
+    const totalAmount = input.amount + (input.extraTasks?.reduce((acc, t) => acc + t.amount, 0) || 0);
     try {
       const balRes = await withRetry(() => conn.getTokenAccountBalance(a.customerAta));
       const have = balRes?.value?.uiAmount ?? (Number(balRes?.value?.amount || 0) / 10 ** DECIMALS);
-      if (have < input.amount) {
-        throw new Error(`Not enough USDC-Dev: you have ${have}, the deal needs ${input.amount}. Use "Get USDC-Dev" in the header.`);
+      if (have < totalAmount) {
+        throw new Error(`Not enough USDC-Dev: you have ${have}, the deal needs ${totalAmount}. Use "Get USDC-Dev" in the header.`);
       }
     } catch (err: any) {
       if (err.message && err.message.startsWith('Not enough USDC-Dev:')) {
@@ -545,13 +581,54 @@ export const chainClient: BlinkflowClient = {
     if (contractor) {
       ixs.push(ix(Uint8Array.from(DISC.addContractorToDeal), [meta(customer, true), meta(contractor), meta(a.deal, false, true), meta(a.task0, false, true)]));
     }
+    if (input.extraTasks && input.extraTasks.length > 0) {
+      for (let i = 0; i < input.extraTasks.length; i++) {
+        const extra = input.extraTasks[i];
+        const extraTaskIndex = i + 1;
+        const extraSeconds = Math.max(86400, Math.floor((new Date(extra.deadline).getTime() - Date.now()) / 1000) || 604800);
+        const extraTaskHash = await sha256(taskHashInput(extra.title, extra.successCriteria, extra.requirementsFile?.sha256));
+        const extraAmountU64 = u64(BigInt(Math.round(extra.amount * 10 ** DECIMALS)));
+        const newTask = taskPda(a.deal, extraTaskIndex);
+        const extraData = cat(
+          Uint8Array.from(DISC.addTaskByCustomer),
+          extraAmountU64,
+          extraTaskHash,
+          i64(BigInt(extraSeconds))
+        );
+        const extraKeys = [
+          meta(customer, true, true),
+          meta(a.protocol, false, false),
+          meta(a.deal, false, true),
+          meta(newTask, false, true),
+          meta(MINT, false, false),
+          meta(a.dealVault, false, true),
+          meta(a.customerAta, false, true),
+          meta(ATA_PROGRAM, false, false),
+          meta(TOKEN_PROGRAM, false, false),
+          meta(SystemProgram.programId, false, false),
+        ];
+        ixs.push(ix(extraData, extraKeys));
+      }
+    }
     const sig = await sendTx(ixs);
     const deal = await mockClient.createDeal(input);
     // the mock deal records the contractor too, so the contractor-side UI matches the chain
     const all = readChainStore();
     all[deal.id] = { seed: seed.toString(), customer: customer.toBase58(), contractor: contractorStr, deal: a.deal.toBase58(), sigs: [{ step: 'create', sig, at: new Date().toISOString() }] };
     writeChainStore(all);
-    patchDeal(deal.id, (d) => { d.tasks[0].deposited = true; d.history.push({ date: today(), action: 'Escrow Funded On-chain' }); });
+    patchDeal(deal.id, (d) => {
+      d.tasks.forEach((t: any) => {
+        t.status = 'CustomerCreated';
+        t.deposited = true;
+      });
+      const stageCount = d.tasks.length;
+      d.history.push({
+        date: today(),
+        action: stageCount > 1
+          ? `Deal created on-chain with ${stageCount} stages`
+          : 'Escrow Funded On-chain'
+      });
+    });
     void (async () => { for (let i = 0; i < 4; i++) { await push(); await new Promise((res) => setTimeout(res, 700)); } })();
     return deal;
   },

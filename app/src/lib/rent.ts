@@ -35,9 +35,10 @@ export async function newTaskDeposit(): Promise<number> {
 interface NetworkDepositInfoProps {
   type: 'deal' | 'task';
   wallet?: string | null;
+  extraTasks?: number;
 }
 
-export const NetworkDepositInfo: React.FC<NetworkDepositInfoProps> = ({ type, wallet }) => {
+export const NetworkDepositInfo: React.FC<NetworkDepositInfoProps> = ({ type, wallet, extraTasks }) => {
   const [deposit, setDeposit] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -49,7 +50,16 @@ export const NetworkDepositInfo: React.FC<NetworkDepositInfoProps> = ({ type, wa
     setLoading(true);
     setError(false);
 
-    const fn = type === 'deal' ? newDealDeposit : newTaskDeposit;
+    const fn = async () => {
+      if (type === 'deal') {
+        const base = await newDealDeposit();
+        const extras = (extraTasks && extraTasks > 0) ? (await newTaskDeposit()) * extraTasks : 0;
+        return base + extras;
+      } else {
+        return newTaskDeposit();
+      }
+    };
+
     fn()
       .then((val) => {
         if (!active) return;
@@ -66,7 +76,7 @@ export const NetworkDepositInfo: React.FC<NetworkDepositInfoProps> = ({ type, wa
     return () => {
       active = false;
     };
-  }, [type]);
+  }, [type, extraTasks]);
 
   useEffect(() => {
     if (type !== 'deal' || !wallet) {
