@@ -58,7 +58,7 @@ pub struct CancelTaskByContractor<'info> {
 impl<'info> CancelTaskByContractor<'info> {
     pub fn cancel_task_by_contractor(&mut self, task_index: u8) -> Result<()> {
         require!(
-            self.task.status == TaskStatus::Started,
+            self.task.status == TaskStatus::Started || self.task.status == TaskStatus::ContractorCreated,
             BlinkFlowError::InvalidTaskStatus
         );
 

@@ -86,7 +86,7 @@ impl<'info> CloseDealAccount<'info> {
             self.token_program.to_account_info(),
             CloseAccount {
                 account: self.deal_vault.to_account_info(),
-                destination: self.creator_ata.to_account_info(),
+                destination: self.creator.to_account_info(),
                 authority: self.deal.to_account_info(),
             },
             signer_seeds,
