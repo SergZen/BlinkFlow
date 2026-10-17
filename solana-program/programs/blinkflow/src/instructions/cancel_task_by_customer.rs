@@ -70,28 +70,30 @@ impl<'info> CancelTaskByCustomer<'info> {
             .checked_add(1)
             .ok_or(BlinkFlowError::Overflow)?;
 
-        let bump = [self.deal.bump];
-        let signer_seeds: &[&[&[u8]]] = &[&[
-            DIAL_SEED,
-            self.deal.customer.as_ref(),
-            &self.deal.seed.to_le_bytes(),
-            &bump,
-        ]];
+        if self.task.deposited {
+            let bump = [self.deal.bump];
+            let signer_seeds: &[&[&[u8]]] = &[&[
+                DIAL_SEED,
+                self.deal.customer.as_ref(),
+                &self.deal.seed.to_le_bytes(),
+                &bump,
+            ]];
 
-        let transfer_accounts = TransferChecked {
-            from: self.deal_vault.to_account_info(),
-            mint: self.mint.to_account_info(),
-            to: self.customer_ata.to_account_info(),
-            authority: self.deal.to_account_info(),
-        };
+            let transfer_accounts = TransferChecked {
+                from: self.deal_vault.to_account_info(),
+                mint: self.mint.to_account_info(),
+                to: self.customer_ata.to_account_info(),
+                authority: self.deal.to_account_info(),
+            };
 
-        let cpi_ctx = CpiContext::new_with_signer(
-            self.token_program.to_account_info(),
-            transfer_accounts,
-            signer_seeds,
-        );
+            let cpi_ctx = CpiContext::new_with_signer(
+                self.token_program.to_account_info(),
+                transfer_accounts,
+                signer_seeds,
+            );
 
-        transfer_checked(cpi_ctx, self.task.amount, self.mint.decimals)?;
+            transfer_checked(cpi_ctx, self.task.amount, self.mint.decimals)?;
+        }
 
         let current_time = Clock::get()?.unix_timestamp;
 
