@@ -12,6 +12,9 @@ import { useNetwork } from '../NetworkContext';
 import { client, isChainMode } from '../lib/client';
 import { MAX_REQ_FILE_BYTES, sha256HexOfFile } from '../lib/fileHash';
 import { PublicKey } from '@solana/web3.js';
+import { useToast, notifyActionError } from './Toast';
+import { NetworkDepositInfo } from '../lib/rent';
+import { getLastTxSig } from '../lib/client/chainClient';
 
 export interface CreateDealInitialValues {
   title?: string;
@@ -48,7 +51,9 @@ export const CreateDealModal = ({
   const [deadline, setDeadline] = useState(initialValues?.deadline || '');
   const [contractorWalletInput, setContractorWalletInput] = useState('');
   const [customerWalletInput, setCustomerWalletInput] = useState('');
-  const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [fileError, setFileError] = useState('');
+  const toast = useToast();
   const [reqFile, setReqFile] = useState<{ name: string; sha256: string } | null>(null);
   const [isHashing, setIsHashing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -61,19 +66,19 @@ export const CreateDealModal = ({
     if (!file) return;
 
     if (file.size > MAX_REQ_FILE_BYTES) {
-      setError('File is too large (max 20 MB)');
+      setFileError('File is too large (max 20 MB)');
       if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
 
     try {
       setIsHashing(true);
-      setError('');
+      setFileError('');
       const sha256 = await sha256HexOfFile(file);
       setReqFile({ name: file.name, sha256 });
     } catch (err) {
       console.error('Failed to hash file', err);
-      setError('Failed to compute file hash');
+      setFileError('Failed to compute file hash');
     } finally {
       setIsHashing(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -89,56 +94,72 @@ export const CreateDealModal = ({
     e.preventDefault();
     if (isSubmitting) return;
     if (!connected) {
-      setError("Please connect your Solana wallet to create a deal.");
+      setVisible(true);
       return;
     }
-    
-    // Basic validation
+
+    const errors: Record<string, string> = {};
+    let firstInvalidId: string | null = null;
+    const setFieldError = (id: string, field: string, msg: string) => {
+      errors[field] = msg;
+      if (!firstInvalidId) firstInvalidId = id;
+    };
+
     if (!title.trim()) {
-      setError('Deal Title is required');
-      return;
-    }
-    
-    const parsedAmount = parseFloat(amount);
-    if (isNaN(parsedAmount) || parsedAmount <= 0) {
-      setError('Amount must be a valid number greater than 0');
-      return;
-    }
-    
-    const selectedDate = new Date(deadline);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); // Reset time to start of day for fair comparison
-    
-    if (selectedDate < today) {
-      setError('Deadline cannot be in the past');
-      return;
+      setFieldError('deal-title', 'title', 'Deal Title is required');
     }
 
     if (role === 'contractor') {
       const trimmedCustomer = customerWalletInput.trim();
       if (!trimmedCustomer) {
-        setError('Customer wallet is required');
-        return;
-      }
-      try {
-        new PublicKey(trimmedCustomer);
-      } catch {
-        setError('Invalid customer wallet: must be a valid Solana public key');
-        return;
-      }
-      if (publicKey && trimmedCustomer === publicKey.toBase58()) {
-        setError('The customer cannot be the contractor.');
-        return;
+        setFieldError('deal-customer', 'customerWallet', 'Customer wallet is required');
+      } else {
+        try {
+          new PublicKey(trimmedCustomer);
+          if (publicKey && trimmedCustomer === publicKey.toBase58()) {
+            setFieldError('deal-customer', 'customerWallet', 'The customer cannot be the contractor.');
+          }
+        } catch {
+          setFieldError('deal-customer', 'customerWallet', 'Invalid customer wallet: must be a valid Solana public key');
+        }
       }
     }
-    
-    setError('');
-    // TODO: replace with real transaction once Anchor program is deployed
+
+    const parsedAmount = parseFloat(amount);
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      setFieldError('deal-amount', 'amount', 'Amount must be a valid number greater than 0');
+    }
+
+    if (!criteria.trim()) {
+      setFieldError('deal-criteria', 'criteria', 'Success Criteria is required');
+    }
+
+    if (!deadline) {
+      setFieldError('deal-deadline', 'deadline', 'Deadline is required');
+    } else {
+      const selectedDate = new Date(deadline);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (selectedDate < today) {
+        setFieldError('deal-deadline', 'deadline', 'Deadline cannot be in the past');
+      }
+    }
+
+    if (firstInvalidId) {
+      setFieldErrors(errors);
+      const el = document.getElementById(firstInvalidId);
+      if (el) {
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        el.focus();
+      }
+      return;
+    }
+    setFieldErrors({});
+
     const baseUrl = import.meta.env.VITE_ACTIONS_API_URL || 'http://localhost:3001';
-    
     let dealId = `ESC-${Math.floor(1000 + Math.random() * 9000)}`;
     const walletAddr = connected && publicKey ? publicKey.toBase58() : '';
-    
+
     setIsSubmitting(true);
     try {
       const deal = await client.createDeal({
@@ -150,15 +171,14 @@ export const CreateDealModal = ({
         deadline,
         ...(role === 'customer' && contractorWalletInput.trim() ? { contractorWallet: contractorWalletInput.trim() } : {}),
         ...(role === 'contractor' && customerWalletInput.trim() ? { customerWallet: customerWalletInput.trim() } : {}),
-        ...(reqFile ? { requirementsFile: reqFile } : {})
+        ...(reqFile ? { requirementsFile: reqFile } : {}),
       });
       dealId = deal.id;
-    } catch (err) {
-      console.error("Failed to create deal locally", err);
-      if (isChainMode) {
-        setError(err instanceof Error ? err.message : String(err));
-        return;
-      }
+      const txSig = getLastTxSig();
+      toast.success('Deal created', { txSig: txSig || undefined });
+    } catch (err: any) {
+      notifyActionError(toast, err, () => handleGenerate(e));
+      return;
     } finally {
       setIsSubmitting(false);
     }
@@ -196,7 +216,7 @@ export const CreateDealModal = ({
     setDeadline('');
     setContractorWalletInput('');
     setCustomerWalletInput('');
-    setError('');
+    setFieldErrors({});
     setReqFile(null);
     setCreatedDealId('');
     onClose();
@@ -211,19 +231,15 @@ export const CreateDealModal = ({
 
         <div className="p-6 overflow-y-auto max-h-[90vh]">
           {step === 1 ? (
-            <form onSubmit={handleGenerate} className="space-y-4">
+            <form noValidate onSubmit={handleGenerate} className="space-y-4">
               <div>
                 <h2 className="text-xl font-bold mb-1">Create New Deal</h2>
                 <p className="text-sm text-gray-400 mb-6">Set escrow terms and generate a link for your partner.</p>
               </div>
-              {error && (
-                <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-3 py-2 rounded-lg text-sm mb-4">
-                  {error}
-                </div>
-              )}
               <div>
                 <label htmlFor="deal-title" className="block text-sm font-medium text-gray-300 mb-1.5">Deal Title</label>
-                <input id="deal-title" type="text" required maxLength={100} placeholder="e.g. Website Redesign" value={title} onChange={(e) => setTitle(e.target.value)} className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-2.5 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all text-white" />
+                <input id="deal-title" type="text" maxLength={100} placeholder="e.g. Website Redesign" value={title} onChange={(e) => { setTitle(e.target.value); setFieldErrors(prev => ({ ...prev, title: '' })); }} className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-2.5 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all text-white" />
+                {fieldErrors.title && <p className="text-red-400 text-xs mt-1">{fieldErrors.title}</p>}
               </div>
 
               {role === 'customer' && isChainMode && (
@@ -237,8 +253,9 @@ export const CreateDealModal = ({
               {role === 'contractor' && (
                 <div>
                   <label htmlFor="deal-customer" className="block text-sm font-medium text-gray-300 mb-1.5">Customer Wallet</label>
-                  <input id="deal-customer" type="text" required placeholder="Paste customer's Solana wallet address" value={customerWalletInput} onChange={(e) => setCustomerWalletInput(e.target.value)} className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-2.5 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all text-white font-mono text-sm" />
+                  <input id="deal-customer" type="text" placeholder="Paste customer's Solana wallet address" value={customerWalletInput} onChange={(e) => { setCustomerWalletInput(e.target.value); setFieldErrors(prev => ({ ...prev, customerWallet: '' })); }} className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-2.5 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all text-white font-mono text-sm" />
                   <p className="text-xs text-gray-500 mt-1">The customer pays into escrow after opening the link.</p>
+                  {fieldErrors.customerWallet && <p className="text-red-400 text-xs mt-1">{fieldErrors.customerWallet}</p>}
                 </div>
               )}
 
@@ -246,13 +263,15 @@ export const CreateDealModal = ({
                 <label htmlFor="deal-amount" className="block text-sm font-medium text-gray-300 mb-1.5">Amount ({symbol})</label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
-                  <input id="deal-amount" type="number" min="0.01" step="0.01" required placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full bg-gray-950 border border-gray-800 rounded-lg pl-8 pr-4 py-2.5 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all text-white" />
+                  <input id="deal-amount" type="number" min="0.01" step="0.01" autoComplete="off" onWheel={(e) => e.currentTarget.blur()} placeholder="0.00" value={amount} onChange={(e) => { setAmount(e.target.value); setFieldErrors(prev => ({ ...prev, amount: '' })); }} className="w-full bg-gray-950 border border-gray-800 rounded-lg pl-8 pr-4 py-2.5 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all text-white" />
                 </div>
+                {fieldErrors.amount && <p className="text-red-400 text-xs mt-1">{fieldErrors.amount}</p>}
               </div>
 
               <div>
                 <label htmlFor="deal-criteria" className="block text-sm font-medium text-gray-300 mb-1.5">Success Criteria</label>
-                <textarea id="deal-criteria" required maxLength={1000} rows={4} value={criteria} onChange={(e) => setCriteria(e.target.value)} placeholder="Describe exactly what needs to be delivered to release the funds..." className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-2.5 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all text-white resize-none"></textarea>
+                <textarea id="deal-criteria" maxLength={1000} rows={4} value={criteria} onChange={(e) => { setCriteria(e.target.value); setFieldErrors(prev => ({ ...prev, criteria: '' })); }} placeholder="Describe exactly what needs to be delivered to release the funds..." className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-2.5 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all text-white resize-none"></textarea>
+                {fieldErrors.criteria && <p className="text-red-400 text-xs mt-1">{fieldErrors.criteria}</p>}
                 <div className="flex flex-col gap-1.5 mt-2">
                   <input
                     ref={fileInputRef}
@@ -269,6 +288,7 @@ export const CreateDealModal = ({
                     <Link2 className="w-3 h-3" />
                     {isHashing ? 'Hashing file…' : 'Attach File (Requirements)'}
                   </button>
+                  {fileError && <p className="text-red-400 text-xs mt-1">{fileError}</p>}
                   {reqFile && (
                     <div className="space-y-1">
                       <div className="flex items-center gap-2 text-xs text-gray-300">
@@ -296,14 +316,15 @@ export const CreateDealModal = ({
                 <input 
                   id="deal-deadline"
                   type="date" 
-                  required 
                   value={deadline}
-                  onChange={(e) => setDeadline(e.target.value)}
+                  onChange={(e) => { setDeadline(e.target.value); setFieldErrors(prev => ({ ...prev, deadline: '' })); }}
                   onClick={(e) => 'showPicker' in HTMLInputElement.prototype && e.currentTarget.showPicker()}
                   className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-2.5 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all text-white cursor-pointer [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:opacity-70 hover:[&::-webkit-calendar-picker-indicator]:opacity-100" 
                 />
+                {fieldErrors.deadline && <p className="text-red-400 text-xs mt-1">{fieldErrors.deadline}</p>}
               </div>
               <div className="pt-4 space-y-4">
+                <NetworkDepositInfo type="deal" wallet={publicKey?.toBase58()} />
                 {lowSol && (role === 'customer' || role === 'contractor') && (
                   <div className="mb-4 bg-orange-500/10 border border-orange-500/20 rounded-lg p-3 text-sm text-orange-400">
                     You need a small amount of SOL (~0.01) to cover network fees and account rent.

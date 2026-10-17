@@ -105,7 +105,13 @@ async function withRetry<T>(fn: () => Promise<T>, tries = 4): Promise<T> {
   throw lastError;
 }
 
+let lastTxSig: string | null = null;
+export function getLastTxSig(): string | null {
+  return lastTxSig;
+}
+
 async function sendTx(ixs: TransactionInstruction[]): Promise<string> {
+  lastTxSig = null;
   const p = provider();
   const tx = new Transaction().add(
     ComputeBudgetProgram.setComputeUnitLimit({ units: 600000 }),
@@ -223,6 +229,7 @@ async function sendTx(ixs: TransactionInstruction[]): Promise<string> {
           status.confirmationStatus === 'confirmed' ||
           status.confirmationStatus === 'finalized'
         ) {
+          lastTxSig = sig;
           return sig;
         }
       }
@@ -240,6 +247,7 @@ async function sendTx(ixs: TransactionInstruction[]): Promise<string> {
     const logsStr = (res.value as any)?.logs ? (res.value as any).logs.join(' ') : '';
     throw new Error(friendlyError(JSON.stringify(res.value.err) + (logsStr ? ' ' + logsStr : '')));
   }
+  lastTxSig = sig;
   return sig;
 }
 
@@ -596,8 +604,8 @@ export const chainClient: BlinkflowClient = {
       throw new Error('Success criteria cannot be empty.');
     }
 
-    if (!input.amount || input.amount < 10) {
-      throw new Error('Task amount must be at least 10 USDC.');
+    if (!input.amount || input.amount <= 0) {
+      throw new Error('Amount must be a valid number greater than 0');
     }
 
     const config = await fetchProtocolConfig();

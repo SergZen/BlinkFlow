@@ -14,10 +14,13 @@ import { useToken } from '../lib/constants';
 import { useNetwork } from '../NetworkContext';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useSolBalance } from '../hooks/useSolBalance';
+import { useToast, notifyActionError } from '../components/Toast';
+import { getLastTxSig } from '../lib/client/chainClient';
 
 export const Dashboard = () => {
   const { role, setRole } = useRole();
   const { isTestMode } = useNetwork();
+  const toast = useToast();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalInitialValues, setModalInitialValues] = useState<CreateDealInitialValues | undefined>(undefined);
   const [loading, setLoading] = useState(true);
@@ -34,7 +37,6 @@ export const Dashboard = () => {
 
   const [walletFilter, setWalletFilter] = useState<'all' | 'mine'>('all');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const loadDeals = async () => {
@@ -163,21 +165,18 @@ export const Dashboard = () => {
     const taskIndex = submittedTasks[0].i;
 
     setActionLoading(deal.id);
-    setActionError(prev => {
-      const next = { ...prev };
-      delete next[deal.id];
-      return next;
-    });
     try {
       if (action === 'release') {
         await client.completeTask(deal.id, taskIndex, true);
+        toast.success('Payment released', getLastTxSig() || undefined);
       } else if (action === 'dispute') {
         await client.completeTask(deal.id, taskIndex, false);
+        toast.success('Dispute opened', getLastTxSig() || undefined);
       }
       window.dispatchEvent(new Event('blinkflow:deals-changed'));
     } catch (err: any) {
       console.error(err);
-      setActionError(prev => ({ ...prev, [deal.id]: err.message || 'Action failed' }));
+      notifyActionError(toast, err, () => handlePendingAction(e, deal, action));
     } finally {
       setActionLoading(null);
     }
@@ -273,11 +272,6 @@ export const Dashboard = () => {
                   {!hasEnoughSol && role === 'customer' && deriveDealStatus(deal) === 'pending_approval' && (
                     <div className="mt-1 text-xs text-orange-400 font-medium">
                       You need ~0.01 SOL to cover network fees.
-                    </div>
-                  )}
-                  {actionError[deal.id] && (
-                    <div className="mt-1 text-xs text-red-400 font-medium">
-                      {actionError[deal.id]}
                     </div>
                   )}
                 </div>

@@ -19,6 +19,9 @@ import type { Deal, Task } from '../lib/types';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { useWalletModal } from '@solana/wallet-adapter-react-ui';
 import { Transaction } from '@solana/web3.js';
+import { useToast, notifyActionError } from '../components/Toast';
+import { NetworkDepositInfo } from '../lib/rent';
+import { getLastTxSig } from '../lib/client/chainClient';
 
 const TaskRequirementsFile = ({ requirementsFile }: { requirementsFile: { name: string; sha256: string } }) => {
   const [verifyStatus, setVerifyStatus] = useState<'match' | 'mismatch' | 'too_large' | null>(null);
@@ -195,13 +198,12 @@ const EscrowActionCard = ({ deal, escrowState }: { deal: Deal, escrowState: stri
 export const DealDetails = () => {
   const { id } = useParams();
   const { role } = useRole();
+  const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deal, setDeal] = useState<Deal | null>(null);
   const [taskSubmissions, setTaskSubmissions] = useState<Record<number, string>>({});
   const [taskActionLoading, setTaskActionLoading] = useState<Record<number, boolean>>({});
-  const [taskErrors, setTaskErrors] = useState<Record<number, string>>({});
-  const [globalError, setGlobalError] = useState<string | null>(null);
   const [globalLoading, setGlobalLoading] = useState(false);
   // TEMP: virtual deals go away in stage B.
   const [virtualStatusLabel, setVirtualStatusLabel] = useState<string | null>(null);
@@ -252,7 +254,16 @@ export const DealDetails = () => {
   const [taskAmount, setTaskAmount] = useState('');
   const [taskDeadline, setTaskDeadline] = useState('');
   const [addTaskLoading, setAddTaskLoading] = useState(false);
-  const [addTaskError, setAddTaskError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{
+    title?: string;
+    amount?: string;
+    deadline?: string;
+    criteria?: string;
+  }>({});
+  const taskTitleRef = useRef<HTMLInputElement>(null);
+  const taskAmountRef = useRef<HTMLInputElement>(null);
+  const taskDeadlineRef = useRef<HTMLInputElement>(null);
+  const taskCriteriaRef = useRef<HTMLTextAreaElement>(null);
 
   const isWrongCustomer = Boolean(chainInfo && connected && myWallet && myWallet !== chainInfo.customer);
   const contractorAddr = (chainInfo ? (chainInfo.contractor || deal?.contractor) : deal?.contractor) || '';
@@ -264,62 +275,82 @@ export const DealDetails = () => {
     e.preventDefault();
     if (addTaskLoading || !deal) return;
     if (!connected) {
-      setAddTaskError('Please connect your Solana wallet first.');
+      toast.error('Please connect your Solana wallet first.');
       return;
     }
     if (isWrongUserForAddTask) {
-      setAddTaskError(`Switch Phantom to the ${role} account to add a task.`);
-      return;
-    }
-    if (!taskTitle.trim()) {
-      setAddTaskError('Task Title is required.');
-      return;
-    }
-    const parsedAmount = parseFloat(taskAmount);
-    if (isNaN(parsedAmount) || parsedAmount < 10) {
-      setAddTaskError('Amount must be at least 10 USDC.');
-      return;
-    }
-    if (!taskCriteria.trim()) {
-      setAddTaskError('Success criteria cannot be empty.');
-      return;
-    }
-    if (!taskDeadline) {
-      setAddTaskError('Deadline is required.');
-      return;
-    }
-    const selectedDate = new Date(taskDeadline);
-    const todayDate = new Date();
-    todayDate.setHours(0, 0, 0, 0);
-    if (selectedDate < todayDate) {
-      setAddTaskError('Deadline cannot be in the past.');
+      toast.error(`Switch Phantom to the ${role} account to add a task.`);
       return;
     }
 
-    setAddTaskLoading(true);
-    setAddTaskError(null);
-    try {
-      const updatedDeal = await client.addTask(deal.id, {
-        role,
-        title: taskTitle.trim(),
-        successCriteria: taskCriteria.trim(),
-        amount: parsedAmount,
-        deadline: taskDeadline,
-      });
-      if (updatedDeal) {
-        setDeal(updatedDeal);
-        setChainInfo(getChainInfo(updatedDeal.id));
-      }
-      setTaskTitle('');
-      setTaskCriteria('');
-      setTaskAmount('');
-      setTaskDeadline('');
-      setShowAddTaskForm(false);
-    } catch (err: any) {
-      setAddTaskError(err.message || 'Failed to add task.');
-    } finally {
-      setAddTaskLoading(false);
+    const errors: typeof fieldErrors = {};
+    if (!taskTitle.trim()) {
+      errors.title = 'Title is required';
     }
+    const parsedAmount = parseFloat(taskAmount);
+    if (isNaN(parsedAmount) || parsedAmount < 0.01) {
+      errors.amount = 'Amount must be at least 0.01 USDC';
+    }
+    if (!taskDeadline) {
+      errors.deadline = 'Deadline is required';
+    } else {
+      const selectedDate = new Date(taskDeadline);
+      const todayDate = new Date();
+      todayDate.setHours(0, 0, 0, 0);
+      if (selectedDate < todayDate) {
+        errors.deadline = 'Deadline cannot be in the past';
+      }
+    }
+    if (!taskCriteria.trim()) {
+      errors.criteria = 'Success criteria cannot be empty';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      const firstErrorKey = Object.keys(errors)[0];
+      const refMap: Record<string, React.RefObject<HTMLElement | null>> = {
+        title: taskTitleRef,
+        amount: taskAmountRef,
+        deadline: taskDeadlineRef,
+        criteria: taskCriteriaRef,
+      };
+      const target = refMap[firstErrorKey]?.current;
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        target.focus();
+      }
+      return;
+    }
+    setFieldErrors({});
+
+    const doAddTask = async () => {
+      setAddTaskLoading(true);
+      try {
+        const updatedDeal = await client.addTask(deal.id, {
+          role,
+          title: taskTitle.trim(),
+          successCriteria: taskCriteria.trim(),
+          amount: parsedAmount,
+          deadline: taskDeadline,
+        });
+        if (updatedDeal) {
+          setDeal(updatedDeal);
+          setChainInfo(getChainInfo(updatedDeal.id));
+        }
+        setTaskTitle('');
+        setTaskCriteria('');
+        setTaskAmount('');
+        setTaskDeadline('');
+        setShowAddTaskForm(false);
+        toast.success('Task added', getLastTxSig() || undefined);
+      } catch (err: any) {
+        notifyActionError(toast, err, doAddTask);
+      } finally {
+        setAddTaskLoading(false);
+      }
+    };
+
+    await doAddTask();
   };
 
   useEffect(() => {
@@ -432,25 +463,25 @@ export const DealDetails = () => {
 
   // deleted handleSubmitWork
 
-  const handleTaskAction = async (taskIndex: number, action: () => Promise<any>) => {
-    setTaskErrors(prev => ({...prev, [taskIndex]: ''}));
+  const handleTaskAction = async (taskIndex: number, action: () => Promise<any>, successMsg: string) => {
     setTaskActionLoading(prev => ({...prev, [taskIndex]: true}));
     try {
       await action();
+      toast.success(successMsg, getLastTxSig() || undefined);
     } catch (err: any) {
-      setTaskErrors(prev => ({...prev, [taskIndex]: err.message || 'Action failed'}));
+      notifyActionError(toast, err, () => handleTaskAction(taskIndex, action, successMsg));
     } finally {
       setTaskActionLoading(prev => ({...prev, [taskIndex]: false}));
     }
   };
 
-  const handleGlobalAction = async (action: () => Promise<any>) => {
-    setGlobalError(null);
+  const handleGlobalAction = async (action: () => Promise<any>, successMsg: string) => {
     setGlobalLoading(true);
     try {
       await action();
+      toast.success(successMsg, getLastTxSig() || undefined);
     } catch (err: any) {
-      setGlobalError(err.message || 'Action failed');
+      notifyActionError(toast, err, () => handleGlobalAction(action, successMsg));
     } finally {
       setGlobalLoading(false);
     }
@@ -468,7 +499,6 @@ export const DealDetails = () => {
     }
     
     const loading = taskActionLoading[index];
-    const err = taskErrors[index];
     const submissionText = taskSubmissions[index] || '';
     
     if (task.status === 'Resolved') {
@@ -508,12 +538,11 @@ export const DealDetails = () => {
                 Only the customer wallet ({truncateAddress(chainInfo!.customer)}) can do this. Switch Phantom to that account.
               </p>
             ) : (
-              <Button variant="outline" onClick={() => handleTaskAction(index, () => client.cancelTask(deal.id, index))} disabled={loading || !hasEnoughSol}>
+              <Button variant="outline" onClick={() => handleTaskAction(index, () => client.cancelTask(deal.id, index), 'Task cancelled')} disabled={loading || !hasEnoughSol}>
                 {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> : null}
                 Cancel & Refund
               </Button>
             )}
-            {err && <p className="text-red-400 text-xs">{err}</p>}
           </div>
         );
       }
@@ -534,12 +563,11 @@ export const DealDetails = () => {
                 Only the customer wallet ({truncateAddress(chainInfo!.customer)}) can do this. Switch Phantom to that account.
               </p>
             ) : (
-              <Button onClick={() => handleTaskAction(index, () => client.depositTask(deal.id, index, publicKey!.toBase58()))} disabled={loading || !hasEnoughSol} className={!hasEnoughSol ? 'opacity-50' : ''}>
+              <Button onClick={() => handleTaskAction(index, () => client.depositTask(deal.id, index, publicKey!.toBase58()), 'Task funded')} disabled={loading || !hasEnoughSol} className={!hasEnoughSol ? 'opacity-50' : ''}>
                 {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> : null}
                 Fund task
               </Button>
             )}
-            {err && <p className="text-red-400 text-xs">{err}</p>}
           </div>
         );
       }
@@ -562,18 +590,16 @@ export const DealDetails = () => {
                  </p>
                ) : (
                  <>
-                   <Button variant="primary" className="bg-green-600 hover:bg-green-500" onClick={() => handleTaskAction(index, () => client.completeTask(deal.id, index, true))} disabled={loading || !hasEnoughSol} >
+                   <Button variant="primary" className="bg-green-600 hover:bg-green-500" onClick={() => handleTaskAction(index, () => client.completeTask(deal.id, index, true), 'Task approved')} disabled={loading || !hasEnoughSol} >
                       {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> : null}
                       Approve & Release
                    </Button>
-                   <Button variant="danger" onClick={() => handleTaskAction(index, () => client.completeTask(deal.id, index, false))} disabled={loading || !hasEnoughSol} >
+                   <Button variant="danger" onClick={() => handleTaskAction(index, () => client.completeTask(deal.id, index, false), 'Dispute opened')} disabled={loading || !hasEnoughSol} >
                       Open Dispute
                    </Button>
-                   {/* ASSUMPTION: confirm with the contract author */}
                  </>
                )}
             </div>
-            {err && <p className="text-red-400 text-xs">{err}</p>}
           </div>
         );
       }
@@ -593,14 +619,13 @@ export const DealDetails = () => {
                   {!connected ? (
                      <Button variant="outline" onClick={() => setVisible(true)}>Connect Wallet to Cancel</Button>
                   ) : (
-                    <Button variant="outline" onClick={() => handleTaskAction(index, () => client.cancelTask(deal.id, index))} disabled={loading || !hasEnoughSol}>
+                    <Button variant="outline" onClick={() => handleTaskAction(index, () => client.cancelTask(deal.id, index), 'Task cancelled')} disabled={loading || !hasEnoughSol}>
                       Cancel Task
                     </Button>
                   )}
                 </div>
               </>
             )}
-            {err && <p className="text-red-400 text-xs">{err}</p>}
           </div>
         );
       }
@@ -619,14 +644,13 @@ export const DealDetails = () => {
             ) : (
               <Button
                 variant="primary"
-                onClick={() => handleTaskAction(index, () => client.acceptTask(deal.id, index, publicKey!.toBase58()))}
+                onClick={() => handleTaskAction(index, () => client.acceptTask(deal.id, index, publicKey!.toBase58()), 'Task started')}
                 disabled={loading || !hasEnoughSol}
               >
                 {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> : null}
                 Start task
               </Button>
             )}
-            {err && <p className="text-red-400 text-xs">{err}</p>}
           </div>
         );
       }
@@ -656,11 +680,11 @@ export const DealDetails = () => {
                 </p>
               ) : (
                 <>
-                  <Button variant="primary" onClick={() => handleTaskAction(index, () => client.finishTask(deal.id, index, submissionText))} disabled={loading || !submissionText.trim() || !hasEnoughSol}>
+                  <Button variant="primary" onClick={() => handleTaskAction(index, () => client.finishTask(deal.id, index, submissionText), 'Work submitted')} disabled={loading || !submissionText.trim() || !hasEnoughSol}>
                     {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> : null}
                     Submit Work
                   </Button>
-                  <Button variant="outline" onClick={() => handleTaskAction(index, () => client.cancelTask(deal.id, index))} disabled={loading || !hasEnoughSol}>
+                  <Button variant="outline" onClick={() => handleTaskAction(index, () => client.cancelTask(deal.id, index), 'Task cancelled')} disabled={loading || !hasEnoughSol}>
                     Cancel & Return Funds
                   </Button>
                 </>
@@ -669,7 +693,6 @@ export const DealDetails = () => {
             {!isWrongContractor && (
               <p className="text-xs text-gray-500">If you cannot complete this task, cancelling returns the full amount to the customer.</p>
             )}
-            {err && <p className="text-red-400 text-xs">{err}</p>}
           </div>
         );
       }
@@ -758,14 +781,13 @@ export const DealDetails = () => {
                   {!connected ? (
                     <Button onClick={() => setVisible(true)}>Connect Wallet to Accept</Button>
                   ) : (
-                    <Button variant="gradient" onClick={() => handleGlobalAction(() => client.acceptDeal(deal.id, publicKey!.toBase58()))} disabled={globalLoading}>
+                    <Button variant="gradient" onClick={() => handleGlobalAction(() => client.acceptDeal(deal.id, publicKey!.toBase58()), 'Deal accepted')} disabled={globalLoading}>
                       {globalLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> : null}
                       Accept Deal
                     </Button>
                   )}
                 </div>
               </div>
-              {globalError && <p className="text-red-400 text-xs mt-2">{globalError}</p>}
             </Card>
           )}
 
@@ -781,7 +803,7 @@ export const DealDetails = () => {
                   variant="outline"
                   onClick={() => {
                     setShowAddTaskForm((prev) => !prev);
-                    setAddTaskError(null);
+                    setFieldErrors({});
                   }}
                   className="w-fit text-xs px-3 py-1.5"
                 >
@@ -792,14 +814,17 @@ export const DealDetails = () => {
             </div>
 
             {showAddTaskForm && (
-              <form onSubmit={handleAddTaskSubmit} className="mb-5 p-4 rounded-lg bg-gray-900 border border-gray-800 space-y-4">
+              <form noValidate onSubmit={handleAddTaskSubmit} className="mb-5 p-4 rounded-lg bg-gray-900 border border-gray-800 space-y-4">
                 <div className="flex items-center justify-between border-b border-gray-800 pb-2">
                   <span className="text-sm font-semibold text-gray-200">
                     Add new task / milestone ({role === 'customer' ? 'Customer' : 'Contractor'})
                   </span>
                   <button
                     type="button"
-                    onClick={() => setShowAddTaskForm(false)}
+                    onClick={() => {
+                      setShowAddTaskForm(false);
+                      setFieldErrors({});
+                    }}
                     className="text-gray-400 hover:text-white transition-colors"
                   >
                     <X className="w-4 h-4" />
@@ -811,36 +836,48 @@ export const DealDetails = () => {
                     Title
                   </label>
                   <input
+                    ref={taskTitleRef}
                     id="new-task-title"
                     type="text"
                     required
                     maxLength={100}
                     placeholder="e.g. Milestone 2: Backend API"
                     value={taskTitle}
-                    onChange={(e) => setTaskTitle(e.target.value)}
+                    onChange={(e) => {
+                      setTaskTitle(e.target.value);
+                      setFieldErrors((prev) => ({ ...prev, title: '' }));
+                    }}
                     className="w-full bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500/50"
                   />
+                  {fieldErrors.title && <p className="text-xs text-red-400 mt-1">{fieldErrors.title}</p>}
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label htmlFor="new-task-amount" className="block text-xs font-medium text-gray-300 mb-1">
-                      Amount ({symbol}) (min 10)
+                      Amount ({symbol}) (min 0.01)
                     </label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
                       <input
+                        ref={taskAmountRef}
                         id="new-task-amount"
                         type="number"
-                        min="10"
+                        min="0.01"
                         step="0.01"
+                        autoComplete="off"
+                        onWheel={(e) => e.currentTarget.blur()}
                         required
-                        placeholder="10.00"
+                        placeholder="0.01"
                         value={taskAmount}
-                        onChange={(e) => setTaskAmount(e.target.value)}
+                        onChange={(e) => {
+                          setTaskAmount(e.target.value);
+                          setFieldErrors((prev) => ({ ...prev, amount: '' }));
+                        }}
                         className="w-full bg-gray-950 border border-gray-800 rounded-lg pl-7 pr-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500/50"
                       />
                     </div>
+                    {fieldErrors.amount && <p className="text-xs text-red-400 mt-1">{fieldErrors.amount}</p>}
                   </div>
 
                   <div>
@@ -848,14 +885,19 @@ export const DealDetails = () => {
                       Deadline
                     </label>
                     <input
+                      ref={taskDeadlineRef}
                       id="new-task-deadline"
                       type="date"
                       required
                       value={taskDeadline}
-                      onChange={(e) => setTaskDeadline(e.target.value)}
+                      onChange={(e) => {
+                        setTaskDeadline(e.target.value);
+                        setFieldErrors((prev) => ({ ...prev, deadline: '' }));
+                      }}
                       onClick={(e) => 'showPicker' in HTMLInputElement.prototype && e.currentTarget.showPicker()}
                       className="w-full bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500/50 cursor-pointer [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:opacity-70 hover:[&::-webkit-calendar-picker-indicator]:opacity-100"
                     />
+                    {fieldErrors.deadline && <p className="text-xs text-red-400 mt-1">{fieldErrors.deadline}</p>}
                   </div>
                 </div>
 
@@ -864,15 +906,20 @@ export const DealDetails = () => {
                     Success Criteria
                   </label>
                   <textarea
+                    ref={taskCriteriaRef}
                     id="new-task-criteria"
                     required
                     maxLength={1000}
                     rows={3}
                     placeholder="Describe deliverables and acceptance criteria for this milestone..."
                     value={taskCriteria}
-                    onChange={(e) => setTaskCriteria(e.target.value)}
+                    onChange={(e) => {
+                      setTaskCriteria(e.target.value);
+                      setFieldErrors((prev) => ({ ...prev, criteria: '' }));
+                    }}
                     className="w-full bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500/50 resize-none"
                   />
+                  {fieldErrors.criteria && <p className="text-xs text-red-400 mt-1">{fieldErrors.criteria}</p>}
                 </div>
 
                 {role === 'customer' && (
@@ -885,6 +932,8 @@ export const DealDetails = () => {
                     This task will be created on-chain and wait for the customer to fund it in escrow.
                   </p>
                 )}
+
+                <NetworkDepositInfo type="task" wallet={publicKey?.toBase58()} />
 
                 {renderSolWarning()}
 
@@ -914,8 +963,6 @@ export const DealDetails = () => {
                     </Button>
                   </div>
                 )}
-
-                {addTaskError && <p className="text-red-400 text-xs">{addTaskError}</p>}
               </form>
             )}
             <div className="space-y-3">

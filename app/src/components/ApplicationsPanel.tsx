@@ -12,6 +12,8 @@ import type { Deal } from '../lib/types';
 import type { ChainInfo } from '../lib/client/chainClient';
 import type { Role } from '../RoleContext';
 import { Loader2 } from 'lucide-react';
+import { useToast, notifyActionError } from './Toast';
+import { getLastTxSig } from '../lib/client/chainClient';
 
 interface ApplicationsPanelProps {
   deal: Deal;
@@ -24,15 +26,14 @@ export const ApplicationsPanel = ({ deal, chainInfo, role }: ApplicationsPanelPr
   const { setVisible } = useWalletModal();
   const { solBalance } = useSolBalance();
   const { isTestMode } = useNetwork();
+  const toast = useToast();
   const MIN_SOL_REQUIRED = 0.01;
   const hasEnoughSol = solBalance === null || solBalance >= MIN_SOL_REQUIRED;
 
   const [apps, setApps] = useState<Application[]>([]);
   const [note, setNote] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
-  const [actionError, setActionError] = useState('');
   const [assigningWallet, setAssigningWallet] = useState<string | null>(null);
-  const [assignError, setAssignError] = useState('');
   const [declinedTick, setDeclinedTick] = useState(0);
 
   const me = publicKey?.toBase58();
@@ -72,14 +73,14 @@ export const ApplicationsPanel = ({ deal, chainInfo, role }: ApplicationsPanelPr
 
   const handleApply = async () => {
     if (!me) return;
-    setActionError('');
     setActionLoading(true);
     try {
       await applyToDeal(deal.id, me, note.trim());
       setNote('');
       await load();
+      toast.success('Application submitted');
     } catch (err: any) {
-      setActionError(err.message || 'Could not send the application');
+      notifyActionError(toast, err, handleApply);
     } finally {
       setActionLoading(false);
     }
@@ -87,13 +88,13 @@ export const ApplicationsPanel = ({ deal, chainInfo, role }: ApplicationsPanelPr
 
   const handleWithdraw = async () => {
     if (!me) return;
-    setActionError('');
     setActionLoading(true);
     try {
       await withdrawApplication(deal.id, me);
       await load();
+      toast.success('Application withdrawn');
     } catch (err: any) {
-      setActionError(err.message || 'Failed to withdraw application');
+      notifyActionError(toast, err, handleWithdraw);
     } finally {
       setActionLoading(false);
     }
@@ -101,13 +102,13 @@ export const ApplicationsPanel = ({ deal, chainInfo, role }: ApplicationsPanelPr
 
   const handleAccept = async () => {
     if (!me) return;
-    setActionError('');
     setActionLoading(true);
     try {
       await client.acceptDeal(deal.id, me);
       await load();
+      toast.success('Deal accepted', getLastTxSig() || undefined);
     } catch (err: any) {
-      setActionError(err.message || 'Failed to accept deal');
+      notifyActionError(toast, err, handleAccept);
     } finally {
       setActionLoading(false);
     }
@@ -115,7 +116,6 @@ export const ApplicationsPanel = ({ deal, chainInfo, role }: ApplicationsPanelPr
 
   const handleDecline = async () => {
     if (!me) return;
-    setActionError('');
     setActionLoading(true);
     try {
       const sigsCount = chainInfo.sigs?.length ?? 0;
@@ -127,21 +127,22 @@ export const ApplicationsPanel = ({ deal, chainInfo, role }: ApplicationsPanelPr
       setDeclinedTick((t) => t + 1);
       await withdrawApplication(deal.id, me);
       await load();
+      toast.success('Deal declined');
     } catch (err: any) {
-      setActionError(err.message || 'Failed to decline deal');
+      notifyActionError(toast, err, handleDecline);
     } finally {
       setActionLoading(false);
     }
   };
 
   const handleAssign = async (contractorWallet: string) => {
-    setAssignError('');
     setAssigningWallet(contractorWallet);
     try {
       await client.assignContractor(deal.id, contractorWallet);
       await load();
+      toast.success('Contractor selected', getLastTxSig() || undefined);
     } catch (err: any) {
-      setAssignError(err.message || 'Failed to assign contractor');
+      notifyActionError(toast, err, () => handleAssign(contractorWallet));
     } finally {
       setAssigningWallet(null);
     }
@@ -198,7 +199,6 @@ export const ApplicationsPanel = ({ deal, chainInfo, role }: ApplicationsPanelPr
                   <p className="text-xs text-gray-500 mt-1">The customer will be able to pick someone else</p>
                 </div>
               </div>
-              {actionError && <p className="text-red-400 text-xs mt-3">{actionError}</p>}
             </div>
           ) : hasApplied ? (
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -211,7 +211,6 @@ export const ApplicationsPanel = ({ deal, chainInfo, role }: ApplicationsPanelPr
                   {actionLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> : null}
                   Withdraw application
                 </Button>
-                {actionError && <p className="text-red-400 text-xs mt-2">{actionError}</p>}
               </div>
             </div>
           ) : (
@@ -236,7 +235,6 @@ export const ApplicationsPanel = ({ deal, chainInfo, role }: ApplicationsPanelPr
                   {actionLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> : null}
                   Apply
                 </Button>
-                {actionError && <p className="text-red-400 text-xs mt-1">{actionError}</p>}
               </div>
             </div>
           )}
@@ -307,7 +305,6 @@ export const ApplicationsPanel = ({ deal, chainInfo, role }: ApplicationsPanelPr
               </div>
             )}
             {!isWrongCustomer && renderSolWarning()}
-            {assignError && <p className="text-red-400 text-xs mt-3">{assignError}</p>}
           </div>
         );
       })()}

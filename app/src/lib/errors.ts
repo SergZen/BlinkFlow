@@ -101,3 +101,25 @@ export function friendlyError(e: unknown): string {
   console.error('[friendlyError fallback]', e);
   return 'The transaction failed. Please try again.';
 }
+
+export function isTechnicalMessage(msg: string): boolean {
+  if (!msg || msg.trim().length === 0 || msg.length > 200) return true;
+  const lower = msg.toLowerCase();
+  return (
+    lower.includes('0x') ||
+    lower.includes('custom program error') ||
+    lower.includes('error code') ||
+    lower.includes('simulation failed') ||
+    lower.includes('failed to send') ||
+    lower.includes('failed to get') ||
+    lower.includes('fetch failed') ||
+    msg.includes('{')
+  );
+}
+
+export function getActionErrorMessage(err: unknown): string {
+  if (err instanceof Error && err.message && !isTechnicalMessage(err.message)) {
+    return err.message;
+  }
+  return friendlyError(err);
+}

@@ -4,6 +4,7 @@ import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react
 import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
 import { clusterApiUrl } from '@solana/web3.js';
 import { RoleProvider } from './RoleContext';
+import { ToastProvider } from './components/Toast';
 import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
 import { DealDetails } from './pages/DealDetails';
@@ -43,27 +44,28 @@ function InnerApp() {
       <WalletProvider wallets={wallets} autoConnect>
         <WalletModalProvider>
           <RoleProvider>
-            <Router>
-              <CookieBanner />
-              <Routes>
-                <Route path="/lp/freelancer-escrow" element={<LpFreelancerEscrow />} />
-                <Route path="/about" element={<About />} />
-                <Route path="/terms" element={<Terms />} />
-                <Route path="/ops-k7r2x9" element={<ArbiterPage view="admin" />} />
-                <Route path="/arb-m4q8w3" element={<ArbiterPage view="arbiter" />} />
-                <Route path="/*" element={
-                  <Layout>
-                    <Routes>
-                      <Route path="/" element={<Dashboard />} />
-                      <Route path="/deal/:id" element={<DealDetails />} />
-                      <Route path="/profile" element={<Profile />} />
-                      <Route path="/log" element={<DisputeLog />} />
-                    </Routes>
-                  </Layout>
-                } />
-              </Routes>
-
-            </Router>
+            <ToastProvider>
+              <Router>
+                <CookieBanner />
+                <Routes>
+                  <Route path="/lp/freelancer-escrow" element={<LpFreelancerEscrow />} />
+                  <Route path="/about" element={<About />} />
+                  <Route path="/terms" element={<Terms />} />
+                  <Route path="/ops-k7r2x9" element={<ArbiterPage view="admin" />} />
+                  <Route path="/arb-m4q8w3" element={<ArbiterPage view="arbiter" />} />
+                  <Route path="/*" element={
+                    <Layout>
+                      <Routes>
+                        <Route path="/" element={<Dashboard />} />
+                        <Route path="/deal/:id" element={<DealDetails />} />
+                        <Route path="/profile" element={<Profile />} />
+                        <Route path="/log" element={<DisputeLog />} />
+                      </Routes>
+                    </Layout>
+                  } />
+                </Routes>
+              </Router>
+            </ToastProvider>
           </RoleProvider>
         </WalletModalProvider>
       </WalletProvider>
