@@ -6,7 +6,7 @@ use anchor_spl::{
 use mpl_core::ID as MPL_CORE_ID;
 
 use crate::{
-    DIAL_SEED, Deal, PROTOCOL_SEED, Protocol, SBT_COLLECTION_SEED, SBT_SEED, TASK_SEED, Task, TaskStatus, error::BlinkFlowError, events::DisputeResolved, sbt::{SbtContext, update_sbt},
+    DIAL_SEED, Deal, PROTOCOL_SEED, Protocol, SBT_COLLECTION_SEED, SBT_SEED, TASK_SEED, Task, TaskStatus, error::BlinkFlowError, events::DisputeResolved, sbt::{SbtContext, SbtOutcome, SbtRole, SbtUpdate, update_sbt},
 };
 
 #[derive(Accounts)]
@@ -195,31 +195,21 @@ impl<'info> ResolveDispute<'info> {
             )?;
 
             update_sbt(
-                &*self, 
-                &self.sbt_customer.to_account_info(), 
-                &self.customer.key(), 
-                &payer, 
+                &*self,
+                &self.sbt_customer.to_account_info(),
+                &self.customer.key(),
+                &payer,
                 bumps.sbt_collection,
-                true,
-                true,
-                true,
-                false,
-                customer_amount,
-                amount,
+                SbtUpdate::new(SbtRole::Customer, SbtOutcome::DisputeWon, customer_amount),
             )?;
 
             update_sbt(
-                &*self, 
-                &self.sbt_contractor.to_account_info(), 
-                &self.contractor.key(), 
+                &*self,
+                &self.sbt_contractor.to_account_info(),
+                &self.contractor.key(),
                 &payer,
                 bumps.sbt_collection,
-                false,
-                false,
-                true,
-                false,
-                customer_amount,
-                amount,
+                SbtUpdate::new(SbtRole::Contractor, SbtOutcome::DisputeLost, amount),
             )?;
         } else {
             self.transfer_tokens_from_deal_vault(
@@ -229,24 +219,21 @@ impl<'info> ResolveDispute<'info> {
             )?;
 
             update_sbt(
-                &*self, &self.sbt_customer.to_account_info(), &self.customer.key(), &payer, bumps.sbt_collection,
-                true,
-                false,
-                true,
-                false,
-                customer_amount,
-                amount,
+                &*self,
+                &self.sbt_customer.to_account_info(),
+                &self.customer.key(),
+                &payer,
+                bumps.sbt_collection,
+                SbtUpdate::new(SbtRole::Customer, SbtOutcome::DisputeLost, customer_amount),
             )?;
 
             update_sbt(
-                &*self, &self.sbt_contractor.to_account_info(), &self.contractor.key(), &payer,
+                &*self,
+                &self.sbt_contractor.to_account_info(),
+                &self.contractor.key(),
+                &payer,
                 bumps.sbt_collection,
-                false,
-                true,
-                true,
-                false,
-                customer_amount,
-                amount,
+                SbtUpdate::new(SbtRole::Contractor, SbtOutcome::DisputeWon, amount),
             )?;
         }
 

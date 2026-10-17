@@ -7,7 +7,7 @@ use anchor_spl::{
 use mpl_core::ID as MPL_CORE_ID;
 
 use crate::{
-    DIAL_SEED, Deal, PROTOCOL_SEED, Protocol, REVIEW_PERIOD_SECS, SBT_COLLECTION_SEED, SBT_SEED, TASK_SEED, Task, TaskStatus, error::BlinkFlowError, events::TaskReleasedAfterReview, sbt::{SbtContext, update_sbt},
+    DIAL_SEED, Deal, PROTOCOL_SEED, Protocol, REVIEW_PERIOD_SECS, SBT_COLLECTION_SEED, SBT_SEED, TASK_SEED, Task, TaskStatus, error::BlinkFlowError, events::TaskReleasedAfterReview, sbt::{SbtContext, SbtOutcome, SbtRole, SbtUpdate, update_sbt},
 };
 
 #[derive(Accounts)]
@@ -183,12 +183,7 @@ impl<'info> ReleaseTaskAfterReviewPeriod<'info> {
             &self.deal.customer,
             &payer,
             bumps.sbt_collection,
-            true,
-            false,
-            false,
-            true,
-            customer_amount,
-            contractor_amount,
+            SbtUpdate::new(SbtRole::Customer, SbtOutcome::AutoReleased, customer_amount),
         )?;
 
         update_sbt(
@@ -197,12 +192,7 @@ impl<'info> ReleaseTaskAfterReviewPeriod<'info> {
             &self.contractor.key(), 
             &payer,
             bumps.sbt_collection, 
-            false,
-            false,
-            false,
-            true,
-            customer_amount,
-            contractor_amount,
+            SbtUpdate::new(SbtRole::Contractor, SbtOutcome::AutoReleased, contractor_amount)
         )?;
 
         emit!(TaskReleasedAfterReview {
