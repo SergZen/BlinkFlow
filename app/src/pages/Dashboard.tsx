@@ -69,7 +69,12 @@ export const Dashboard = () => {
 
   useEffect(() => {
     if (searchParams.get('new') === '1') {
-      setRole('customer');
+      const roleParam = searchParams.get('role');
+      if (roleParam === 'contractor') {
+        setRole('contractor');
+      } else {
+        setRole('customer');
+      }
       const rawTitle = (searchParams.get('title') || '').trim().slice(0, 100);
 
       const parsedAmount = parseFloat(searchParams.get('amount') || '');
@@ -105,13 +110,14 @@ export const Dashboard = () => {
 
       const nextParams = new URLSearchParams(searchParams);
       nextParams.delete('new');
+      nextParams.delete('role');
       nextParams.delete('title');
       nextParams.delete('amount');
       nextParams.delete('days');
       nextParams.delete('deadline');
       setSearchParams(nextParams, { replace: true });
     }
-  }, [searchParams, setSearchParams]);
+  }, [searchParams, setSearchParams, setRole]);
 
   const handleOpenCreateModal = () => {
     setModalInitialValues(undefined);
