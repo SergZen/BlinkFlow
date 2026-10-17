@@ -30,4 +30,6 @@ export interface Deal {
   createdAt: string;
   tasks: Task[];
   history: { date: string; action: string }[];
+  title?: string;
+  description?: string;
 }

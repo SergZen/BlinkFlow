@@ -9,34 +9,24 @@ import { BalanceDisplay } from './BalanceDisplay';
 import { FaucetButton } from './FaucetButton';
 import { useNetwork } from '../NetworkContext';
 import { useOpsAccess } from '../hooks/useOpsAccess';
+import { useToast } from './Toast';
 
 export const Layout = ({ children }: { children: ReactNode }) => {
   const { role, setRole } = useRole();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { connected } = useWallet();
   const { isTestMode } = useNetwork();
-  const [showToast, setShowToast] = useState(false);
   const { canSeeOps } = useOpsAccess();
+  const { info } = useToast();
 
   useEffect(() => {
     if (connected) {
-      setShowToast(true);
-      const timer = setTimeout(() => setShowToast(false), 3000);
-      return () => clearTimeout(timer);
+      info('Connected to Devnet');
     }
-  }, [connected]);
+  }, [connected, info]);
 
   return (
     <div className="h-screen bg-gray-950 text-gray-100 flex flex-col md:flex-row font-sans selection:bg-purple-500/30 overflow-hidden relative">
-      
-      {showToast && (
-        <div className="fixed bottom-4 right-4 z-[100] animate-in slide-in-from-bottom-5">
-          <div className="bg-gray-800 text-white px-4 py-3 rounded-lg shadow-xl border border-gray-700 flex items-center gap-2">
-            <Zap className={`w-4 h-4 ${isTestMode ? 'text-gray-400' : 'text-orange-400'}`} />
-            <span className="font-medium">Connected &middot; Devnet</span>
-          </div>
-        </div>
-      )}
       
       {/* Mobile Topbar */}
       <div className="md:hidden flex items-center justify-between p-4 bg-gray-900 border-b border-gray-800 shrink-0 z-40 relative">

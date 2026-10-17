@@ -4,6 +4,7 @@ import { Badge, getStatusLabel } from '../components/Badge';
 import { Button } from '../components/Button';
 import { client } from '../lib/client';
 import { dealTotal, deriveDealStatus, dealEscrowTotal, getEarliestDeadline } from '../lib/dealStatus';
+import { dealTitle } from '../lib/dealTitle';
 import { Plus, ArrowRight, DollarSign, Briefcase, Clock, Search, Loader2, Inbox, Wallet } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
@@ -14,10 +15,13 @@ import { useToken } from '../lib/constants';
 import { useNetwork } from '../NetworkContext';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useSolBalance } from '../hooks/useSolBalance';
+import { useToast, notifyActionError } from '../components/Toast';
+import { getLastTxSig } from '../lib/client/chainClient';
 
 export const Dashboard = () => {
   const { role, setRole } = useRole();
   const { isTestMode } = useNetwork();
+  const toast = useToast();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalInitialValues, setModalInitialValues] = useState<CreateDealInitialValues | undefined>(undefined);
   const [loading, setLoading] = useState(true);
@@ -30,11 +34,10 @@ export const Dashboard = () => {
   const { publicKey, connected } = useWallet();
   const { solBalance } = useSolBalance();
   const MIN_SOL_REQUIRED = 0.01;
-  const hasEnoughSol = solBalance !== null && solBalance >= MIN_SOL_REQUIRED;
+  const hasEnoughSol = solBalance === null || solBalance >= MIN_SOL_REQUIRED;
 
   const [walletFilter, setWalletFilter] = useState<'all' | 'mine'>('all');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const loadDeals = async () => {
@@ -67,7 +70,12 @@ export const Dashboard = () => {
 
   useEffect(() => {
     if (searchParams.get('new') === '1') {
-      setRole('customer');
+      const roleParam = searchParams.get('role');
+      if (roleParam === 'contractor') {
+        setRole('contractor');
+      } else {
+        setRole('customer');
+      }
       const rawTitle = (searchParams.get('title') || '').trim().slice(0, 100);
 
       const parsedAmount = parseFloat(searchParams.get('amount') || '');
@@ -103,16 +111,16 @@ export const Dashboard = () => {
 
       const nextParams = new URLSearchParams(searchParams);
       nextParams.delete('new');
+      nextParams.delete('role');
       nextParams.delete('title');
       nextParams.delete('amount');
       nextParams.delete('days');
       nextParams.delete('deadline');
       setSearchParams(nextParams, { replace: true });
     }
-  }, [searchParams, setSearchParams]);
+  }, [searchParams, setSearchParams, setRole]);
 
   const handleOpenCreateModal = () => {
-    setRole('customer');
     setModalInitialValues(undefined);
     setIsModalOpen(true);
   };
@@ -164,21 +172,18 @@ export const Dashboard = () => {
     const taskIndex = submittedTasks[0].i;
 
     setActionLoading(deal.id);
-    setActionError(prev => {
-      const next = { ...prev };
-      delete next[deal.id];
-      return next;
-    });
     try {
       if (action === 'release') {
         await client.completeTask(deal.id, taskIndex, true);
+        toast.success('Payment released', getLastTxSig() || undefined);
       } else if (action === 'dispute') {
         await client.completeTask(deal.id, taskIndex, false);
+        toast.success('Dispute opened', getLastTxSig() || undefined);
       }
       window.dispatchEvent(new Event('blinkflow:deals-changed'));
     } catch (err: any) {
       console.error(err);
-      setActionError(prev => ({ ...prev, [deal.id]: err.message || 'Action failed' }));
+      notifyActionError(toast, err, () => handlePendingAction(e, deal, action));
     } finally {
       setActionLoading(null);
     }
@@ -265,7 +270,7 @@ export const Dashboard = () => {
               >
                 <div>
                   <div className="font-semibold text-gray-200">
-                    {deal.tasks[0]?.meta.title}
+                    {dealTitle(deal)}
                     {deal.tasks.length > 1 && ` +${deal.tasks.length - 1}`}
                   </div>
                   <div className="text-sm text-gray-400 mt-1">
@@ -274,11 +279,6 @@ export const Dashboard = () => {
                   {!hasEnoughSol && role === 'customer' && deriveDealStatus(deal) === 'pending_approval' && (
                     <div className="mt-1 text-xs text-orange-400 font-medium">
                       You need ~0.01 SOL to cover network fees.
-                    </div>
-                  )}
-                  {actionError[deal.id] && (
-                    <div className="mt-1 text-xs text-red-400 font-medium">
-                      {actionError[deal.id]}
                     </div>
                   )}
                 </div>
@@ -390,7 +390,7 @@ export const Dashboard = () => {
                   <div className="flex justify-between items-start gap-2">
                     <div className="min-w-0">
                       <div className="font-medium text-gray-200 truncate">
-                        {deal.tasks[0]?.meta.title}
+                        {dealTitle(deal)}
                         {deal.tasks.length > 1 && ` +${deal.tasks.length - 1}`}
                       </div>
                       <div className="text-[11px] text-gray-500 mt-0.5">
@@ -441,7 +441,7 @@ export const Dashboard = () => {
                   >
                     <td className="px-5 py-4">
                       <div className="font-medium text-gray-200 group-hover:text-purple-400 transition-colors">
-                        {deal.tasks[0]?.meta.title}
+                        {dealTitle(deal)}
                         {deal.tasks.length > 1 && ` +${deal.tasks.length - 1}`}
                       </div>
                       <div className="text-[11px] text-gray-500 mt-0.5">

@@ -60,13 +60,18 @@ export const useSolBalance = () => {
 
       if (!cancelled && currentId === fetchId) {
         console.error("Error fetching SOL balance:", lastErr);
-        setSolBalance(null);
+        // Keep the last known balance (or null = unknown). Do not report 0.
+        setSolBalance((prev) => prev);
         setError(true);
         setLoading(false);
       }
     };
 
     fetchBalance();
+
+    const interval = setInterval(() => {
+      fetchBalance();
+    }, 15000);
 
     const handleFocusOrTrigger = () => {
       fetchBalance();
@@ -77,6 +82,7 @@ export const useSolBalance = () => {
 
     return () => {
       cancelled = true;
+      clearInterval(interval);
       window.removeEventListener('focus', handleFocusOrTrigger);
       window.removeEventListener('blinkflow:refresh_balance', handleFocusOrTrigger);
     };

@@ -94,20 +94,22 @@ function setupBot(app, baseUrl, frontendUrl) {
     bot.sendMessage(
       chatId,
       "ℹ️ *How it works*\n" +
-      "1. Customer creates a deal on the BlinkFlow site and locks USDC in escrow.\n" +
-      "2. Customer shares the deal link in any chat or social network.\n" +
-      "3. Contractors open the link and apply; the customer picks one.\n" +
-      "4. Contractor accepts, does the work and marks it finished.\n" +
-      "5. Customer approves and the payment is released. If there is a disagreement, an arbiter decides.",
+      "1. Either side creates the deal on the BlinkFlow site. A customer locks USDC in escrow right away. A contractor proposes the deal to a specific customer.\n" +
+      "2. Share the deal link in any chat or social network.\n" +
+      "3. Customer-created deal: contractors open the link and apply, the customer picks one. Contractor-created deal: the customer opens the link and funds the escrow.\n" +
+      "4. The contractor does the work and marks it finished.\n" +
+      "5. The customer approves and the payment is released. If there is a disagreement, an arbiter decides.",
       { parse_mode: 'Markdown' }
     ).catch(err => console.error("Telegram API Error:", err));
   };
 
   const finishNewDeal = (chatId, session, days) => {
+    const role = session.dealData.role || 'customer';
     let targetUrl;
     try {
       const u = new URL(frontendUrl);
       u.searchParams.set('new', '1');
+      u.searchParams.set('role', role);
       u.searchParams.set('title', session.dealData.title);
       u.searchParams.set('amount', session.dealData.amount.toString());
       u.searchParams.set('days', days.toString());
@@ -116,6 +118,7 @@ function setupBot(app, baseUrl, frontendUrl) {
       const cleanUrl = (frontendUrl || '').replace(/\/+$/, '');
       const queryParams = new URLSearchParams({
         new: '1',
+        role,
         title: session.dealData.title,
         amount: session.dealData.amount.toString(),
         days: days.toString()
@@ -123,19 +126,28 @@ function setupBot(app, baseUrl, frontendUrl) {
       targetUrl = `${cleanUrl}/?${queryParams}`;
     }
 
+    const roleLabel = role === 'contractor' ? 'Contractor' : 'Customer';
+    const roleText = role === 'contractor'
+      ? `Ready to finalize? Click below to create the deal on the website. You will need the customer's Solana wallet address. You pay only a small SOL network deposit, no USDC.\n\n` +
+        `After you create the deal, send the deal link from the website to the customer. The customer funds the escrow from that page.`
+      : `Ready to finalize? Click below to connect your wallet and lock funds in escrow on the website.\n\n` +
+        `After you create the deal on the website, share the deal link from there, not this message.`;
+
+    const buttonText = role === 'contractor' ? "Create on website" : "Create & fund on website";
+
     const summary =
       `📋 *Deal Summary*\n\n` +
       `• *Title:* ${escapeMarkdown(session.dealData.title)}\n` +
+      `• *Your role:* ${roleLabel}\n` +
       `• *Amount:* ${session.dealData.amount} USDC\n` +
       `• *Deadline:* ${days} day${days === 1 ? '' : 's'}\n\n` +
-      `Ready to finalize? Click below to connect your wallet and lock funds in escrow on the website.\n\n` +
-      `After you create the deal on the website, share the deal link from there, not this message.`;
+      roleText;
 
     bot.sendMessage(chatId, summary, {
       parse_mode: 'Markdown',
       reply_markup: {
         inline_keyboard: [
-          [{ text: "Create & fund on website", url: targetUrl }],
+          [{ text: buttonText, url: targetUrl }],
           [{ text: "➕ New deal", callback_data: "nd" }, { text: "🏠 Menu", callback_data: "menu" }]
         ]
       }
@@ -144,16 +156,26 @@ function setupBot(app, baseUrl, frontendUrl) {
     conversations.delete(chatId);
   };
 
+  const askRole = (chatId) => {
+    bot.sendMessage(chatId, "Who are you in this deal?", {
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "🧾 I'm the customer (I pay)", callback_data: "role:customer" }],
+          [{ text: "🛠 I'm the contractor (I do the work)", callback_data: "role:contractor" }],
+          [{ text: "❌ Cancel", callback_data: "cancel" }]
+        ]
+      }
+    }).catch(err => console.error("Telegram API Error:", err));
+  };
+
   const startNewDeal = (chatId) => {
     conversations.set(chatId, {
-      step: 'AWAITING_TITLE',
+      step: 'AWAITING_ROLE',
       dealData: {},
       lastActive: Date.now()
     });
 
-    bot.sendMessage(chatId, "Let's create a new deal! What is the title of the deal?", {
-      reply_markup: { inline_keyboard: [[ { text: "❌ Cancel", callback_data: "cancel" } ]] }
-    }).catch(err => console.error("Telegram API Error:", err));
+    askRole(chatId);
   };
 
   bot.onText(/^\/newdeal/, (msg) => {
@@ -190,6 +212,11 @@ function setupBot(app, baseUrl, frontendUrl) {
     session.lastActive = Date.now();
 
     switch (session.step) {
+      case 'AWAITING_ROLE':
+        bot.sendMessage(chatId, "Please choose one of the buttons above.").catch(err => console.error("Telegram API Error:", err));
+        askRole(chatId);
+        break;
+
       case 'AWAITING_TITLE':
         if (!text) {
           bot.sendMessage(chatId, "Title cannot be empty. Please enter a valid title:").catch(err => console.error("Telegram API Error:", err));
@@ -274,6 +301,18 @@ function setupBot(app, baseUrl, frontendUrl) {
     if (!session) {
       bot.sendMessage(chatId, "Session expired, start again.").catch(err => console.error(err));
       showMenu(chatId);
+      return;
+    }
+
+    if (data.startsWith('role:') && session.step === 'AWAITING_ROLE') {
+      const selectedRole = data.substring(5);
+      if (selectedRole === 'customer' || selectedRole === 'contractor') {
+        session.dealData.role = selectedRole;
+        session.step = 'AWAITING_TITLE';
+        bot.sendMessage(chatId, "Let's create a new deal! What is the title of the deal?", {
+          reply_markup: { inline_keyboard: [[ { text: "❌ Cancel", callback_data: "cancel" } ]] }
+        }).catch(err => console.error("Telegram API Error:", err));
+      }
       return;
     }
 

@@ -2,11 +2,12 @@ import { useParams, Link, useLocation } from 'react-router-dom';
 import { client, isChainMode } from '../lib/client';
 import { getChainInfo, explorerAddr, explorerTx, type ChainInfo } from '../lib/client/chainClient';
 import { dealTotal, deriveDealStatus, getEarliestDeadline, taskStatusLabel, taskStatusKind } from '../lib/dealStatus';
+import { dealTitle } from '../lib/dealTitle';
 import { Card } from '../components/Card';
 import { Badge, getStatusLabel } from '../components/Badge';
 import { Button } from '../components/Button';
 import { useRole } from '../RoleContext';
-import { ArrowLeft, CheckCircle2, History, Loader2, Share2, X } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, History, Link2, Loader2, Plus, Share2, X } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { MAX_REQ_FILE_BYTES, sha256HexOfFile } from '../lib/fileHash';
 import { ShareDealPanel } from '../components/ShareDealPanel';
@@ -14,11 +15,15 @@ import { ApplicationsPanel } from '../components/ApplicationsPanel';
 import { useToken } from '../lib/constants';
 import { truncateAddress } from '../lib/utils';
 import { useSolBalance } from '../hooks/useSolBalance';
+import { useUsdcBalance } from '../hooks/useUsdcBalance';
 import { useNetwork } from '../NetworkContext';
 import type { Deal, Task } from '../lib/types';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { useWalletModal } from '@solana/wallet-adapter-react-ui';
 import { Transaction } from '@solana/web3.js';
+import { useToast, notifyActionError } from '../components/Toast';
+import { NetworkDepositInfo } from '../lib/rent';
+import { getLastTxSig } from '../lib/client/chainClient';
 
 const TaskRequirementsFile = ({ requirementsFile }: { requirementsFile: { name: string; sha256: string } }) => {
   const [verifyStatus, setVerifyStatus] = useState<'match' | 'mismatch' | 'too_large' | null>(null);
@@ -109,7 +114,7 @@ const EscrowActionCard = ({ deal, escrowState }: { deal: Deal, escrowState: stri
   const currentStatus = getStatusLabel(deriveDealStatus(deal));
 
   const params = new URLSearchParams({
-    title: deal.tasks[0]?.meta?.title || 'Escrow Deal',
+    title: dealTitle(deal),
     amount: dealTotal(deal).toString(),
     token: 'USDC',
     status: currentStatus,
@@ -175,7 +180,7 @@ const EscrowActionCard = ({ deal, escrowState }: { deal: Deal, escrowState: stri
             <p className="text-sm text-gray-400 mb-2">Send this link to your partner.</p>
             <ShareDealPanel 
               rawActionUrl={`${import.meta.env.VITE_ACTIONS_API_URL || 'http://localhost:3001'}/deal/${deal.id}?${new URLSearchParams({
-                title: deal.tasks[0]?.meta.title,
+                title: dealTitle(deal),
                 amount: dealTotal(deal).toString(),
                 token: 'USDC',
                 status: currentStatus,
@@ -195,13 +200,12 @@ const EscrowActionCard = ({ deal, escrowState }: { deal: Deal, escrowState: stri
 export const DealDetails = () => {
   const { id } = useParams();
   const { role } = useRole();
+  const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deal, setDeal] = useState<Deal | null>(null);
   const [taskSubmissions, setTaskSubmissions] = useState<Record<number, string>>({});
   const [taskActionLoading, setTaskActionLoading] = useState<Record<number, boolean>>({});
-  const [taskErrors, setTaskErrors] = useState<Record<number, string>>({});
-  const [globalError, setGlobalError] = useState<string | null>(null);
   const [globalLoading, setGlobalLoading] = useState(false);
   // TEMP: virtual deals go away in stage B.
   const [virtualStatusLabel, setVirtualStatusLabel] = useState<string | null>(null);
@@ -228,6 +232,7 @@ export const DealDetails = () => {
   const { setVisible } = useWalletModal();
   const { isTestMode } = useNetwork();
   const { solBalance } = useSolBalance();
+  const { balance: usdcBalance } = useUsdcBalance();
   const { symbol } = useToken();
   const MIN_SOL_REQUIRED = 0.01;
   const hasEnoughSol = solBalance === null || solBalance >= MIN_SOL_REQUIRED;
@@ -244,6 +249,156 @@ export const DealDetails = () => {
         )}
       </div>
     );
+  };
+
+  const [showAddTaskForm, setShowAddTaskForm] = useState(false);
+  const [taskTitle, setTaskTitle] = useState('');
+  const [taskCriteria, setTaskCriteria] = useState('');
+  const [taskAmount, setTaskAmount] = useState('');
+  const [taskDeadline, setTaskDeadline] = useState('');
+  const [addTaskLoading, setAddTaskLoading] = useState(false);
+  const [taskReqFile, setTaskReqFile] = useState<{ name: string; sha256: string } | null>(null);
+  const [isTaskHashing, setIsTaskHashing] = useState(false);
+  const [taskFileError, setTaskFileError] = useState('');
+  const taskFileInputRef = useRef<HTMLInputElement>(null);
+  const [fieldErrors, setFieldErrors] = useState<{
+    title?: string;
+    amount?: string;
+    deadline?: string;
+    criteria?: string;
+  }>({});
+  const taskTitleRef = useRef<HTMLInputElement>(null);
+  const taskAmountRef = useRef<HTMLInputElement>(null);
+  const taskDeadlineRef = useRef<HTMLInputElement>(null);
+  const taskCriteriaRef = useRef<HTMLTextAreaElement>(null);
+
+  const parsedTaskAmount = parseFloat(taskAmount);
+  const isInsufficientUsdc = role === 'customer' && usdcBalance !== null && !isNaN(parsedTaskAmount) && parsedTaskAmount > 0 && usdcBalance < parsedTaskAmount;
+
+  const handleTaskFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > MAX_REQ_FILE_BYTES) {
+      setTaskFileError('File is too large (max 20 MB)');
+      setTaskReqFile(null);
+      if (taskFileInputRef.current) taskFileInputRef.current.value = '';
+      return;
+    }
+
+    try {
+      setIsTaskHashing(true);
+      setTaskFileError('');
+      const sha256 = await sha256HexOfFile(file);
+      setTaskReqFile({
+        name: file.name,
+        sha256,
+      });
+    } catch (err) {
+      console.error('Error hashing file:', err);
+      setTaskFileError('Failed to read and hash file.');
+      setTaskReqFile(null);
+    } finally {
+      setIsTaskHashing(false);
+      if (taskFileInputRef.current) taskFileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveTaskFile = () => {
+    setTaskReqFile(null);
+    setTaskFileError('');
+    if (taskFileInputRef.current) taskFileInputRef.current.value = '';
+  };
+
+  const isWrongCustomer = Boolean(chainInfo && connected && myWallet && myWallet !== chainInfo.customer);
+  const contractorAddr = (chainInfo ? (chainInfo.contractor || deal?.contractor) : deal?.contractor) || '';
+  const isWrongContractor = Boolean(chainInfo && connected && myWallet && contractorAddr && myWallet !== contractorAddr);
+  const isWrongUserForAddTask = role === 'customer' ? isWrongCustomer : isWrongContractor;
+  const canAddTask = Boolean(deal) && deal?.creator !== 'VIRTUAL' && Boolean(chainInfo) && Boolean(deal?.contractor) && (role === 'customer' || role === 'contractor');
+
+  const handleAddTaskSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (addTaskLoading || !deal) return;
+    if (!connected) {
+      toast.error('Please connect your Solana wallet first.');
+      return;
+    }
+    if (isWrongUserForAddTask) {
+      toast.error(`Switch Phantom to the ${role} account to add a task.`);
+      return;
+    }
+
+    const errors: typeof fieldErrors = {};
+    if (!taskTitle.trim()) {
+      errors.title = 'Title is required';
+    }
+    const parsedAmount = parseFloat(taskAmount);
+    if (isNaN(parsedAmount) || parsedAmount < 0.01) {
+      errors.amount = 'Amount must be at least 0.01 USDC';
+    }
+    if (!taskDeadline) {
+      errors.deadline = 'Deadline is required';
+    } else {
+      const selectedDate = new Date(taskDeadline);
+      const todayDate = new Date();
+      todayDate.setHours(0, 0, 0, 0);
+      if (selectedDate < todayDate) {
+        errors.deadline = 'Deadline cannot be in the past';
+      }
+    }
+    if (!taskCriteria.trim()) {
+      errors.criteria = 'Success criteria cannot be empty';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      const firstErrorKey = Object.keys(errors)[0];
+      const refMap: Record<string, React.RefObject<HTMLElement | null>> = {
+        title: taskTitleRef,
+        amount: taskAmountRef,
+        deadline: taskDeadlineRef,
+        criteria: taskCriteriaRef,
+      };
+      const target = refMap[firstErrorKey]?.current;
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        target.focus();
+      }
+      return;
+    }
+    setFieldErrors({});
+
+    const doAddTask = async () => {
+      setAddTaskLoading(true);
+      try {
+        const updatedDeal = await client.addTask(deal.id, {
+          role,
+          title: taskTitle.trim(),
+          successCriteria: taskCriteria.trim(),
+          amount: parsedAmount,
+          deadline: taskDeadline,
+          requirementsFile: taskReqFile || undefined,
+        });
+        if (updatedDeal) {
+          setDeal(updatedDeal);
+          setChainInfo(getChainInfo(updatedDeal.id));
+        }
+        setTaskTitle('');
+        setTaskCriteria('');
+        setTaskAmount('');
+        setTaskDeadline('');
+        setTaskReqFile(null);
+        setTaskFileError('');
+        setShowAddTaskForm(false);
+        toast.success('Task added', getLastTxSig() || undefined);
+      } catch (err: any) {
+        notifyActionError(toast, err, doAddTask);
+      } finally {
+        setAddTaskLoading(false);
+      }
+    };
+
+    await doAddTask();
   };
 
   useEffect(() => {
@@ -321,27 +476,60 @@ export const DealDetails = () => {
   if (error) return <div className="p-8 text-center text-red-400">{error}</div>;
   if (!deal) return <div className="p-8 text-center text-gray-400">Deal not found</div>;
 
+  const getTaskStatusLabel = (task: Task) => {
+    if (task.status === 'ContractorCreated' && !task.deposited) {
+      const customerAddr = chainInfo?.customer || deal?.customer;
+      const contractorAddr = (chainInfo ? (chainInfo.contractor || deal?.contractor) : deal?.contractor) || '';
+
+      if (connected && myWallet && customerAddr && contractorAddr && myWallet !== customerAddr && myWallet !== contractorAddr) {
+        return 'Awaiting funding';
+      }
+      if (role === 'customer') return 'Awaiting your funding';
+      if (role === 'contractor') return 'Awaiting customer funding';
+      return 'Awaiting funding';
+    }
+    return taskStatusLabel(task);
+  };
+
+  const getDealStatusLabel = (deal: Deal) => {
+    const status = deriveDealStatus(deal);
+    if (status === 'awaiting_funding') {
+      const firstActive = deal.tasks.find(t => t.status !== 'Cancelled');
+      if (firstActive?.status === 'ContractorCreated') {
+        const customerAddr = chainInfo?.customer || deal.customer;
+        const contractorAddr = (chainInfo ? (chainInfo.contractor || deal.contractor) : deal.contractor) || '';
+        if (connected && myWallet && customerAddr && contractorAddr && myWallet !== customerAddr && myWallet !== contractorAddr) {
+          return 'Awaiting funding';
+        }
+        if (role === 'customer') return 'Awaiting your funding';
+        if (role === 'contractor') return 'Awaiting customer funding';
+        return 'Awaiting funding';
+      }
+    }
+    return getStatusLabel(status);
+  };
+
   // deleted handleSubmitWork
 
-  const handleTaskAction = async (taskIndex: number, action: () => Promise<any>) => {
-    setTaskErrors(prev => ({...prev, [taskIndex]: ''}));
+  const handleTaskAction = async (taskIndex: number, action: () => Promise<any>, successMsg: string) => {
     setTaskActionLoading(prev => ({...prev, [taskIndex]: true}));
     try {
       await action();
+      toast.success(successMsg, getLastTxSig() || undefined);
     } catch (err: any) {
-      setTaskErrors(prev => ({...prev, [taskIndex]: err.message || 'Action failed'}));
+      notifyActionError(toast, err, () => handleTaskAction(taskIndex, action, successMsg));
     } finally {
       setTaskActionLoading(prev => ({...prev, [taskIndex]: false}));
     }
   };
 
-  const handleGlobalAction = async (action: () => Promise<any>) => {
-    setGlobalError(null);
+  const handleGlobalAction = async (action: () => Promise<any>, successMsg: string) => {
     setGlobalLoading(true);
     try {
       await action();
+      toast.success(successMsg, getLastTxSig() || undefined);
     } catch (err: any) {
-      setGlobalError(err.message || 'Action failed');
+      notifyActionError(toast, err, () => handleGlobalAction(action, successMsg));
     } finally {
       setGlobalLoading(false);
     }
@@ -359,7 +547,6 @@ export const DealDetails = () => {
     }
     
     const loading = taskActionLoading[index];
-    const err = taskErrors[index];
     const submissionText = taskSubmissions[index] || '';
     
     if (task.status === 'Resolved') {
@@ -399,12 +586,11 @@ export const DealDetails = () => {
                 Only the customer wallet ({truncateAddress(chainInfo!.customer)}) can do this. Switch Phantom to that account.
               </p>
             ) : (
-              <Button variant="outline" onClick={() => handleTaskAction(index, () => client.cancelTask(deal.id, index))} disabled={loading || !hasEnoughSol}>
+              <Button variant="outline" onClick={() => handleTaskAction(index, () => client.cancelTask(deal.id, index), 'Task cancelled')} disabled={loading || !hasEnoughSol}>
                 {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> : null}
                 Cancel & Refund
               </Button>
             )}
-            {err && <p className="text-red-400 text-xs">{err}</p>}
           </div>
         );
       }
@@ -417,16 +603,19 @@ export const DealDetails = () => {
         return (
           <div className="mt-4 pt-4 border-t border-gray-800/50 space-y-3">
             <p className="text-sm text-gray-400">Fund this task in escrow to allow the contractor to start.</p>
-            {renderSolWarning()}
+            {!isWrongCustomer && renderSolWarning()}
             {!connected ? (
-              <Button onClick={() => setVisible(true)}>Connect Wallet to Deposit</Button>
+              <Button onClick={() => setVisible(true)}>Connect Wallet to Fund Task</Button>
+            ) : isWrongCustomer ? (
+              <p className="text-sm text-gray-400">
+                Only the customer wallet ({truncateAddress(chainInfo!.customer)}) can do this. Switch Phantom to that account.
+              </p>
             ) : (
-              <Button onClick={() => handleTaskAction(index, () => client.depositTask(deal.id, index, publicKey!.toBase58()))} disabled={loading || !hasEnoughSol} className={!hasEnoughSol ? 'opacity-50' : ''}>
+              <Button onClick={() => handleTaskAction(index, () => client.depositTask(deal.id, index, publicKey!.toBase58()), 'Task funded')} disabled={loading || !hasEnoughSol} className={!hasEnoughSol ? 'opacity-50' : ''}>
                 {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> : null}
-                Deposit
+                Fund task
               </Button>
             )}
-            {err && <p className="text-red-400 text-xs">{err}</p>}
           </div>
         );
       }
@@ -449,18 +638,16 @@ export const DealDetails = () => {
                  </p>
                ) : (
                  <>
-                   <Button variant="primary" className="bg-green-600 hover:bg-green-500" onClick={() => handleTaskAction(index, () => client.completeTask(deal.id, index, true))} disabled={loading || !hasEnoughSol} >
+                   <Button variant="primary" className="bg-green-600 hover:bg-green-500" onClick={() => handleTaskAction(index, () => client.completeTask(deal.id, index, true), 'Task approved')} disabled={loading || !hasEnoughSol} >
                       {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> : null}
                       Approve & Release
                    </Button>
-                   <Button variant="danger" onClick={() => handleTaskAction(index, () => client.completeTask(deal.id, index, false))} disabled={loading || !hasEnoughSol} >
+                   <Button variant="danger" onClick={() => handleTaskAction(index, () => client.completeTask(deal.id, index, false), 'Dispute opened')} disabled={loading || !hasEnoughSol} >
                       Open Dispute
                    </Button>
-                   {/* ASSUMPTION: confirm with the contract author */}
                  </>
                )}
             </div>
-            {err && <p className="text-red-400 text-xs">{err}</p>}
           </div>
         );
       }
@@ -480,14 +667,38 @@ export const DealDetails = () => {
                   {!connected ? (
                      <Button variant="outline" onClick={() => setVisible(true)}>Connect Wallet to Cancel</Button>
                   ) : (
-                    <Button variant="outline" onClick={() => handleTaskAction(index, () => client.cancelTask(deal.id, index))} disabled={loading || !hasEnoughSol}>
+                    <Button variant="outline" onClick={() => handleTaskAction(index, () => client.cancelTask(deal.id, index), 'Task cancelled')} disabled={loading || !hasEnoughSol}>
                       Cancel Task
                     </Button>
                   )}
                 </div>
               </>
             )}
-            {err && <p className="text-red-400 text-xs">{err}</p>}
+          </div>
+        );
+      }
+
+      if (task.status === 'CustomerCreated' && index > 0) {
+        return (
+          <div className="mt-4 pt-4 border-t border-gray-800/50 space-y-3">
+            <p className="text-sm text-gray-400">The customer funded this task. Start the task when you are ready to begin work.</p>
+            {!isWrongContractor && renderSolWarning()}
+            {!connected ? (
+              <Button onClick={() => setVisible(true)}>Connect Wallet to Start Task</Button>
+            ) : isWrongContractor ? (
+              <p className="text-sm text-gray-400">
+                Only the selected contractor wallet ({truncateAddress(contractorAddr)}) can do this. Switch Phantom to that account.
+              </p>
+            ) : (
+              <Button
+                variant="primary"
+                onClick={() => handleTaskAction(index, () => client.acceptTask(deal.id, index, publicKey!.toBase58()), 'Task started')}
+                disabled={loading || !hasEnoughSol}
+              >
+                {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> : null}
+                Start task
+              </Button>
+            )}
           </div>
         );
       }
@@ -517,11 +728,11 @@ export const DealDetails = () => {
                 </p>
               ) : (
                 <>
-                  <Button variant="primary" onClick={() => handleTaskAction(index, () => client.finishTask(deal.id, index, submissionText))} disabled={loading || !submissionText.trim() || !hasEnoughSol}>
+                  <Button variant="primary" onClick={() => handleTaskAction(index, () => client.finishTask(deal.id, index, submissionText), 'Work submitted')} disabled={loading || !submissionText.trim() || !hasEnoughSol}>
                     {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> : null}
                     Submit Work
                   </Button>
-                  <Button variant="outline" onClick={() => handleTaskAction(index, () => client.cancelTask(deal.id, index))} disabled={loading || !hasEnoughSol}>
+                  <Button variant="outline" onClick={() => handleTaskAction(index, () => client.cancelTask(deal.id, index), 'Task cancelled')} disabled={loading || !hasEnoughSol}>
                     Cancel & Return Funds
                   </Button>
                 </>
@@ -530,7 +741,6 @@ export const DealDetails = () => {
             {!isWrongContractor && (
               <p className="text-xs text-gray-500">If you cannot complete this task, cancelling returns the full amount to the customer.</p>
             )}
-            {err && <p className="text-red-400 text-xs">{err}</p>}
           </div>
         );
       }
@@ -553,16 +763,19 @@ export const DealDetails = () => {
         <div>
           <div className="flex flex-wrap items-center gap-3 mb-2">
             <h2 className="text-xl sm:text-2xl font-bold break-words">
-              {deal.tasks[0]?.meta.title}
+              {dealTitle(deal)}
               {deal.tasks.length > 1 && ` +${deal.tasks.length - 1}`}
             </h2>
             {/* TEMP: virtual deals go away in stage B. */}
             {isVirtualDeal && virtualStatusLabel ? (
               <Badge>{virtualStatusLabel}</Badge>
             ) : (
-              <Badge status={deriveDealStatus(deal)}>{getStatusLabel(deriveDealStatus(deal))}</Badge>
+              <Badge status={deriveDealStatus(deal)}>{getDealStatusLabel(deal)}</Badge>
             )}
           </div>
+          {deal.description && (
+            <p className="text-gray-400 text-sm mb-2 max-w-2xl whitespace-pre-wrap">{deal.description}</p>
+          )}
           <p className="text-gray-400 text-sm font-mono">{deal.id}</p>
         </div>
         <div className="text-left md:text-right mt-2 md:mt-0 flex flex-col items-start md:items-end gap-3">
@@ -619,23 +832,238 @@ export const DealDetails = () => {
                   {!connected ? (
                     <Button onClick={() => setVisible(true)}>Connect Wallet to Accept</Button>
                   ) : (
-                    <Button variant="gradient" onClick={() => handleGlobalAction(() => client.acceptDeal(deal.id, publicKey!.toBase58()))} disabled={globalLoading}>
+                    <Button variant="gradient" onClick={() => handleGlobalAction(() => client.acceptDeal(deal.id, publicKey!.toBase58()), 'Deal accepted')} disabled={globalLoading}>
                       {globalLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> : null}
                       Accept Deal
                     </Button>
                   )}
                 </div>
               </div>
-              {globalError && <p className="text-red-400 text-xs mt-2">{globalError}</p>}
             </Card>
           )}
 
           {!isVirtualDeal && isChainMode && chainInfo && !deal.contractor && <ApplicationsPanel deal={deal} chainInfo={chainInfo} role={role} />}
           <Card className="p-6">
-            <h3 className="text-lg font-medium mb-4 flex items-center gap-2">
-              <CheckCircle2 className="w-5 h-5 text-purple-400" />
-              Tasks
-            </h3>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+              <h3 className="text-lg font-medium flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-purple-400" />
+                Tasks
+              </h3>
+              {canAddTask && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowAddTaskForm((prev) => !prev);
+                    setFieldErrors({});
+                    handleRemoveTaskFile();
+                  }}
+                  className="w-fit text-xs px-3 py-1.5"
+                >
+                  <Plus className="w-4 h-4 mr-1.5" />
+                  {showAddTaskForm ? 'Cancel' : 'Add task'}
+                </Button>
+              )}
+            </div>
+
+            {showAddTaskForm && (
+              <form noValidate onSubmit={handleAddTaskSubmit} className="mb-5 p-4 rounded-lg bg-gray-900 border border-gray-800 space-y-4">
+                <div className="flex items-center justify-between border-b border-gray-800 pb-2">
+                  <span className="text-sm font-semibold text-gray-200">
+                    Add new task / milestone ({role === 'customer' ? 'Customer' : 'Contractor'})
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAddTaskForm(false);
+                      setFieldErrors({});
+                      handleRemoveTaskFile();
+                    }}
+                    className="text-gray-400 hover:text-white transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div>
+                  <label htmlFor="new-task-title" className="block text-xs font-medium text-gray-300 mb-1">
+                    Title
+                  </label>
+                  <input
+                    ref={taskTitleRef}
+                    id="new-task-title"
+                    type="text"
+                    required
+                    maxLength={100}
+                    placeholder="e.g. Milestone 2: Backend API"
+                    value={taskTitle}
+                    onChange={(e) => {
+                      setTaskTitle(e.target.value);
+                      setFieldErrors((prev) => ({ ...prev, title: '' }));
+                    }}
+                    className="w-full bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500/50"
+                  />
+                  {fieldErrors.title && <p className="text-xs text-red-400 mt-1">{fieldErrors.title}</p>}
+                </div>
+
+                <div>
+                  <label htmlFor="new-task-amount" className="block text-xs font-medium text-gray-300 mb-1">
+                    Amount ({symbol}) (min 0.01)
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
+                    <input
+                      ref={taskAmountRef}
+                      id="new-task-amount"
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      autoComplete="off"
+                      onWheel={(e) => e.currentTarget.blur()}
+                      required
+                      placeholder="0.01"
+                      value={taskAmount}
+                      onChange={(e) => {
+                        setTaskAmount(e.target.value);
+                        setFieldErrors((prev) => ({ ...prev, amount: '' }));
+                      }}
+                      className="w-full bg-gray-950 border border-gray-800 rounded-lg pl-7 pr-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500/50"
+                    />
+                  </div>
+                  {fieldErrors.amount && <p className="text-xs text-red-400 mt-1">{fieldErrors.amount}</p>}
+                </div>
+
+                <div>
+                  <label htmlFor="new-task-criteria" className="block text-xs font-medium text-gray-300 mb-1">
+                    Success Criteria
+                  </label>
+                  <textarea
+                    ref={taskCriteriaRef}
+                    id="new-task-criteria"
+                    required
+                    maxLength={1000}
+                    rows={3}
+                    placeholder="Describe deliverables and acceptance criteria for this milestone..."
+                    value={taskCriteria}
+                    onChange={(e) => {
+                      setTaskCriteria(e.target.value);
+                      setFieldErrors((prev) => ({ ...prev, criteria: '' }));
+                    }}
+                    className="w-full bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500/50 resize-none"
+                  />
+                  {fieldErrors.criteria && <p className="text-xs text-red-400 mt-1">{fieldErrors.criteria}</p>}
+                  <div className="flex flex-col gap-1.5 mt-2">
+                    <input
+                      ref={taskFileInputRef}
+                      type="file"
+                      className="hidden"
+                      onChange={handleTaskFileSelect}
+                    />
+                    <button
+                      type="button"
+                      disabled={isTaskHashing}
+                      onClick={() => taskFileInputRef.current?.click()}
+                      className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1 transition-colors w-fit disabled:opacity-50"
+                    >
+                      <Link2 className="w-3 h-3" />
+                      {isTaskHashing ? 'Hashing file…' : 'Attach File (Requirements)'}
+                    </button>
+                    {taskFileError && <p className="text-red-400 text-xs mt-1">{taskFileError}</p>}
+                    {taskReqFile && (
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-xs text-gray-300">
+                          <span className="font-medium text-white truncate max-w-[200px]" title={taskReqFile.name}>{taskReqFile.name}</span>
+                          <span className="font-mono text-gray-400">({taskReqFile.sha256.slice(0, 10)}…)</span>
+                          <button
+                            type="button"
+                            onClick={handleRemoveTaskFile}
+                            className="text-gray-400 hover:text-white p-0.5 rounded transition-colors"
+                            aria-label="Remove attached file"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-gray-500 leading-tight">
+                          The file is not uploaded. Only its SHA-256 fingerprint is stored in the deal. Send the file to {role === 'contractor' ? 'the customer' : 'your contractor'} separately.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="new-task-deadline" className="block text-xs font-medium text-gray-300 mb-1">
+                    Deadline
+                  </label>
+                  <input
+                    ref={taskDeadlineRef}
+                    id="new-task-deadline"
+                    type="date"
+                    required
+                    value={taskDeadline}
+                    onChange={(e) => {
+                      setTaskDeadline(e.target.value);
+                      setFieldErrors((prev) => ({ ...prev, deadline: '' }));
+                    }}
+                    onClick={(e) => 'showPicker' in HTMLInputElement.prototype && e.currentTarget.showPicker()}
+                    className="w-full bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500/50 cursor-pointer [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:opacity-70 hover:[&::-webkit-calendar-picker-indicator]:opacity-100"
+                  />
+                  {fieldErrors.deadline && <p className="text-xs text-red-400 mt-1">{fieldErrors.deadline}</p>}
+                </div>
+
+                {role === 'customer' && (
+                  <p className="text-xs text-gray-400">
+                    Adding this task deposits {taskAmount || '0'} {symbol} directly into escrow on-chain.
+                  </p>
+                )}
+                {role === 'contractor' && (
+                  <p className="text-xs text-gray-400">
+                    This task will be created on-chain and wait for the customer to fund it in escrow.
+                  </p>
+                )}
+
+                <NetworkDepositInfo type="task" wallet={publicKey?.toBase58()} />
+
+                {isInsufficientUsdc && (
+                  <div className="mb-4 bg-orange-500/10 border border-orange-500/20 rounded-lg p-3 text-sm text-orange-400">
+                    You have {usdcBalance.toFixed(2)} {symbol}, this task needs {parsedTaskAmount.toFixed(2)}. Use "Get USDC/SOL" in the header.
+                  </div>
+                )}
+
+                {renderSolWarning()}
+
+                {isWrongUserForAddTask ? (
+                  <p className="text-sm text-gray-400">
+                    Only the {role} wallet ({truncateAddress(role === 'customer' ? chainInfo!.customer : contractorAddr)}) can do this. Switch Phantom to that account.
+                  </p>
+                ) : !connected ? (
+                  <Button type="button" onClick={() => setVisible(true)}>Connect Wallet to Add Task</Button>
+                ) : (
+                  <div className="flex items-center gap-2 pt-1">
+                    <Button
+                      type="submit"
+                      variant="primary"
+                      disabled={addTaskLoading || !hasEnoughSol || isInsufficientUsdc}
+                      title={!hasEnoughSol ? "Not enough SOL for network fees" : isInsufficientUsdc ? `Not enough ${symbol} to fund task` : undefined}
+                    >
+                      {addTaskLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> : null}
+                      {role === 'customer' ? 'Add & Fund Task' : 'Add Task'}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setShowAddTaskForm(false);
+                        setFieldErrors({});
+                        handleRemoveTaskFile();
+                      }}
+                      disabled={addTaskLoading}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                )}
+              </form>
+            )}
             <div className="space-y-3">
               {isVirtualDeal && !deal.tasks[0]?.meta.successCriteria ? (
                 <div className="bg-gray-950 p-4 rounded-lg border border-gray-800 text-gray-300 leading-relaxed">
@@ -657,7 +1085,7 @@ export const DealDetails = () => {
                         </div>
                         <div className="flex flex-wrap sm:flex-nowrap items-center gap-3 shrink-0">
                           <span className="font-semibold text-gray-200">${task.amount.toLocaleString()}</span>
-                          <Badge status={taskStatusKind(task)}>{taskStatusLabel(task)}</Badge>
+                          <Badge status={taskStatusKind(task)}>{getTaskStatusLabel(task)}</Badge>
                           <span className="text-gray-500 text-xs w-24 text-right truncate" title={task.deadline}>{task.deadline === 'TBD' ? 'TBD' : task.deadline}</span>
                         </div>
                       </button>

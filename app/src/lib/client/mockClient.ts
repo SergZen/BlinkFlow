@@ -1,6 +1,7 @@
 import { BlinkflowClient } from './types';
 import { Deal, Task, TaskStatus } from '../types';
 import { taskHashInput } from '../fileHash';
+import { HIDDEN_DEAL_IDS } from '../hiddenDeals';
 
 // In-memory store
 let deals: Deal[] = [];
@@ -60,11 +61,12 @@ const getNow = () => new Date().toISOString().split('T')[0];
 export const mockClient: BlinkflowClient = {
   async listDeals() {
     await delay(300);
-    return JSON.parse(JSON.stringify(deals));
+    return JSON.parse(JSON.stringify(deals.filter(d => d && !HIDDEN_DEAL_IDS.has(d.id))));
   },
   
   async getDeal(id: string) {
     await delay(300);
+    if (HIDDEN_DEAL_IDS.has(id)) return null;
     const deal = deals.find(d => d.id === id);
     return deal ? JSON.parse(JSON.stringify(deal)) : null;
   },
@@ -94,14 +96,43 @@ export const mockClient: BlinkflowClient = {
       meta
     };
 
+    const tasks: Task[] = [task];
+    if (input.extraTasks && input.extraTasks.length > 0) {
+      for (let i = 0; i < input.extraTasks.length; i++) {
+        const extra = input.extraTasks[i];
+        const extraTaskHash = await createHash(taskHashInput(extra.title, extra.successCriteria, extra.requirementsFile?.sha256));
+        tasks.push({
+          taskIndex: i + 1,
+          amount: extra.amount,
+          status: input.role === 'customer' ? 'CustomerCreated' : 'ContractorCreated',
+          taskHash: extraTaskHash,
+          solutionHash: null,
+          solutionNote: null,
+          deadline: extra.deadline,
+          createdAt: now,
+          deposited: false,
+          meta: {
+            title: extra.title,
+            successCriteria: extra.successCriteria,
+            ...(extra.requirementsFile ? { requirementsFile: extra.requirementsFile } : {})
+          }
+        });
+      }
+    }
+
     const newDeal: Deal = {
       id,
       creator: input.wallet,
-      customer: input.role === 'customer' ? input.wallet : null,
-      contractor: input.role === 'contractor' ? input.wallet : null,
+      customer: input.role === 'customer' ? input.wallet : (input.customerWallet || null),
+      contractor: input.role === 'contractor' ? input.wallet : (input.contractorWallet || null),
       createdAt: now,
-      tasks: [task],
-      history: [{ date: now, action: 'Deal Created' }]
+      tasks,
+      history: [{
+        date: now,
+        action: tasks.length > 1 ? `Deal Created with ${tasks.length} stages` : 'Deal Created'
+      }],
+      ...(input.dealTitle ? { title: input.dealTitle } : {}),
+      ...(input.dealDescription ? { description: input.dealDescription } : {})
     };
     
     deals.push(newDeal);
@@ -134,7 +165,7 @@ export const mockClient: BlinkflowClient = {
     const deal = deals.find(d => d.id === dealId);
     if (!deal) throw new Error("Deal not found");
 
-    const taskHash = await createHash(JSON.stringify({ title: input.title, successCriteria: input.successCriteria }));
+    const taskHash = await createHash(taskHashInput(input.title, input.successCriteria, input.requirementsFile?.sha256));
     const task: Task = {
       taskIndex: deal.tasks.length,
       amount: input.amount,
@@ -145,10 +176,26 @@ export const mockClient: BlinkflowClient = {
       deadline: input.deadline,
       createdAt: getNow(),
       deposited: false,
-      meta: { title: input.title, successCriteria: input.successCriteria }
+      meta: {
+        title: input.title,
+        successCriteria: input.successCriteria,
+        ...(input.requirementsFile ? { requirementsFile: input.requirementsFile } : {}),
+      }
     };
     deal.tasks.push(task);
     deal.history.push({ date: getNow(), action: 'Task Added' });
+    saveDeals();
+    return JSON.parse(JSON.stringify(deal));
+  },
+
+  async acceptTask(dealId, taskIndex, wallet) {
+    await delay(300);
+    const deal = deals.find(d => d.id === dealId);
+    if (!deal) throw new Error("Deal not found");
+    const task = deal.tasks[taskIndex];
+    if (!task) throw new Error("Task not found");
+    task.status = 'Started';
+    deal.history.push({ date: getNow(), action: `Task #${taskIndex} Started` });
     saveDeals();
     return JSON.parse(JSON.stringify(deal));
   },
