@@ -60,4 +60,6 @@ pub enum BlinkFlowError {
     ReviewPeriodNotReached,
     #[msg("The combined protocol and arbitration fee bps cannot exceed 10,000.")]  
     FeeSumExceedsMaximum,
+    #[msg("Customer and contractor must be different accounts to prevent self-dealing.")]
+    SelfDealingNotAllowed,
 }

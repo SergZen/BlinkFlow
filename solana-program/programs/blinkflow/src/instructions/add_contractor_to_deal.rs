@@ -43,6 +43,7 @@ impl<'info> AddContractorToDeal<'info> {
             self.contractor.key(),
             BlinkFlowError::TrustAuthorityRoleMismatch
         );
+        require_keys_neq!(self.customer.key(), self.contractor.key(), BlinkFlowError::SelfDealingNotAllowed);
 
         self.deal.pending_contractor = Some(self.contractor.key());
 

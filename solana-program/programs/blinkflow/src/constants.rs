@@ -25,6 +25,12 @@ pub const GHOSTING_TIMER_SECS: i64 = 14 * 24 * 60 * 60;
 pub const REVIEW_PERIOD_SECS: i64 = 14 * 24 * 60 * 60;
 
 #[constant]
+pub const DEADLINE_MIN_SECS: i64 = 1 * 24 * 60 * 60;
+
+#[constant]
+pub const DEADLINE_MAX_SECS: i64 = 365 * 24 * 60 * 60;
+
+#[constant]
 pub const MAX_COUNT_TASK_BY_DIAL:u8 = 255;
 
 #[constant]

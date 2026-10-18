@@ -46,6 +46,7 @@ pub struct InitDealByContractor<'info> {
     pub task: Account<'info, Task>,
 
     #[account(
+        constraint = mint.key() == protocol.mint @ BlinkFlowError::InvalidMint, 
         mint::token_program = token_program
     )]
     pub mint: Account<'info, Mint>,
@@ -60,7 +61,6 @@ pub struct InitDealByContractor<'info> {
     pub deal_vault: Account<'info, TokenAccount>,
 
     #[account(
-        mut,
         associated_token::mint = mint,
         associated_token::authority = customer,
         associated_token::token_program = token_program
@@ -124,6 +124,7 @@ impl<'info> InitDealByContractor<'info> {
             self.protocol.trust_authority,
             BlinkFlowError::InvalidTrustAuthority
         );
+        require_keys_neq!(self.customer.key(), self.contractor.key(), BlinkFlowError::SelfDealingNotAllowed);
 
         let creator = self.contractor.key();
 
