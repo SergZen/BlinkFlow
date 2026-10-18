@@ -23,4 +23,4 @@ pub struct Deal {
     pub protocol_fee_bps: u16,
     pub arbitration_fee_bps: u16,
     pub bump: u8,
-} //task_completed_count + task_cancelled_count + task_disputed_count
+}

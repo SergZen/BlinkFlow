@@ -59,7 +59,15 @@ pub struct InitDealByContractor<'info> {
     )]
     pub deal_vault: Account<'info, TokenAccount>,
 
-        /// CHECK: sbt collection
+    #[account(
+        mut,
+        associated_token::mint = mint,
+        associated_token::authority = customer,
+        associated_token::token_program = token_program
+    )]
+    pub customer_ata: Box<Account<'info, TokenAccount>>,
+
+    /// CHECK: sbt collection
     #[account(
         mut,
         seeds = [SBT_COLLECTION_SEED],
