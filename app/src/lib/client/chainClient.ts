@@ -430,7 +430,7 @@ export const chainClient: BlinkflowClient = {
         throw new Error('Invalid customer wallet.');
       }
       if (customer.equals(contractor)) {
-        throw new Error('The customer cannot be the contractor.');
+        throw new Error('The customer and the contractor must be different wallets.');
       }
 
       let trust: PublicKey;
@@ -445,7 +445,15 @@ export const chainClient: BlinkflowClient = {
 
       const seed = BigInt(Date.now());
       const a = addrs(customer, contractor, seed);
+      const custAtaAccount = await withRetry(() => conn.getAccountInfo(a.customerAta));
+      if (!custAtaAccount) {
+        throw new Error('The customer has no USDC account yet, so the deal cannot be created now. Ask them to get USDC first.');
+      }
+
       const seconds = Math.max(86400, Math.floor((new Date(input.deadline).getTime() - Date.now()) / 1000) || 604800);
+      if (seconds > 365 * 86400) {
+        throw new Error('The deadline cannot be more than 365 days from now.');
+      }
       const taskHash = await sha256(taskHashInput(input.title, input.successCriteria, input.requirementsFile?.sha256));
 
       const data = cat(
@@ -465,6 +473,7 @@ export const chainClient: BlinkflowClient = {
         meta(a.task0, false, true),
         meta(MINT, false, false),
         meta(a.dealVault, false, true),
+        meta(a.customerAta, false, false),
         meta(a.sbtCollection, false, true),
         meta(a.sbtContractor, false, true),
         meta(MPL_CORE, false, false),
@@ -479,6 +488,9 @@ export const chainClient: BlinkflowClient = {
           const extra = input.extraTasks[i];
           const extraTaskIndex = i + 1;
           const extraSeconds = Math.max(86400, Math.floor((new Date(extra.deadline).getTime() - Date.now()) / 1000) || 604800);
+          if (extraSeconds > 365 * 86400) {
+            throw new Error('The deadline cannot be more than 365 days from now.');
+          }
           const extraTaskHash = await sha256(taskHashInput(extra.title, extra.successCriteria, extra.requirementsFile?.sha256));
           const extraAmountU64 = u64(BigInt(Math.round(extra.amount * 10 ** DECIMALS)));
           const newTask = taskPda(a.deal, extraTaskIndex);
@@ -538,6 +550,9 @@ export const chainClient: BlinkflowClient = {
     const customer = new PublicKey(input.wallet);
     const contractorStr: string = ((input as any).contractorWallet || '').trim();
     const contractor = contractorStr ? new PublicKey(contractorStr) : null;
+    if (contractor && customer.equals(contractor)) {
+      throw new Error('The customer and the contractor must be different wallets.');
+    }
     const seed = BigInt(Date.now());
     const a = addrs(customer, contractor ?? customer, seed);
     const totalAmount = input.amount + (input.extraTasks?.reduce((acc, t) => acc + t.amount, 0) || 0);
@@ -565,6 +580,9 @@ export const chainClient: BlinkflowClient = {
       console.warn('[createDeal] balance pre-check skipped due to RPC error:', err?.message || err);
     }
     const seconds = Math.max(86400, Math.floor((new Date(input.deadline).getTime() - Date.now()) / 1000) || 604800);
+    if (seconds > 365 * 86400) {
+      throw new Error('The deadline cannot be more than 365 days from now.');
+    }
     const taskHash = await sha256(taskHashInput(input.title, input.successCriteria, input.requirementsFile?.sha256));
     let trust: PublicKey;
     try {
@@ -586,6 +604,9 @@ export const chainClient: BlinkflowClient = {
         const extra = input.extraTasks[i];
         const extraTaskIndex = i + 1;
         const extraSeconds = Math.max(86400, Math.floor((new Date(extra.deadline).getTime() - Date.now()) / 1000) || 604800);
+        if (extraSeconds > 365 * 86400) {
+          throw new Error('The deadline cannot be more than 365 days from now.');
+        }
         const extraTaskHash = await sha256(taskHashInput(extra.title, extra.successCriteria, extra.requirementsFile?.sha256));
         const extraAmountU64 = u64(BigInt(Math.round(extra.amount * 10 ** DECIMALS)));
         const newTask = taskPda(a.deal, extraTaskIndex);
@@ -637,7 +658,7 @@ export const chainClient: BlinkflowClient = {
     const c = await ctx(dealId); if (!c) throw new Error('This deal is not on-chain, so this action cannot be performed.');
     requireWallet(c.info.customer, 'customer');
     let picked: PublicKey; try { picked = new PublicKey(contractorWallet); } catch { throw new Error('Invalid contractor wallet.'); }
-    if (picked.toBase58() === c.info.customer) throw new Error('The customer cannot be the contractor.');
+    if (picked.toBase58() === c.info.customer) throw new Error('The customer and the contractor must be different wallets.');
     const d = getDeals().find((x) => x.id === dealId);
     if (!d || d.contractor || d.tasks?.[0]?.status !== 'CustomerCreated') throw new Error('The contractor already accepted this deal. It can no longer be changed.');
     const a = c.a;
@@ -698,6 +719,9 @@ export const chainClient: BlinkflowClient = {
     const seconds = Math.max(86400, Math.floor((new Date(input.deadline).getTime() - Date.now()) / 1000) || 604800);
     if (seconds <= 0) {
       throw new Error('Deadline must be in the future.');
+    }
+    if (seconds > 365 * 86400) {
+      throw new Error('The deadline cannot be more than 365 days from now.');
     }
 
     const taskHash = await sha256(taskHashInput(input.title.trim(), input.successCriteria.trim(), input.requirementsFile?.sha256));
@@ -934,6 +958,12 @@ export const chainClient: BlinkflowClient = {
     requireWallet(c.info.customer, 'customer');
     const a = c.a;
     const task = taskPda(a.deal, taskIndex);
+    if (approved) {
+      const contractorAtaAccount = await withRetry(() => conn.getAccountInfo(a.contractorAta));
+      if (!contractorAtaAccount) {
+        throw new Error('The contractor has no USDC account yet, so the payment cannot be made. Ask them to get USDC first.');
+      }
+    }
     const sig = await sendTx([ix(cat(Uint8Array.from(DISC.completeTaskByCustomer), Uint8Array.of(taskIndex), Uint8Array.of(approved ? 1 : 0)), [
       meta(c.customer, true, true), meta(c.contractor), meta(a.protocol), meta(a.deal, false, true), meta(task, false, true), meta(MINT),
       meta(a.dealVault, false, true), meta(a.protocolVault, false, true), meta(a.contractorAta, false, true), meta(a.sbtCollection, false, true),

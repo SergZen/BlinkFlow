@@ -38,7 +38,11 @@ export function friendlyError(e: unknown): string {
     text.includes('account not initialized') ||
     text.includes('could not find account');
 
-  if (isCustom0x1WithToken || isInsufficientFundsWithToken || isAccountMissing) {
+  if (isAccountMissing) {
+    return 'A required USDC account does not exist yet. If it is yours, use "Get USDC-Dev" in the header. Otherwise ask the other person to get USDC first.';
+  }
+
+  if (isCustom0x1WithToken || isInsufficientFundsWithToken) {
     return 'Not enough USDC-Dev on this wallet. Use "Get USDC-Dev" in the header and try again.';
   }
 
@@ -74,6 +78,9 @@ export function friendlyError(e: unknown): string {
     protocolpaused: 'The protocol is paused by the admin. Try again later.',
     trustauthorityrolemismatch: 'The arbiter wallet cannot take part in this deal as a contractor.',
     contractormustbeempty: 'This deal already has a contractor.',
+    invaliddeadline: 'The deadline must be between 1 and 365 days from now.',
+    invalidmint: 'This deal uses a token the protocol does not support.',
+    selfdealingnotallowed: 'The customer and the contractor must be different wallets.',
   };
 
   for (const [key, cleanMsg] of Object.entries(contractErrors)) {
@@ -91,6 +98,9 @@ export function friendlyError(e: unknown): string {
     'Connect Phantom',
     'Invalid',
     'The transaction',
+    'The deadline',
+    'You cannot',
+    'A required USDC account',
   ];
   const origMsg = (e as any)?.message || (typeof e === 'string' ? e : '');
   if (typeof origMsg === 'string' && cleanPrefixes.some((p) => origMsg.startsWith(p))) {

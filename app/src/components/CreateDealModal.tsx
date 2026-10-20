@@ -80,6 +80,11 @@ export const CreateDealModal = ({
   const [contractorWalletInput, setContractorWalletInput] = useState('');
   const [customerWalletInput, setCustomerWalletInput] = useState('');
 
+  const minDeadlineStr = new Date().toISOString().slice(0, 10);
+  const maxDeadlineDate = new Date();
+  maxDeadlineDate.setDate(maxDeadlineDate.getDate() + 365);
+  const maxDeadlineStr = maxDeadlineDate.toISOString().slice(0, 10);
+
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const toast = useToast();
@@ -201,10 +206,24 @@ export const CreateDealModal = ({
         try {
           new PublicKey(trimmedCustomer);
           if (publicKey && trimmedCustomer === publicKey.toBase58()) {
-            setFieldError('deal-customer', 'customerWallet', 'The customer cannot be the contractor.');
+            setFieldError('deal-customer', 'customerWallet', 'You cannot use your own wallet for both roles.');
           }
         } catch {
           setFieldError('deal-customer', 'customerWallet', 'Invalid customer wallet: must be a valid Solana public key');
+        }
+      }
+    }
+
+    if (role === 'customer') {
+      const trimmedContractor = contractorWalletInput.trim();
+      if (trimmedContractor) {
+        try {
+          new PublicKey(trimmedContractor);
+          if (publicKey && trimmedContractor === publicKey.toBase58()) {
+            setFieldError('deal-contractor', 'contractorWallet', 'You cannot use your own wallet for both roles.');
+          }
+        } catch {
+          setFieldError('deal-contractor', 'contractorWallet', 'Invalid contractor wallet: must be a valid Solana public key');
         }
       }
     }
@@ -237,8 +256,13 @@ export const CreateDealModal = ({
       const selectedDate = new Date(deadline);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
+      const maxAllowed = new Date();
+      maxAllowed.setDate(maxAllowed.getDate() + 365);
+      maxAllowed.setHours(23, 59, 59, 999);
       if (selectedDate < today) {
         setFieldError(stage1DeadlineId, stage1DeadlineKey, 'Deadline cannot be in the past');
+      } else if (selectedDate > maxAllowed) {
+        setFieldError(stage1DeadlineId, stage1DeadlineKey, 'The deadline cannot be more than 365 days from now.');
       }
     }
 
@@ -263,8 +287,13 @@ export const CreateDealModal = ({
           const selectedDate = new Date(stage.deadline);
           const today = new Date();
           today.setHours(0, 0, 0, 0);
+          const maxAllowed = new Date();
+          maxAllowed.setDate(maxAllowed.getDate() + 365);
+          maxAllowed.setHours(23, 59, 59, 999);
           if (selectedDate < today) {
             setFieldError(`stage-${stageIdx}-deadline`, `stage_${stageIdx}_deadline`, 'Deadline cannot be in the past');
+          } else if (selectedDate > maxAllowed) {
+            setFieldError(`stage-${stageIdx}-deadline`, `stage_${stageIdx}_deadline`, 'The deadline cannot be more than 365 days from now.');
           }
         }
       });
@@ -442,6 +471,7 @@ export const CreateDealModal = ({
                     onChange={(e) => {
                       const val = e.target.value;
                       setContractorWalletInput(val);
+                      setFieldErrors(prev => ({ ...prev, contractorWallet: '' }));
                       if (!val.trim() && severalStages) {
                         setSeveralStages(false);
                         setExtraStages([]);
@@ -449,6 +479,7 @@ export const CreateDealModal = ({
                     }}
                     className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-2.5 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all text-white font-mono text-sm"
                   />
+                  {fieldErrors.contractorWallet && <p className="text-red-400 text-xs mt-1">{fieldErrors.contractorWallet}</p>}
                   <p className="text-xs text-gray-500 mt-1">You can also invite a specific contractor by pasting their wallet.</p>
                 </div>
               )}
@@ -608,6 +639,8 @@ export const CreateDealModal = ({
                       <input 
                         id="stage-0-deadline"
                         type="date" 
+                        min={minDeadlineStr}
+                        max={maxDeadlineStr}
                         value={deadline}
                         onChange={(e) => {
                           setDeadline(e.target.value);
@@ -740,6 +773,8 @@ export const CreateDealModal = ({
                           <input 
                             id={`stage-${stageIdx}-deadline`}
                             type="date" 
+                            min={minDeadlineStr}
+                            max={maxDeadlineStr}
                             value={stage.deadline}
                             onChange={(e) => {
                               const val = e.target.value;
@@ -838,6 +873,8 @@ export const CreateDealModal = ({
                     <input 
                       id="deal-deadline"
                       type="date" 
+                      min={minDeadlineStr}
+                      max={maxDeadlineStr}
                       value={deadline}
                       onChange={(e) => { setDeadline(e.target.value); setFieldErrors(prev => ({ ...prev, deadline: '' })); }}
                       onClick={(e) => 'showPicker' in HTMLInputElement.prototype && e.currentTarget.showPicker()}

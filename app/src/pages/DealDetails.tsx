@@ -234,6 +234,10 @@ export const DealDetails = () => {
   const { solBalance } = useSolBalance();
   const { balance: usdcBalance } = useUsdcBalance();
   const { symbol } = useToken();
+  const minDeadlineStr = new Date().toISOString().slice(0, 10);
+  const maxDeadlineDate = new Date();
+  maxDeadlineDate.setDate(maxDeadlineDate.getDate() + 365);
+  const maxDeadlineStr = maxDeadlineDate.toISOString().slice(0, 10);
   const MIN_SOL_REQUIRED = 0.01;
   const hasEnoughSol = solBalance === null || solBalance >= MIN_SOL_REQUIRED;
 
@@ -342,8 +346,13 @@ export const DealDetails = () => {
       const selectedDate = new Date(taskDeadline);
       const todayDate = new Date();
       todayDate.setHours(0, 0, 0, 0);
+      const maxAllowed = new Date();
+      maxAllowed.setDate(maxAllowed.getDate() + 365);
+      maxAllowed.setHours(23, 59, 59, 999);
       if (selectedDate < todayDate) {
         errors.deadline = 'Deadline cannot be in the past';
+      } else if (selectedDate > maxAllowed) {
+        errors.deadline = 'The deadline cannot be more than 365 days from now.';
       }
     }
     if (!taskCriteria.trim()) {
@@ -998,6 +1007,8 @@ export const DealDetails = () => {
                     ref={taskDeadlineRef}
                     id="new-task-deadline"
                     type="date"
+                    min={minDeadlineStr}
+                    max={maxDeadlineStr}
                     required
                     value={taskDeadline}
                     onChange={(e) => {
