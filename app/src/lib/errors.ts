@@ -81,6 +81,9 @@ export function friendlyError(e: unknown): string {
     invaliddeadline: 'The deadline must be between 1 and 365 days from now.',
     invalidmint: 'This deal uses a token the protocol does not support.',
     selfdealingnotallowed: 'The customer and the contractor must be different wallets.',
+    reviewperiodnotreached: 'The 14-day review period is not over yet.',
+    refundtimenotreached: 'A refund is possible only 14 days after the deadline.',
+    alltasksnotclosed: 'Close every task of this deal first.',
   };
 
   for (const [key, cleanMsg] of Object.entries(contractErrors)) {

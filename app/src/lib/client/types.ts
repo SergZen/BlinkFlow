@@ -26,5 +26,9 @@ export interface BlinkflowClient {
   finishTask(dealId: string, taskIndex: number, solutionNote: string): Promise<Deal>;
   completeTask(dealId: string, taskIndex: number, approved: boolean): Promise<Deal>;
   cancelTask(dealId: string, taskIndex: number): Promise<Deal>;
+  releaseTask(dealId: string, taskIndex: number): Promise<Deal>;
+  refundTask(dealId: string, taskIndex: number): Promise<Deal>;
+  closeTask(dealId: string, taskIndex: number): Promise<Deal>;
+  closeDeal(dealId: string): Promise<Deal>;
   resolveDispute(dealId: string, taskIndex: number, customerWins: boolean): Promise<Deal>;
 }

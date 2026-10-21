@@ -7,6 +7,8 @@ export interface RoleReputation {
   lost: number;
   disputes: number;
   volumeUsdc: number;
+  autoReleased?: number;
+  unresponsive?: number;
 }
 
 export interface Reputation {
@@ -23,10 +25,12 @@ const KEYS = [
   'contractor_lost',
   'contractor_disputes',
   'contractor_volume',
+  'contractor_auto_released',
   'customer_success',
   'customer_lost',
   'customer_disputes',
   'customer_volume',
+  'customer_unresponsive',
   'first_seen',
   'last_seen',
 ] as const;
@@ -122,12 +126,14 @@ export async function fetchReputation(owner: string): Promise<Reputation | null>
       lost: parseNum(raw['contractor_lost']),
       disputes: parseNum(raw['contractor_disputes']),
       volumeUsdc: parseNum(raw['contractor_volume']) / 1_000_000,
+      autoReleased: parseNum(raw['contractor_auto_released']),
     },
     customer: {
       success: parseNum(raw['customer_success']),
       lost: parseNum(raw['customer_lost']),
       disputes: parseNum(raw['customer_disputes']),
       volumeUsdc: parseNum(raw['customer_volume']) / 1_000_000,
+      unresponsive: parseNum(raw['customer_unresponsive']),
     },
     firstSeen: parseDate(raw['first_seen']),
     lastSeen: parseDate(raw['last_seen']),

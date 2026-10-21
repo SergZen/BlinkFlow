@@ -32,6 +32,19 @@ export async function newTaskDeposit(): Promise<number> {
   return task / LAMPORTS_PER_SOL;
 }
 
+export async function closeTaskRefund(): Promise<number> {
+  const task = await rentLamports(TASK_ACCOUNT_BYTES);
+  return task / LAMPORTS_PER_SOL;
+}
+
+export async function closeDealRefund(): Promise<number> {
+  const [deal, vault] = await Promise.all([
+    rentLamports(DEAL_ACCOUNT_BYTES),
+    rentLamports(DEAL_VAULT_BYTES),
+  ]);
+  return (deal + vault) / LAMPORTS_PER_SOL;
+}
+
 interface NetworkDepositInfoProps {
   type: 'deal' | 'task';
   wallet?: string | null;

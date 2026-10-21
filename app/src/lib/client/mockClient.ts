@@ -257,8 +257,77 @@ export const mockClient: BlinkflowClient = {
     const task = deal.tasks[taskIndex];
     if (!task) throw new Error("Task not found");
 
+    const wasContractorCreated = task.status === 'ContractorCreated';
     task.status = 'Cancelled';
-    deal.history.push({ date: getNow(), action: 'Task Cancelled' });
+    deal.history.push({
+      date: getNow(),
+      action: wasContractorCreated
+        ? 'Proposal withdrawn by the contractor (no funds moved)'
+        : 'Task Cancelled',
+    });
+    saveDeals();
+    return JSON.parse(JSON.stringify(deal));
+  },
+
+  async releaseTask(dealId, taskIndex) {
+    await delay(300);
+    const deal = deals.find(d => d.id === dealId);
+    if (!deal) throw new Error("Deal not found");
+    const task = deal.tasks[taskIndex];
+    if (!task) throw new Error("Task not found");
+
+    task.status = 'Completed';
+    task.autoReleased = true;
+    deal.history.push({
+      date: getNow(),
+      action: 'Payment released after the review period (no review from the customer)',
+    });
+    saveDeals();
+    return JSON.parse(JSON.stringify(deal));
+  },
+
+  async refundTask(dealId, taskIndex) {
+    await delay(300);
+    const deal = deals.find(d => d.id === dealId);
+    if (!deal) throw new Error("Deal not found");
+    const task = deal.tasks[taskIndex];
+    if (!task) throw new Error("Task not found");
+
+    task.status = 'Refunded';
+    deal.history.push({
+      date: getNow(),
+      action: 'Refunded to the customer after the deadline (no work submitted)',
+    });
+    saveDeals();
+    return JSON.parse(JSON.stringify(deal));
+  },
+
+  async closeTask(dealId, taskIndex) {
+    await delay(300);
+    const deal = deals.find(d => d.id === dealId);
+    if (!deal) throw new Error("Deal not found");
+    const task = deal.tasks[taskIndex];
+    if (!task) throw new Error("Task not found");
+
+    task.closed = true;
+    deal.history.push({
+      date: getNow(),
+      action: `Task #${taskIndex} closed, network deposit returned`,
+    });
+    saveDeals();
+    return JSON.parse(JSON.stringify(deal));
+  },
+
+  async closeDeal(dealId) {
+    await delay(300);
+    const deal = deals.find(d => d.id === dealId);
+    if (!deal) throw new Error("Deal not found");
+
+    deal.closed = true;
+    deal.history.push({
+      date: getNow(),
+      action: 'Deal closed, network deposit returned',
+    });
     saveDeals();
     return JSON.parse(JSON.stringify(deal));
   },
