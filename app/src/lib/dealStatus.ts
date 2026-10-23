@@ -154,44 +154,53 @@ export const canDealBeClosed = (
   return isDealFinalized(deal);
 };
 
-export const dealNeedsMyAction = (
+export type DealActionKind = 'urgent' | 'close' | null;
+
+export const dealActionKind = (
   deal: Deal,
   wallet: string | null,
   closedState?: 'open' | 'closed' | 'unknown'
-): boolean => {
-  if (!wallet) return false;
+): DealActionKind => {
+  if (!wallet) return null;
 
   const isCustomer = deal.customer === wallet;
   const isContractor = deal.contractor === wallet;
 
   if (isCustomer) {
     // - a task is Finished (work submitted): approve or dispute;
-    if (deal.tasks.some(t => t.status === 'Finished')) return true;
+    if (deal.tasks.some(t => t.status === 'Finished')) return 'urgent';
     // - a task is ContractorCreated and not deposited (proposal from the contractor): fund it;
-    if (deal.tasks.some(t => t.status === 'ContractorCreated' && !t.deposited)) return true;
+    if (deal.tasks.some(t => t.status === 'ContractorCreated' && !t.deposited)) return 'urgent';
     // - the deal has no contractor yet and is not cancelled: assign a contractor.
-    if (!deal.contractor && deriveDealStatus(deal) !== 'cancelled') return true;
+    if (!deal.contractor && deriveDealStatus(deal) !== 'cancelled') return 'urgent';
   }
 
   if (isContractor) {
     // - a task is CustomerCreated or ContractorCreated, deposited, not started: start it
     if (deal.tasks.some(t => (t.status === 'CustomerCreated' || t.status === 'ContractorCreated') && t.deposited)) {
-      return true;
+      return 'urgent';
     }
     // - a task is Started: submit work.
-    if (deal.tasks.some(t => t.status === 'Started')) return true;
+    if (deal.tasks.some(t => t.status === 'Started')) return 'urgent';
   }
 
-  // Either wallet, only after the closed state is known: all tasks are in a final status and the deal state is 'open'
-  // AND the wallet is the deal creator: close the deal. (Skip this rule while the state is unknown or not loaded.)
+  // Close deal rule: ONLY when no urgent rule applies and all tasks final, closed state is 'open', and the wallet is the deal creator
   const effectiveClosedState = deal.closed ? 'closed' : closedState;
   if (effectiveClosedState === 'open' && deal.creator === wallet) {
     if (isDealFinalized(deal)) {
-      return true;
+      return 'close';
     }
   }
 
-  return false;
+  return null;
+};
+
+export const dealNeedsMyAction = (
+  deal: Deal,
+  wallet: string | null,
+  closedState?: 'open' | 'closed' | 'unknown'
+): boolean => {
+  return dealActionKind(deal, wallet, closedState) !== null;
 };
 
 export const dealsNeedingMyAction = (
@@ -200,6 +209,15 @@ export const dealsNeedingMyAction = (
   closedStates?: Record<string, 'open' | 'closed' | 'unknown'>
 ): Deal[] => {
   if (!wallet) return [];
-  return deals.filter(deal => dealNeedsMyAction(deal, wallet, closedStates?.[deal.id]));
+  return deals.filter(deal => dealActionKind(deal, wallet, closedStates?.[deal.id]) === 'urgent');
+};
+
+export const dealsReadyToClose = (
+  deals: Deal[],
+  wallet: string | null,
+  closedStates?: Record<string, 'open' | 'closed' | 'unknown'>
+): Deal[] => {
+  if (!wallet) return [];
+  return deals.filter(deal => dealActionKind(deal, wallet, closedStates?.[deal.id]) === 'close');
 };
 

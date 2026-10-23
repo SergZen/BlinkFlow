@@ -13,6 +13,7 @@ import {
   isDealActive,
   isResolvedStatus,
   dealsNeedingMyAction,
+  dealsReadyToClose,
   canDealBeClosed,
 } from '../lib/dealStatus';
 import { dealTitle } from '../lib/dealTitle';
@@ -56,6 +57,8 @@ export const Dashboard = () => {
   const [hasUserSelectedFilter, setHasUserSelectedFilter] = useState(false);
   const [closedStates, setClosedStates] = useState<Record<string, 'open' | 'closed' | 'unknown'>>({});
   const [isCheckingNetwork, setIsCheckingNetwork] = useState(false);
+  const [showAllUrgent, setShowAllUrgent] = useState(false);
+  const [showReadyToClose, setShowReadyToClose] = useState(false);
   const checkSeqRef = useRef(0);
 
   useEffect(() => {
@@ -234,6 +237,7 @@ export const Dashboard = () => {
   const activeDeals = myDeals.filter(d => isDealActive(d));
   
   const pendingActions = dealsNeedingMyAction(deals, myWallet, closedStates);
+  const readyToCloseDeals = dealsReadyToClose(deals, myWallet, closedStates);
 
   const getEffectiveClosedState = (deal: Deal): 'open' | 'closed' | 'unknown' | undefined => {
     if (deal.closed) return 'closed';
@@ -247,6 +251,9 @@ export const Dashboard = () => {
     if (filter === 'not_closed') {
       const st = getEffectiveClosedState(deal);
       return st === 'open';
+    }
+    if (filter === 'ready_to_close') {
+      return readyToCloseDeals.some(r => r.id === deal.id);
     }
     if (filter === 'closed') {
       const st = getEffectiveClosedState(deal);
@@ -420,82 +427,137 @@ export const Dashboard = () => {
         </div>
       </div>
 
-      {/* Pending Actions */}
-      {connected && pendingActions.length > 0 && (
+      {/* Pending / Ready to Close Actions */}
+      {connected && (pendingActions.length > 0 || readyToCloseDeals.length > 0) && (
         <div className="space-y-4">
-          <h3 className="text-lg font-medium flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse shadow-[0_0_8px_rgba(249,115,22,0.6)]"></div>
-            Awaiting Your Action
-          </h3>
-          <div className="grid grid-cols-1 gap-3">
-            {pendingActions.map(deal => {
-              const isCustomer = deal.customer === myWallet;
-              const isContractor = deal.contractor === myWallet;
-              const hasFinishedTask = deal.tasks.some(t => t.status === 'Finished');
-              const needsAssign = !deal.contractor && deriveDealStatus(deal) !== 'cancelled';
-              const hasFundedTask = deal.tasks.some(t => (t.status === 'CustomerCreated' || t.status === 'ContractorCreated') && t.deposited);
-              const hasStartedTask = deal.tasks.some(t => t.status === 'Started');
+          {pendingActions.length > 0 && (
+            <>
+              <h3 className="text-lg font-medium flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse shadow-[0_0_8px_rgba(249,115,22,0.6)]"></div>
+                Awaiting Your Action
+              </h3>
+              <div className="grid grid-cols-1 gap-3">
+                {(showAllUrgent ? pendingActions : pendingActions.slice(0, 3)).map(deal => {
+                  const isCustomer = deal.customer === myWallet;
+                  const isContractor = deal.contractor === myWallet;
+                  const hasFinishedTask = deal.tasks.some(t => t.status === 'Finished');
+                  const needsAssign = !deal.contractor && deriveDealStatus(deal) !== 'cancelled';
+                  const hasFundedTask = deal.tasks.some(t => (t.status === 'CustomerCreated' || t.status === 'ContractorCreated') && t.deposited);
+                  const hasStartedTask = deal.tasks.some(t => t.status === 'Started');
 
-              let actionDesc = 'Action required on this deal.';
-              if (isCustomer && hasFinishedTask) {
-                actionDesc = 'Contractor submitted work for review.';
-              } else if (isCustomer && needsAssign) {
-                actionDesc = 'Waiting to assign a contractor.';
-              } else if (isCustomer && deal.tasks.some(t => t.status === 'ContractorCreated' && !t.deposited)) {
-                actionDesc = 'Contractor proposed a task. Waiting for customer funding.';
-              } else if (isContractor && hasFundedTask) {
-                actionDesc = 'Task funded. Ready to start.';
-              } else if (isContractor && hasStartedTask) {
-                actionDesc = 'Task in progress. Submit work when ready.';
-              } else if (getEffectiveClosedState(deal) === 'open' && deal.creator === myWallet) {
-                actionDesc = 'All tasks completed. Ready to close deal and return deposit.';
-              }
+                  let actionDesc = 'Action required on this deal.';
+                  if (isCustomer && hasFinishedTask) {
+                    actionDesc = 'Contractor submitted work for review.';
+                  } else if (isCustomer && needsAssign) {
+                    actionDesc = 'Waiting to assign a contractor.';
+                  } else if (isCustomer && deal.tasks.some(t => t.status === 'ContractorCreated' && !t.deposited)) {
+                    actionDesc = 'Contractor proposed a task. Waiting for customer funding.';
+                  } else if (isContractor && hasFundedTask) {
+                    actionDesc = 'Task funded. Ready to start.';
+                  } else if (isContractor && hasStartedTask) {
+                    actionDesc = 'Task in progress. Submit work when ready.';
+                  }
 
-              const showCustomerReviewButtons = isCustomer && hasFinishedTask;
-              const showCustomerAssignButton = isCustomer && needsAssign;
+                  const showCustomerReviewButtons = isCustomer && hasFinishedTask;
+                  const showCustomerAssignButton = isCustomer && needsAssign;
 
-              return (
-                <Card 
-                  key={deal.id} 
-                  className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between border-orange-500/20 bg-orange-500/5 gap-4 cursor-pointer hover:bg-orange-500/10 focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-colors"
-                  tabIndex={0}
-                  role="link"
-                  onClick={() => navigate(`/deal/${deal.id}`)}
-                  onKeyDown={(e) => e.key === 'Enter' && e.target === e.currentTarget && navigate(`/deal/${deal.id}`)}
-                >
-                  <div>
-                    <div className="font-semibold text-gray-200">
-                      {dealTitle(deal)}
-                      {deal.tasks.length > 1 && ` +${deal.tasks.length - 1}`}
-                    </div>
-                    <div className="text-sm text-gray-400 mt-1">
-                      {actionDesc}
-                    </div>
-                    {!hasEnoughSol && isCustomer && hasFinishedTask && (
-                      <div className="mt-1 text-xs text-orange-400 font-medium">
-                        You need ~0.01 SOL to cover network fees.
+                  return (
+                    <Card 
+                      key={deal.id} 
+                      className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between border-orange-500/20 bg-orange-500/5 gap-4 cursor-pointer hover:bg-orange-500/10 focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-colors"
+                      tabIndex={0}
+                      role="link"
+                      onClick={() => navigate(`/deal/${deal.id}`)}
+                      onKeyDown={(e) => e.key === 'Enter' && e.target === e.currentTarget && navigate(`/deal/${deal.id}`)}
+                    >
+                      <div>
+                        <div className="font-semibold text-gray-200">
+                          {dealTitle(deal)}
+                          {deal.tasks.length > 1 && ` +${deal.tasks.length - 1}`}
+                        </div>
+                        <div className="text-sm text-gray-400 mt-1">
+                          {actionDesc}
+                        </div>
+                        {!hasEnoughSol && isCustomer && hasFinishedTask && (
+                          <div className="mt-1 text-xs text-orange-400 font-medium">
+                            You need ~0.01 SOL to cover network fees.
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                  <div className="flex flex-col sm:flex-row flex-wrap gap-2 w-full md:w-auto md:justify-end">
-                    {showCustomerReviewButtons ? (
-                      <>
-                        <Button variant="danger" className="w-full sm:flex-none" onClick={(e) => handlePendingAction(e, deal, 'dispute')} disabled={actionLoading === deal.id || !hasEnoughSol}>Open Dispute</Button>
-                        <Button variant="primary" className="w-full sm:flex-none bg-orange-500 hover:bg-orange-600 text-white" onClick={(e) => handlePendingAction(e, deal, 'release')} disabled={actionLoading === deal.id || !hasEnoughSol}>
-                           {actionLoading === deal.id ? <Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> : null}
-                           Release Payment ${dealTotal(deal)}
-                        </Button>
-                      </>
-                    ) : showCustomerAssignButton ? (
-                      <Button variant="outline" className="w-full sm:w-auto border-orange-500/30 text-orange-400 hover:bg-orange-500/10" onClick={(e) => handlePendingAction(e, deal, 'assign')}>Assign Contractor</Button>
-                    ) : (
-                      <Button variant="outline" className="w-full sm:w-auto border-orange-500/30 text-orange-400 hover:bg-orange-500/10" onClick={() => navigate(`/deal/${deal.id}`)}>View Deal</Button>
-                    )}
-                  </div>
-                </Card>
-              );
-            })}
-          </div>
+                      <div className="flex flex-col sm:flex-row flex-wrap gap-2 w-full md:w-auto md:justify-end">
+                        {showCustomerReviewButtons ? (
+                          <>
+                            <Button variant="danger" className="w-full sm:flex-none" onClick={(e) => handlePendingAction(e, deal, 'dispute')} disabled={actionLoading === deal.id || !hasEnoughSol}>Open Dispute</Button>
+                            <Button variant="primary" className="w-full sm:flex-none bg-orange-500 hover:bg-orange-600 text-white" onClick={(e) => handlePendingAction(e, deal, 'release')} disabled={actionLoading === deal.id || !hasEnoughSol}>
+                               {actionLoading === deal.id ? <Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> : null}
+                               Release Payment ${dealTotal(deal)}
+                            </Button>
+                          </>
+                        ) : showCustomerAssignButton ? (
+                          <Button variant="outline" className="w-full sm:w-auto border-orange-500/30 text-orange-400 hover:bg-orange-500/10" onClick={(e) => handlePendingAction(e, deal, 'assign')}>Assign Contractor</Button>
+                        ) : (
+                          <Button variant="outline" className="w-full sm:w-auto border-orange-500/30 text-orange-400 hover:bg-orange-500/10" onClick={() => navigate(`/deal/${deal.id}`)}>View Deal</Button>
+                        )}
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+              {pendingActions.length > 3 && (
+                <div className="flex justify-center pt-1">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowAllUrgent(prev => !prev)}
+                    className="text-xs px-3 py-1.5 text-gray-400 hover:text-gray-200 border-gray-800 hover:bg-gray-800/40"
+                  >
+                    {showAllUrgent ? 'Show less' : `Show all (${pendingActions.length})`}
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+
+          {readyToCloseDeals.length > 0 && (
+            <Card className="p-3 sm:p-4 bg-gray-900/40 border-gray-800/80 backdrop-blur-sm">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+                <div className="text-xs sm:text-sm text-gray-300 flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400/80 shrink-0"></span>
+                  <span>
+                    {readyToCloseDeals.length} finished {readyToCloseDeals.length === 1 ? 'deal is' : 'deals are'} ready to close and will return their network deposit.
+                  </span>
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowReadyToClose(prev => !prev)}
+                  className="text-xs h-7 px-3 py-1 border-gray-700 text-gray-300 hover:text-white shrink-0 self-end sm:self-auto"
+                >
+                  {showReadyToClose ? 'Hide' : 'Review'}
+                </Button>
+              </div>
+
+              {showReadyToClose && (
+                <div className="mt-3 pt-3 border-t border-gray-800/80 max-h-[320px] overflow-y-auto space-y-1 pr-1">
+                  {readyToCloseDeals.map(deal => (
+                    <div
+                      key={deal.id}
+                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-4 p-2 rounded hover:bg-gray-800/40 transition-colors text-xs"
+                    >
+                      <div className="min-w-0 flex items-center gap-2">
+                        <span className="font-medium text-gray-200 truncate">{dealTitle(deal)}</span>
+                        <span className="font-mono text-gray-500 text-[11px] shrink-0">{deal.id}</span>
+                      </div>
+                      <Link
+                        to={`/deal/${deal.id}`}
+                        className="text-purple-400 hover:text-purple-300 underline font-medium shrink-0 self-start sm:self-auto"
+                      >
+                        Open deal
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          )}
         </div>
       )}
 
@@ -540,6 +602,7 @@ export const Dashboard = () => {
               { id: 'completed', label: 'Completed' },
               { id: 'attention', label: 'Needs my action' },
               { id: 'not_closed', label: 'Not closed' },
+              { id: 'ready_to_close', label: 'Ready to close' },
               { id: 'closed', label: 'Closed' },
             ].map((chip) => (
               <button
@@ -547,7 +610,7 @@ export const Dashboard = () => {
                 onClick={() => {
                   setHasUserSelectedFilter(true);
                   setFilter(chip.id);
-                  if (chip.id === 'not_closed' || chip.id === 'closed') {
+                  if (chip.id === 'not_closed' || chip.id === 'closed' || chip.id === 'ready_to_close') {
                     fetchClosedStates(deals);
                   }
                 }}
@@ -561,7 +624,7 @@ export const Dashboard = () => {
               </button>
             ))}
         </div>
-        {isCheckingNetwork && (filter === 'not_closed' || filter === 'closed') && (
+        {isCheckingNetwork && (filter === 'not_closed' || filter === 'closed' || filter === 'ready_to_close') && (
           <div className="px-4 py-2 bg-gray-950/40 border-b border-gray-800/60 text-xs text-gray-400 flex items-center gap-2">
             <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-400" />
             Checking the network…
