@@ -20,7 +20,7 @@ import {
 import { BlinkflowClient } from './types';
 import { mockClient, getDeals, replaceDeals } from './mockClient';
 import { syncNow, push } from './sync';
-import { TaskStatus } from '../types';
+import { Deal, TaskStatus } from '../types';
 import { taskHashInput } from '../fileHash';
 import { friendlyError } from '../errors';
 import { createConnection } from '../rpc';
@@ -1389,6 +1389,66 @@ export const chainClient: BlinkflowClient = {
         }) ?? r
       )
     );
+  },
+
+  async getDealsClosedState(deals: Deal[], wallet: string): Promise<Record<string, 'open' | 'closed' | 'unknown'>> {
+    if (!wallet) {
+      return {};
+    }
+
+    const FINAL_STATUSES = new Set(['Completed', 'Resolved', 'Cancelled', 'Refunded']);
+    const eligibleDeals: { dealId: string; dealKey: PublicKey }[] = [];
+    const result: Record<string, 'open' | 'closed' | 'unknown'> = {};
+
+    for (const deal of deals) {
+      const isParticipant = deal.customer === wallet || deal.contractor === wallet || deal.creator === wallet;
+      if (!isParticipant) continue;
+      if (!deal.tasks || deal.tasks.length === 0) continue;
+      const allFinal = deal.tasks.every(t => FINAL_STATUSES.has(t.status));
+      if (!allFinal) continue;
+
+      const info = getChainInfo(deal.id);
+      if (!info) continue;
+
+      try {
+        const customer = new PublicKey(info.customer);
+        const contractor = info.contractor ? new PublicKey(info.contractor) : customer;
+        const dealKey = info.deal ? new PublicKey(info.deal) : addrs(customer, contractor, BigInt(info.seed)).deal;
+        eligibleDeals.push({ dealId: deal.id, dealKey });
+      } catch (e) {
+        console.warn(`[getDealsClosedState] invalid key for ${deal.id}`, e);
+        result[deal.id] = 'unknown';
+      }
+    }
+
+    if (eligibleDeals.length === 0) {
+      return result;
+    }
+
+    const CHUNK_SIZE = 100;
+    for (let i = 0; i < eligibleDeals.length; i += CHUNK_SIZE) {
+      const chunk = eligibleDeals.slice(i, i + CHUNK_SIZE);
+      const chunkKeys = chunk.map(c => c.dealKey);
+      try {
+        const accounts = await withRetry(() => conn.getMultipleAccountsInfo(chunkKeys, 'confirmed'));
+        if (!accounts || accounts.length !== chunk.length) {
+          for (const item of chunk) {
+            result[item.dealId] = 'unknown';
+          }
+        } else {
+          for (let j = 0; j < chunk.length; j++) {
+            result[chunk[j].dealId] = accounts[j] === null ? 'closed' : 'open';
+          }
+        }
+      } catch (err) {
+        console.warn('[getDealsClosedState] RPC batch failed', err);
+        for (const item of chunk) {
+          result[item.dealId] = 'unknown';
+        }
+      }
+    }
+
+    return result;
   },
 };
 

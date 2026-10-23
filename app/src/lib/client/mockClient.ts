@@ -344,6 +344,10 @@ export const mockClient: BlinkflowClient = {
     deal.history.push({ date: getNow(), action: `Dispute Resolved (${customerWins ? 'Customer' : 'Contractor'} won)` });
     saveDeals();
     return JSON.parse(JSON.stringify(deal));
+  },
+
+  async getDealsClosedState(_deals, _wallet) {
+    return {};
   }
 };
 

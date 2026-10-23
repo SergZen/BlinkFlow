@@ -31,4 +31,5 @@ export interface BlinkflowClient {
   closeTask(dealId: string, taskIndex: number): Promise<Deal>;
   closeDeal(dealId: string): Promise<Deal>;
   resolveDispute(dealId: string, taskIndex: number, customerWins: boolean): Promise<Deal>;
+  getDealsClosedState(deals: Deal[], wallet: string): Promise<Record<string, 'open' | 'closed' | 'unknown'>>;
 }
