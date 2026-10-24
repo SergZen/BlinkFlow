@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { PublicKey } from '@solana/web3.js';
 import { useToken } from '../lib/constants';
+import { getSolBalanceCached, getTokenBalanceCached } from '../lib/balanceCache';
 
 export const BalanceDisplay = () => {
   const { connection } = useConnection();
@@ -28,19 +29,27 @@ export const BalanceDisplay = () => {
     setTokenError(false);
 
     let isMounted = true;
+    let retryTimer: any = null;
 
-    const fetchBalances = async () => {
+    const fetchBalances = async (force = false, isRetry = false) => {
+      if (retryTimer) {
+        clearTimeout(retryTimer);
+        retryTimer = null;
+      }
+      let hasError = false;
+
       // Fetch SOL
       try {
-        const sol = await connection.getBalance(publicKey);
+        const sol = await getSolBalanceCached(connection, publicKey, { force });
         if (isMounted) {
           setSolBalance(sol / 1e9);
           setSolError(false);
         }
       } catch (error) {
+        hasError = true;
         console.error("Error fetching SOL balance:", error);
         if (isMounted) {
-          setSolBalance(null);
+          setSolBalance((prev) => prev);
           setSolError(true);
         }
       }
@@ -49,21 +58,10 @@ export const BalanceDisplay = () => {
       try {
         if (mint && mint.length > 10) {
           const tokenMint = new PublicKey(mint);
-          const response = await connection.getParsedTokenAccountsByOwner(publicKey, {
-            mint: tokenMint
-          });
-          
-          if (response.value.length > 0) {
-            const amount = response.value[0].account.data.parsed.info.tokenAmount.uiAmount;
-            if (isMounted) {
-              setTokenBalance(amount);
-              setTokenError(false);
-            }
-          } else {
-            if (isMounted) {
-              setTokenBalance(0);
-              setTokenError(false);
-            }
+          const amount = await getTokenBalanceCached(connection, publicKey, tokenMint, { force });
+          if (isMounted) {
+            setTokenBalance(amount);
+            setTokenError(false);
           }
         } else {
           if (isMounted) {
@@ -72,34 +70,49 @@ export const BalanceDisplay = () => {
           }
         }
       } catch (error) {
+        hasError = true;
         console.error("Error fetching Token balance:", error);
         if (isMounted) {
-          setTokenBalance(null);
+          setTokenBalance((prev) => prev);
           setTokenError(true);
         }
+      }
+
+      if (hasError && !isRetry) {
+        retryTimer = setTimeout(() => {
+          if (isMounted && !document.hidden) {
+            fetchBalances(false, true);
+          }
+        }, 10000);
       }
     };
 
     fetchBalances();
 
-    const interval = setInterval(() => {
-      fetchBalances();
-    }, 15000);
-    
-    // Refresh only when user returns to the tab (e.g. after using the faucet)
-    // or when a custom event is dispatched (e.g. after a smart contract transaction)
-    const handleFocusOrTrigger = () => {
-      fetchBalances();
+    const handleFocus = () => {
+      fetchBalances(false);
+    };
+
+    const handleRefresh = () => {
+      fetchBalances(true);
+    };
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        fetchBalances(false);
+      }
     };
     
-    window.addEventListener('focus', handleFocusOrTrigger);
-    window.addEventListener('blinkflow:refresh_balance', handleFocusOrTrigger);
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('blinkflow:refresh_balance', handleRefresh);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       isMounted = false;
-      clearInterval(interval);
-      window.removeEventListener('focus', handleFocusOrTrigger);
-      window.removeEventListener('blinkflow:refresh_balance', handleFocusOrTrigger);
+      if (retryTimer) clearTimeout(retryTimer);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('blinkflow:refresh_balance', handleRefresh);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [connection, publicKey, mint]);
 

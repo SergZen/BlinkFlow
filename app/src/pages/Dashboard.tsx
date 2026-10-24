@@ -65,6 +65,12 @@ export const Dashboard = () => {
   const checkSeqRef = useRef(0);
 
   useEffect(() => {
+    if (isModalOpen) {
+      window.dispatchEvent(new Event('blinkflow:refresh_balance'));
+    }
+  }, [isModalOpen]);
+
+  useEffect(() => {
     const refreshDrafts = () => {
       try { setUnfinishedDrafts(listCreateDrafts()); } catch { setUnfinishedDrafts([]); }
     };
@@ -632,15 +638,9 @@ export const Dashboard = () => {
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
-                  <Button
-                    variant="outline"
-                    onClick={() => handleContinueDraft(d.scope)}
-                    className="text-xs h-7 px-3 py-1 border-purple-500/40 text-purple-300 hover:text-white hover:bg-purple-500/10"
-                  >
-                    Continue
-                  </Button>
                   {confirmDeleteScope === d.scope ? (
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-400 text-xs">Delete draft?</span>
                       <Button
                         variant="outline"
                         onClick={() => handleDeleteDraft(d.scope)}
@@ -657,13 +657,22 @@ export const Dashboard = () => {
                       </button>
                     </div>
                   ) : (
-                    <Button
-                      variant="outline"
-                      onClick={() => setConfirmDeleteScope(d.scope)}
-                      className="text-xs h-7 px-2.5 py-1 border-gray-700 text-gray-400 hover:text-red-400 hover:border-red-500/40"
-                    >
-                      Delete
-                    </Button>
+                    <>
+                      <Button
+                        variant="outline"
+                        onClick={() => handleContinueDraft(d.scope)}
+                        className="text-xs h-7 px-3 py-1 border-purple-500/40 text-purple-300 hover:text-white hover:bg-purple-500/10"
+                      >
+                        Continue
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => setConfirmDeleteScope(d.scope)}
+                        className="text-xs h-7 px-2.5 py-1 border-gray-700 text-gray-400 hover:text-red-400 hover:border-red-500/40"
+                      >
+                        Delete
+                      </Button>
+                    </>
                   )}
                 </div>
               </div>
@@ -703,7 +712,8 @@ export const Dashboard = () => {
           </div>
           </div>
         </div>
-        <div className="px-4 py-3 bg-gray-900/40 border-b border-gray-800/60 flex gap-2 overflow-x-auto hide-scrollbar">
+        <div className="relative border-b border-gray-800/60 bg-gray-900/40">
+          <div className="px-4 py-3 flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {[
               { id: 'active', label: 'Active' },
               { id: 'all', label: 'All' },
@@ -734,6 +744,8 @@ export const Dashboard = () => {
                 {chip.label}
               </button>
             ))}
+          </div>
+          <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 sm:w-12 bg-gradient-to-l from-gray-900/90 to-transparent" />
         </div>
         {isCheckingNetwork && (filter === 'not_closed' || filter === 'closed' || filter === 'ready_to_close') && (
           <div className="px-4 py-2 bg-gray-950/40 border-b border-gray-800/60 text-xs text-gray-400 flex items-center gap-2">

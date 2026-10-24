@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { PublicKey } from '@solana/web3.js';
 import { useToken } from '../lib/constants';
+import { getTokenBalanceCached } from '../lib/balanceCache';
 
 export const useUsdcBalance = () => {
   const { connection } = useConnection();
@@ -9,7 +10,7 @@ export const useUsdcBalance = () => {
   const { mint } = useToken();
   const [balance, setBalance] = useState<number | null>(null);
 
-  const fetchBalance = useCallback(async () => {
+  const fetchBalance = useCallback(async (force = false) => {
     if (!connected || !publicKey) {
       setBalance(null);
       return;
@@ -18,40 +19,67 @@ export const useUsdcBalance = () => {
     try {
       if (mint && mint.length > 10) {
         const tokenMint = new PublicKey(mint);
-        const response = await connection.getParsedTokenAccountsByOwner(publicKey, {
-          mint: tokenMint,
-        });
-
-        if (response.value.length > 0) {
-          const amount = response.value[0].account.data.parsed.info.tokenAmount.uiAmount;
-          setBalance(amount ?? 0);
-        } else {
-          setBalance(0);
-        }
+        const amount = await getTokenBalanceCached(connection, publicKey, tokenMint, { force });
+        setBalance(amount);
       } else {
         setBalance(0);
       }
     } catch (error) {
       console.error('Error fetching USDC balance:', error);
-      setBalance(null);
+      setBalance((prev) => prev);
+      throw error;
     }
   }, [connection, publicKey, connected, mint]);
 
   useEffect(() => {
-    fetchBalance();
+    let retryTimer: any = null;
 
-    const handleRefresh = () => {
-      fetchBalance();
+    const runFetch = async (force = false, isRetry = false) => {
+      if (retryTimer) {
+        clearTimeout(retryTimer);
+        retryTimer = null;
+      }
+      try {
+        await fetchBalance(force);
+      } catch {
+        // fetchBalance already keeps last value on catch, but if it throws or fails:
+        if (!isRetry) {
+          retryTimer = setTimeout(() => {
+            if (!document.hidden) {
+              runFetch(false, true);
+            }
+          }, 10000);
+        }
+      }
     };
 
-    window.addEventListener('blinkflow:deals-changed', handleRefresh);
-    window.addEventListener('blinkflow:refresh_balance', handleRefresh);
-    window.addEventListener('focus', handleRefresh);
+    runFetch();
+
+    const handleNormal = () => {
+      runFetch(false);
+    };
+
+    const handleForced = () => {
+      runFetch(true);
+    };
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        runFetch(false);
+      }
+    };
+
+    window.addEventListener('blinkflow:deals-changed', handleNormal);
+    window.addEventListener('blinkflow:refresh_balance', handleForced);
+    window.addEventListener('focus', handleNormal);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
-      window.removeEventListener('blinkflow:deals-changed', handleRefresh);
-      window.removeEventListener('blinkflow:refresh_balance', handleRefresh);
-      window.removeEventListener('focus', handleRefresh);
+      if (retryTimer) clearTimeout(retryTimer);
+      window.removeEventListener('blinkflow:deals-changed', handleNormal);
+      window.removeEventListener('blinkflow:refresh_balance', handleForced);
+      window.removeEventListener('focus', handleNormal);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [fetchBalance]);
 
