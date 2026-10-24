@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Loader2, ExternalLink, X } from 'lucide-react';
-import { subscribeTxProgress, cancelPendingTx, explorerTx, type TxProgress, type TxStage } from '../lib/client/chainClient';
+import { subscribeTxProgress, getTxProgress, cancelPendingTx, explorerTx, type TxProgress, type TxStage } from '../lib/client/chainClient';
+
+export function useTxBarVisible(): boolean {
+  const [visible, setVisible] = useState(() => getTxProgress().stage !== 'idle');
+  useEffect(() => subscribeTxProgress((p) => setVisible(p.stage !== 'idle')), []);
+  return visible;
+}
 
 const STEPS: { stage: TxStage; label: string }[] = [
   { stage: 'preparing', label: 'Checking accounts' },
@@ -30,7 +36,7 @@ export const TxStatusBar: React.FC = () => {
   const currentIndex = STAGE_ORDER[progress.stage];
 
   return (
-    <div role="status" aria-live="polite" className="fixed bottom-0 inset-x-0 z-50 p-3 sm:p-4 bg-gray-900/95 border-t border-purple-500/30 backdrop-blur-md shadow-2xl text-xs sm:text-sm animate-in slide-in-from-bottom duration-200">
+    <div role="status" aria-live="polite" className="fixed bottom-0 inset-x-0 z-[70] p-3 sm:p-4 bg-gray-900/95 border-t border-purple-500/30 backdrop-blur-md shadow-2xl text-xs sm:text-sm animate-in slide-in-from-bottom duration-200">
       <div className="max-w-4xl mx-auto flex flex-col gap-2.5">
         <div className="flex flex-wrap items-center justify-between gap-1 sm:gap-2 text-xs">
           {STEPS.map((step, idx) => {

@@ -17,6 +17,7 @@ import { useToast, notifyActionError } from './Toast';
 import { NetworkDepositInfo } from '../lib/rent';
 import { getLastTxSig } from '../lib/client/chainClient';
 import { loadDraft, saveDraft, clearDraft } from '../lib/draft';
+import { useTxBarVisible } from './TxStatusBar';
 
 export interface CreateDealInitialValues {
   title?: string;
@@ -85,6 +86,7 @@ export const CreateDealModal = ({
   const [isDraftRestored, setIsDraftRestored] = useState(false);
   const [isFileRestoredFromDraft, setIsFileRestoredFromDraft] = useState(false);
 
+  const txBarVisible = useTxBarVisible();
   const draftScope = role === 'customer' ? 'create:customer' : 'create:contractor';
 
   useEffect(() => {
@@ -465,7 +467,7 @@ export const CreateDealModal = ({
           <X className="w-5 h-5" />
         </button>
 
-        <div className="p-6 overflow-y-auto max-h-[90vh]">
+        <div className={`p-6 overflow-y-auto max-h-[90vh] ${txBarVisible ? 'pb-28' : ''}`}>
           {step === 1 ? (
             <form noValidate onSubmit={handleGenerate} className="space-y-4">
               <div>

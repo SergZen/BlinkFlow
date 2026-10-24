@@ -21,6 +21,7 @@ import { Plus, ArrowRight, DollarSign, Briefcase, Clock, Search, Loader2, Inbox,
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
 import { CreateDealModal, type CreateDealInitialValues } from '../components/CreateDealModal';
+import { listCreateDrafts, clearDraft, type CreateDraftItem } from '../lib/draft';
 import { truncateAddress } from '../lib/utils';
 import type { Deal } from '../lib/types';
 import { useToken } from '../lib/constants';
@@ -59,7 +60,22 @@ export const Dashboard = () => {
   const [isCheckingNetwork, setIsCheckingNetwork] = useState(false);
   const [showAllUrgent, setShowAllUrgent] = useState(false);
   const [showReadyToClose, setShowReadyToClose] = useState(false);
+  const [unfinishedDrafts, setUnfinishedDrafts] = useState<CreateDraftItem[]>([]);
+  const [confirmDeleteScope, setConfirmDeleteScope] = useState<string | null>(null);
   const checkSeqRef = useRef(0);
+
+  useEffect(() => {
+    const refreshDrafts = () => {
+      try { setUnfinishedDrafts(listCreateDrafts()); } catch { setUnfinishedDrafts([]); }
+    };
+    refreshDrafts();
+    window.addEventListener('blinkflow:drafts-changed', refreshDrafts);
+    window.addEventListener('storage', refreshDrafts);
+    return () => {
+      window.removeEventListener('blinkflow:drafts-changed', refreshDrafts);
+      window.removeEventListener('storage', refreshDrafts);
+    };
+  }, []);
 
   useEffect(() => {
     if (!hasUserSelectedFilter) {
@@ -224,6 +240,28 @@ export const Dashboard = () => {
   const handleCloseCreateModal = () => {
     setIsModalOpen(false);
     setModalInitialValues(undefined);
+  };
+
+  const handleContinueDraft = (scope: 'create:customer' | 'create:contractor') => {
+    setRole(scope === 'create:customer' ? 'customer' : 'contractor');
+    setModalInitialValues(undefined);
+    setIsModalOpen(true);
+  };
+
+  const handleDeleteDraft = (scope: string) => {
+    clearDraft(scope);
+    setConfirmDeleteScope(null);
+    try { setUnfinishedDrafts(listCreateDrafts()); } catch { setUnfinishedDrafts([]); }
+  };
+
+  const formatRelativeTime = (savedAt: number): string => {
+    const diffSec = Math.max(0, Math.floor((Date.now() - savedAt) / 1000));
+    if (diffSec < 60) return 'Saved just now';
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return `Saved ${diffMin}m ago`;
+    const diffHours = Math.floor(diffMin / 60);
+    if (diffHours < 24) return `Saved ${diffHours}h ago`;
+    return `Saved ${Math.floor(diffHours / 24)}d ago`;
   };
 
   const myWallet = publicKey?.toBase58() ?? null;
@@ -559,6 +597,79 @@ export const Dashboard = () => {
             </Card>
           )}
         </div>
+      )}
+
+      {/* Unfinished deals */}
+      {unfinishedDrafts.length > 0 && (
+        <Card className="p-3 sm:p-4 bg-gray-900/40 border-gray-800/80 backdrop-blur-sm space-y-2">
+          <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-purple-400/80 shrink-0" />
+            Unfinished deals
+          </div>
+          <div className="space-y-1.5">
+            {unfinishedDrafts.map((d) => (
+              <div
+                key={d.scope}
+                className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-lg bg-gray-950/40 border border-gray-800/60 text-xs"
+              >
+                <div className="min-w-0 space-y-0.5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium text-gray-200 truncate">{d.title}</span>
+                    {d.amount && (
+                      <span className="font-semibold text-purple-300">
+                        ${!isNaN(parseFloat(d.amount)) ? parseFloat(d.amount).toLocaleString() : d.amount} USDC
+                      </span>
+                    )}
+                    <span className="px-1.5 py-0.5 rounded bg-gray-800/80 text-[11px] text-gray-400">
+                      {d.scope === 'create:customer' ? 'as customer' : 'as contractor'}
+                    </span>
+                    <span className="text-gray-500 text-[11px]">
+                      {formatRelativeTime(d.savedAt)}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-gray-500">
+                    Not on the network yet. Nothing is locked.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                  <Button
+                    variant="outline"
+                    onClick={() => handleContinueDraft(d.scope)}
+                    className="text-xs h-7 px-3 py-1 border-purple-500/40 text-purple-300 hover:text-white hover:bg-purple-500/10"
+                  >
+                    Continue
+                  </Button>
+                  {confirmDeleteScope === d.scope ? (
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="outline"
+                        onClick={() => handleDeleteDraft(d.scope)}
+                        className="text-xs h-7 px-2.5 py-1 border-red-500/50 bg-red-500/10 text-red-400 hover:bg-red-500/20"
+                      >
+                        Sure?
+                      </Button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDeleteScope(null)}
+                        className="text-gray-400 hover:text-gray-200 text-xs px-1 cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      onClick={() => setConfirmDeleteScope(d.scope)}
+                      className="text-xs h-7 px-2.5 py-1 border-gray-700 text-gray-400 hover:text-red-400 hover:border-red-500/40"
+                    >
+                      Delete
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
       )}
 
       {/* Deal List */}
