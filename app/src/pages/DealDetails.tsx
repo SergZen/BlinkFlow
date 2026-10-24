@@ -23,6 +23,7 @@ import { useWalletModal } from '@solana/wallet-adapter-react-ui';
 import { Transaction, PublicKey } from '@solana/web3.js';
 import { useToast, notifyActionError } from '../components/Toast';
 import { NetworkDepositInfo, closeTaskRefund, closeDealRefund } from '../lib/rent';
+import { loadDraft, saveDraft, clearDraft } from '../lib/draft';
 
 const TaskRequirementsFile = ({ requirementsFile }: { requirementsFile: { name: string; sha256: string } }) => {
   const [verifyStatus, setVerifyStatus] = useState<'match' | 'mismatch' | 'too_large' | null>(null);
@@ -334,6 +335,7 @@ export const DealDetails = () => {
         name: file.name,
         sha256,
       });
+      setIsTaskFileRestoredFromDraft(false);
     } catch (err) {
       console.error('Error hashing file:', err);
       setTaskFileError('Failed to read and hash file.');
@@ -347,6 +349,48 @@ export const DealDetails = () => {
   const handleRemoveTaskFile = () => {
     setTaskReqFile(null);
     setTaskFileError('');
+    setIsTaskFileRestoredFromDraft(false);
+    if (taskFileInputRef.current) taskFileInputRef.current.value = '';
+  };
+
+  const [isTaskDraftRestored, setIsTaskDraftRestored] = useState(false);
+  const [isTaskFileRestoredFromDraft, setIsTaskFileRestoredFromDraft] = useState(false);
+  const addTaskDraftScope = deal?.id ? `addtask:${deal.id}` : '';
+
+  useEffect(() => {
+    if (!showAddTaskForm || !addTaskDraftScope) { setIsTaskDraftRestored(false); setIsTaskFileRestoredFromDraft(false); return; }
+    const d = loadDraft<any>(addTaskDraftScope);
+    if (d) {
+      setIsTaskDraftRestored(true);
+      if (d.title !== undefined) setTaskTitle(d.title);
+      if (d.amount !== undefined) setTaskAmount(d.amount);
+      if (d.criteria !== undefined) setTaskCriteria(d.criteria);
+      if (d.deadline !== undefined) setTaskDeadline(d.deadline);
+      if (d.reqFile?.name && d.reqFile?.sha256) {
+        setTaskReqFile({ name: d.reqFile.name, sha256: d.reqFile.sha256 });
+        setIsTaskFileRestoredFromDraft(true);
+      }
+    }
+  }, [showAddTaskForm, addTaskDraftScope]);
+
+  useEffect(() => {
+    if (!showAddTaskForm || !addTaskDraftScope) return;
+    const timer = setTimeout(() => {
+      const hasContent = Boolean(taskTitle.trim() || taskAmount || taskCriteria.trim() || taskDeadline || taskReqFile);
+      if (!hasContent) return;
+      saveDraft(addTaskDraftScope, {
+        title: taskTitle, amount: taskAmount, criteria: taskCriteria, deadline: taskDeadline,
+        reqFile: taskReqFile ? { name: taskReqFile.name, sha256: taskReqFile.sha256 } : null,
+      });
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [showAddTaskForm, addTaskDraftScope, taskTitle, taskAmount, taskCriteria, taskDeadline, taskReqFile]);
+
+  const handleClearTaskDraft = () => {
+    if (addTaskDraftScope) clearDraft(addTaskDraftScope);
+    setIsTaskDraftRestored(false); setIsTaskFileRestoredFromDraft(false);
+    setTaskTitle(''); setTaskAmount(''); setTaskCriteria(''); setTaskDeadline('');
+    setTaskReqFile(null); setTaskFileError(''); setFieldErrors({});
     if (taskFileInputRef.current) taskFileInputRef.current.value = '';
   };
 
@@ -481,6 +525,9 @@ export const DealDetails = () => {
           setChainInfo(cInfo);
           refreshChainStates(updatedDeal, cInfo);
         }
+        if (addTaskDraftScope) clearDraft(addTaskDraftScope);
+        setIsTaskDraftRestored(false);
+        setIsTaskFileRestoredFromDraft(false);
         setTaskTitle('');
         setTaskCriteria('');
         setTaskAmount('');
@@ -1218,6 +1265,19 @@ export const DealDetails = () => {
                   </button>
                 </div>
 
+                {isTaskDraftRestored && (
+                  <div className="px-3 py-1.5 rounded-lg bg-purple-500/10 border border-purple-500/20 text-xs text-purple-300 flex items-center justify-between">
+                    <span>Draft restored</span>
+                    <button
+                      type="button"
+                      onClick={handleClearTaskDraft}
+                      className="underline hover:text-white cursor-pointer ml-2"
+                    >
+                      Clear draft
+                    </button>
+                  </div>
+                )}
+
                 <div>
                   <label htmlFor="new-task-title" className="block text-xs font-medium text-gray-300 mb-1">
                     Title
@@ -1319,6 +1379,11 @@ export const DealDetails = () => {
                         <p className="text-[11px] text-gray-500 leading-tight">
                           The file is not uploaded. Only its SHA-256 fingerprint is stored in the deal. Send the file to {role === 'contractor' ? 'the customer' : 'your contractor'} separately.
                         </p>
+                        {isTaskFileRestoredFromDraft && (
+                          <p className="text-[11px] text-purple-400 mt-1">
+                            File restored from the draft. Attach it again if you want to replace it.
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>

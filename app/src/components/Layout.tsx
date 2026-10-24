@@ -10,6 +10,7 @@ import { FaucetButton } from './FaucetButton';
 import { useNetwork } from '../NetworkContext';
 import { useOpsAccess } from '../hooks/useOpsAccess';
 import { useToast } from './Toast';
+import { TxStatusBar } from './TxStatusBar';
 
 export const Layout = ({ children }: { children: ReactNode }) => {
   const { role, setRole } = useRole();
@@ -184,6 +185,7 @@ export const Layout = ({ children }: { children: ReactNode }) => {
             {children}
           </div>
         </div>
+        <TxStatusBar />
       </main>
     </div>
   );

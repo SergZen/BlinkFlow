@@ -115,27 +115,130 @@ export function getLastTxSig(): string | null {
   return lastTxSig;
 }
 
+export type TxStage = 'idle' | 'preparing' | 'waiting_signature' | 'sending' | 'confirming';
+export interface TxProgress {
+  stage: TxStage;
+  startedAt: number;
+  sig?: string;
+}
+
+type ProgressListener = (p: TxProgress) => void;
+const progressListeners = new Set<ProgressListener>();
+let currentProgress: TxProgress = { stage: 'idle', startedAt: 0 };
+let activeAttemptId = 0;
+let cancelActiveTx: (() => void) | null = null;
+
+export function getTxProgress(): TxProgress {
+  return currentProgress;
+}
+
+export function subscribeTxProgress(cb: ProgressListener): () => void {
+  progressListeners.add(cb);
+  cb(currentProgress);
+  return () => {
+    progressListeners.delete(cb);
+  };
+}
+
+export function cancelPendingTx(): void {
+  if (cancelActiveTx) {
+    cancelActiveTx();
+  }
+}
+
+function setTxProgress(stage: TxStage, sig?: string) {
+  if (stage === 'idle') {
+    currentProgress = { stage: 'idle', startedAt: 0 };
+  } else {
+    currentProgress = {
+      stage,
+      startedAt: currentProgress.startedAt || Date.now(),
+      sig: sig || currentProgress.sig,
+    };
+  }
+  progressListeners.forEach((cb) => {
+    try { cb(currentProgress); } catch {}
+  });
+}
+
 async function sendTx(ixs: TransactionInstruction[]): Promise<string> {
+  if (currentProgress.stage !== 'idle') {
+    throw new Error('Another action is waiting for your wallet. Finish or cancel it first.');
+  }
+
+  const attemptId = ++activeAttemptId;
   lastTxSig = null;
-  const p = provider();
-  const tx = new Transaction().add(
-    ComputeBudgetProgram.setComputeUnitLimit({ units: 600000 }),
-    ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 50_000 }),
-    ...ixs
-  );
-  tx.feePayer = new PublicKey(p.publicKey.toString());
-  const { blockhash, lastValidBlockHeight } = await withRetry(() => conn.getLatestBlockhash('confirmed'));
-  tx.recentBlockhash = blockhash;
-  const estimatedTxSize = tx.serializeMessage().length + 1 + 64;
-  if (estimatedTxSize > 1232) {
-    throw new Error('Too many stages for one transaction. Remove a stage now and add it later with Add task.');
-  }
-  let signed: Transaction;
+  setTxProgress('preparing');
+
   try {
-    signed = await p.signTransaction(tx);
-  } catch (e: any) {
-    throw new Error(friendlyError(e));
-  }
+    const p = provider();
+    const tx = new Transaction().add(
+      ComputeBudgetProgram.setComputeUnitLimit({ units: 600000 }),
+      ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 50_000 }),
+      ...ixs
+    );
+    tx.feePayer = new PublicKey(p.publicKey.toString());
+    const { blockhash, lastValidBlockHeight } = await withRetry(() => conn.getLatestBlockhash('confirmed'));
+    tx.recentBlockhash = blockhash;
+    const estimatedTxSize = tx.serializeMessage().length + 1 + 64;
+    if (estimatedTxSize > 1232) {
+      throw new Error('Too many stages for one transaction. Remove a stage now and add it later with Add task.');
+    }
+
+    setTxProgress('waiting_signature');
+
+    let signed: Transaction;
+    try {
+      signed = await new Promise<Transaction>((resolve, reject) => {
+        let timer: any = null;
+        let settled = false;
+
+        const cleanup = () => {
+          settled = true;
+          if (timer) clearTimeout(timer);
+          if (cancelActiveTx === onCancel) cancelActiveTx = null;
+        };
+
+        const onCancel = () => {
+          if (settled) return;
+          cleanup();
+          const err: any = new Error('Cancelled.');
+          err.code = 'USER_CANCELLED';
+          reject(err);
+        };
+        cancelActiveTx = onCancel;
+
+        timer = setTimeout(() => {
+          if (settled) return;
+          cleanup();
+          const err: any = new Error('No signature received from the wallet. Try again.');
+          err.code = 'SIGN_TIMEOUT';
+          reject(err);
+        }, 120_000);
+
+        p.signTransaction(tx)
+          .then((s: Transaction) => {
+            if (activeAttemptId !== attemptId) return; // Drop late signature silently!
+            if (settled) return;
+            cleanup();
+            resolve(s);
+          })
+          .catch((e: any) => {
+            if (activeAttemptId !== attemptId) return;
+            if (settled) return;
+            cleanup();
+            reject(e);
+          });
+      });
+    } catch (e: any) {
+      if (e?.code === 'USER_CANCELLED' || e?.code === 'SIGN_TIMEOUT') {
+        throw e;
+      }
+      throw new Error(friendlyError(e));
+    }
+
+    setTxProgress('sending');
+
   const raw = signed.serialize();
   let sig!: string;
   for (let attempt = 1; attempt <= 6; attempt++) {
@@ -166,6 +269,9 @@ async function sendTx(ixs: TransactionInstruction[]): Promise<string> {
       throw new Error(friendlyError(e));
     }
   }
+
+  setTxProgress('confirming', sig);
+
   let done = false;
   const rebroadcastStart = Date.now();
   const rebroadcastIntervalMs = 2_000;
@@ -244,9 +350,11 @@ async function sendTx(ixs: TransactionInstruction[]): Promise<string> {
       }
     }
 
-    throw new Error(
+    const sentErr: any = new Error(
       'The transaction was sent but is not confirmed yet. Wait 30 seconds, refresh the page and check the deal status before trying again.'
     );
+    sentErr.txSig = sig;
+    throw sentErr;
   } finally {
     done = true;
   }
@@ -258,7 +366,14 @@ async function sendTx(ixs: TransactionInstruction[]): Promise<string> {
   }
   lastTxSig = sig;
   return sig;
+  } finally {
+    if (activeAttemptId === attemptId) {
+      setTxProgress('idle');
+      cancelActiveTx = null;
+    }
+  }
 }
+
 
 // ---- addresses ------------------------------------------------------------------------------------
 const taskPda = (deal: PublicKey, index: number) =>

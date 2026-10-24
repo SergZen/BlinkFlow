@@ -10,6 +10,13 @@ export function friendlyError(e: unknown): string {
   const text = raw.toLowerCase();
   const logsLower = logs.toLowerCase();
 
+  if (code === 'USER_CANCELLED') {
+    return 'Cancelled.';
+  }
+  if (code === 'SIGN_TIMEOUT') {
+    return 'No signature received from the wallet. Try again.';
+  }
+
   // a) user rejected the wallet popup: code 4001, or text contains "user rejected" / "rejected the request" / "user denied" / "declined"
   if (
     code === '4001' ||
