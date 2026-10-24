@@ -23,6 +23,10 @@ function escapeMarkdown(text) {
   return text.replace(/([_*`\[\]])/g, '\\$1');
 }
 
+function sanitizeTelegramError(msg) {
+  return String(msg || '').replace(/bot\d+:[A-Za-z0-9_-]+/g, 'bot***');
+}
+
 function setupBot(app, baseUrl, frontendUrl) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   
@@ -33,6 +37,20 @@ function setupBot(app, baseUrl, frontendUrl) {
 
   // Create a bot that uses 'webhook'
   const bot = new TelegramBot(token, { webHook: true });
+
+  if (typeof baseUrl === 'string' && baseUrl.startsWith('https://')) {
+    const cleanBaseUrl = baseUrl.replace(/\/+$/, '');
+    const webhookUrl = `${cleanBaseUrl}/webhook`;
+    bot.setWebHook(webhookUrl)
+      .then(() => {
+        console.log(`Telegram webhook set to ${webhookUrl}`);
+      })
+      .catch(err => {
+        console.error('Failed to set Telegram webhook:', sanitizeTelegramError(err?.message || err));
+      });
+  } else {
+    console.warn(`Skipping Telegram webhook registration: baseUrl is not https (${baseUrl})`);
+  }
 
   // Webhook endpoint
   app.post('/webhook', (req, res) => {
