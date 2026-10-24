@@ -77,7 +77,7 @@ impl<'info> AcceptDealByContractor<'info> {
         self.task.status = TaskStatus::Started;
         
         self.deal.pending_contractor = None;
-        self.deal.contractor =self.contractor.key();
+        self.deal.contractor = self.contractor.key();
 
         emit!(DealAcceptedByContractor {
             deal: self.deal.key(),
@@ -92,8 +92,6 @@ impl<'info> AcceptDealByContractor<'info> {
             &self.contractor.to_account_info(),
             bumps.sbt_asset, 
             bumps.sbt_collection, 
-            // name, 
-            // uri
         )?;
         
         if created { 
