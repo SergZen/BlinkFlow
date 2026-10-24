@@ -1,6 +1,6 @@
 import { useParams, Link, useLocation } from 'react-router-dom';
 import { client, isChainMode } from '../lib/client';
-import { getChainInfo, explorerAddr, explorerTx, type ChainInfo } from '../lib/client/chainClient';
+import { getChainInfo, explorerAddr, explorerTx, type ChainInfo, getLastTxSig, getTaskChainState, getDealChainState } from '../lib/client/chainClient';
 import { dealTotal, deriveDealStatus, getEarliestDeadline, taskStatusLabel, taskStatusKind } from '../lib/dealStatus';
 import { dealTitle } from '../lib/dealTitle';
 import { Card } from '../components/Card';
@@ -17,13 +17,13 @@ import { truncateAddress } from '../lib/utils';
 import { useSolBalance } from '../hooks/useSolBalance';
 import { useUsdcBalance } from '../hooks/useUsdcBalance';
 import { useNetwork } from '../NetworkContext';
-import type { Deal, Task } from '../lib/types';
+import type { Deal, Task, TaskStatus } from '../lib/types';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { useWalletModal } from '@solana/wallet-adapter-react-ui';
-import { Transaction } from '@solana/web3.js';
+import { Transaction, PublicKey } from '@solana/web3.js';
 import { useToast, notifyActionError } from '../components/Toast';
-import { NetworkDepositInfo } from '../lib/rent';
-import { getLastTxSig } from '../lib/client/chainClient';
+import { NetworkDepositInfo, closeTaskRefund, closeDealRefund } from '../lib/rent';
+import { loadDraft, saveDraft, clearDraft } from '../lib/draft';
 
 const TaskRequirementsFile = ({ requirementsFile }: { requirementsFile: { name: string; sha256: string } }) => {
   const [verifyStatus, setVerifyStatus] = useState<'match' | 'mismatch' | 'too_large' | null>(null);
@@ -199,6 +199,7 @@ const EscrowActionCard = ({ deal, escrowState }: { deal: Deal, escrowState: stri
 
 export const DealDetails = () => {
   const { id } = useParams();
+  const location = useLocation();
   const { role } = useRole();
   const toast = useToast();
   const [loading, setLoading] = useState(true);
@@ -209,8 +210,44 @@ export const DealDetails = () => {
   const [globalLoading, setGlobalLoading] = useState(false);
   // TEMP: virtual deals go away in stage B.
   const [virtualStatusLabel, setVirtualStatusLabel] = useState<string | null>(null);
+  type DealChainInfo = { creator: PublicKey; taskTotal: number; taskClosed: number };
+  type DealChainRead = 'unknown' | 'missing' | DealChainInfo;
+
+  type TaskChainInfo = {
+    status: TaskStatus;
+    creator: PublicKey;
+    deposited: boolean;
+    deadlineSecs: number;
+    startedAt: number;
+    finishedAt: number;
+  };
+  type TaskChainRead = 'unknown' | 'missing' | TaskChainInfo;
+
   const [expandedTasks, setExpandedTasks] = useState<number[]>([]);
   const [chainInfo, setChainInfo] = useState<ChainInfo | null>(null);
+  const [taskChainReads, setTaskChainReads] = useState<Record<number, TaskChainRead>>({});
+  const [dealChainRead, setDealChainRead] = useState<DealChainRead>('unknown');
+  const [taskRefundSol, setTaskRefundSol] = useState<number | null>(null);
+  const [dealRefundSol, setDealRefundSol] = useState<number | null>(null);
+  const [showDealDepositExplainer, setShowDealDepositExplainer] = useState(false);
+  const refreshSeqRef = useRef(0);
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([closeTaskRefund(), closeDealRefund()])
+      .then(([t, d]) => {
+        if (active) {
+          setTaskRefundSol(t);
+          setDealRefundSol(d);
+        }
+      })
+      .catch((err) => {
+        console.warn('Failed to fetch rent refund info', err);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const [initializedDealId, setInitializedDealId] = useState<string | null>(null);
 
@@ -234,6 +271,10 @@ export const DealDetails = () => {
   const { solBalance } = useSolBalance();
   const { balance: usdcBalance } = useUsdcBalance();
   const { symbol } = useToken();
+  const minDeadlineStr = new Date().toISOString().slice(0, 10);
+  const maxDeadlineDate = new Date();
+  maxDeadlineDate.setDate(maxDeadlineDate.getDate() + 365);
+  const maxDeadlineStr = maxDeadlineDate.toISOString().slice(0, 10);
   const MIN_SOL_REQUIRED = 0.01;
   const hasEnoughSol = solBalance === null || solBalance >= MIN_SOL_REQUIRED;
 
@@ -294,6 +335,7 @@ export const DealDetails = () => {
         name: file.name,
         sha256,
       });
+      setIsTaskFileRestoredFromDraft(false);
     } catch (err) {
       console.error('Error hashing file:', err);
       setTaskFileError('Failed to read and hash file.');
@@ -307,6 +349,48 @@ export const DealDetails = () => {
   const handleRemoveTaskFile = () => {
     setTaskReqFile(null);
     setTaskFileError('');
+    setIsTaskFileRestoredFromDraft(false);
+    if (taskFileInputRef.current) taskFileInputRef.current.value = '';
+  };
+
+  const [isTaskDraftRestored, setIsTaskDraftRestored] = useState(false);
+  const [isTaskFileRestoredFromDraft, setIsTaskFileRestoredFromDraft] = useState(false);
+  const addTaskDraftScope = deal?.id ? `addtask:${deal.id}` : '';
+
+  useEffect(() => {
+    if (!showAddTaskForm || !addTaskDraftScope) { setIsTaskDraftRestored(false); setIsTaskFileRestoredFromDraft(false); return; }
+    const d = loadDraft<any>(addTaskDraftScope);
+    if (d) {
+      setIsTaskDraftRestored(true);
+      if (d.title !== undefined) setTaskTitle(d.title);
+      if (d.amount !== undefined) setTaskAmount(d.amount);
+      if (d.criteria !== undefined) setTaskCriteria(d.criteria);
+      if (d.deadline !== undefined) setTaskDeadline(d.deadline);
+      if (d.reqFile?.name && d.reqFile?.sha256) {
+        setTaskReqFile({ name: d.reqFile.name, sha256: d.reqFile.sha256 });
+        setIsTaskFileRestoredFromDraft(true);
+      }
+    }
+  }, [showAddTaskForm, addTaskDraftScope]);
+
+  useEffect(() => {
+    if (!showAddTaskForm || !addTaskDraftScope) return;
+    const timer = setTimeout(() => {
+      const hasContent = Boolean(taskTitle.trim() || taskAmount || taskCriteria.trim() || taskDeadline || taskReqFile);
+      if (!hasContent) return;
+      saveDraft(addTaskDraftScope, {
+        title: taskTitle, amount: taskAmount, criteria: taskCriteria, deadline: taskDeadline,
+        reqFile: taskReqFile ? { name: taskReqFile.name, sha256: taskReqFile.sha256 } : null,
+      });
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [showAddTaskForm, addTaskDraftScope, taskTitle, taskAmount, taskCriteria, taskDeadline, taskReqFile]);
+
+  const handleClearTaskDraft = () => {
+    if (addTaskDraftScope) clearDraft(addTaskDraftScope);
+    setIsTaskDraftRestored(false); setIsTaskFileRestoredFromDraft(false);
+    setTaskTitle(''); setTaskAmount(''); setTaskCriteria(''); setTaskDeadline('');
+    setTaskReqFile(null); setTaskFileError(''); setFieldErrors({});
     if (taskFileInputRef.current) taskFileInputRef.current.value = '';
   };
 
@@ -314,7 +398,58 @@ export const DealDetails = () => {
   const contractorAddr = (chainInfo ? (chainInfo.contractor || deal?.contractor) : deal?.contractor) || '';
   const isWrongContractor = Boolean(chainInfo && connected && myWallet && contractorAddr && myWallet !== contractorAddr);
   const isWrongUserForAddTask = role === 'customer' ? isWrongCustomer : isWrongContractor;
-  const canAddTask = Boolean(deal) && deal?.creator !== 'VIRTUAL' && Boolean(chainInfo) && Boolean(deal?.contractor) && (role === 'customer' || role === 'contractor');
+
+  const isDealAccountMissing = isChainMode && Boolean(chainInfo) && dealChainRead === 'missing';
+  const isDealClosed = Boolean(deal?.closed || isDealAccountMissing);
+
+  const dealChainData = typeof dealChainRead === 'object' ? dealChainRead : null;
+
+  const allTasksClosed = Boolean(
+    (dealChainData && dealChainData.taskTotal > 0 && dealChainData.taskClosed === dealChainData.taskTotal) ||
+    (!isChainMode && deal && deal.tasks.length > 0 && deal.tasks.every((t) => t.closed))
+  );
+
+  const dealCreator = dealChainData ? dealChainData.creator.toBase58() : deal?.creator;
+  const isDealCreator = Boolean(connected && myWallet && dealCreator && myWallet === dealCreator);
+
+  const existingTaskCount = (deal && isChainMode && chainInfo)
+    ? deal.tasks.filter((t, i) => !t.closed && taskChainReads[i] !== 'missing').length
+    : (deal ? deal.tasks.filter((t) => !t.closed).length : 0);
+
+  const totalDepositLocked = (dealRefundSol !== null && taskRefundSol !== null)
+    ? (dealRefundSol + (taskRefundSol * existingTaskCount))
+    : null;
+
+  const canAddTask = !isDealClosed && Boolean(deal) && deal?.creator !== 'VIRTUAL' && Boolean(chainInfo) && Boolean(deal?.contractor) && (role === 'customer' || role === 'contractor');
+
+  const refreshChainStates = async (currentDeal: Deal, cInfo: ChainInfo | null) => {
+    if (!isChainMode || !cInfo || currentDeal.creator === 'VIRTUAL') {
+      return;
+    }
+    const seq = ++refreshSeqRef.current;
+    try {
+      const [dState, ...tStates] = await Promise.all([
+        getDealChainState(currentDeal.id),
+        ...currentDeal.tasks.map((_, i) => getTaskChainState(currentDeal.id, i)),
+      ]);
+      if (seq !== refreshSeqRef.current) return;
+
+      if (dState === null) {
+        setDealChainRead('missing');
+      } else {
+        setDealChainRead(dState);
+      }
+      const tMap: Record<number, TaskChainRead> = {};
+      tStates.forEach((ts, i) => {
+        tMap[i] = ts === null ? 'missing' : ts;
+      });
+      setTaskChainReads((prev) => ({ ...prev, ...tMap }));
+    } catch (err) {
+      if (seq !== refreshSeqRef.current) return;
+      console.warn('Failed to load chain states', err);
+      // On error, keep previous state (do not mark as missing/closed)
+    }
+  };
 
   const handleAddTaskSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -342,8 +477,13 @@ export const DealDetails = () => {
       const selectedDate = new Date(taskDeadline);
       const todayDate = new Date();
       todayDate.setHours(0, 0, 0, 0);
+      const maxAllowed = new Date();
+      maxAllowed.setDate(maxAllowed.getDate() + 365);
+      maxAllowed.setHours(23, 59, 59, 999);
       if (selectedDate < todayDate) {
         errors.deadline = 'Deadline cannot be in the past';
+      } else if (selectedDate > maxAllowed) {
+        errors.deadline = 'The deadline cannot be more than 365 days from now.';
       }
     }
     if (!taskCriteria.trim()) {
@@ -381,8 +521,13 @@ export const DealDetails = () => {
         });
         if (updatedDeal) {
           setDeal(updatedDeal);
-          setChainInfo(getChainInfo(updatedDeal.id));
+          const cInfo = getChainInfo(updatedDeal.id);
+          setChainInfo(cInfo);
+          refreshChainStates(updatedDeal, cInfo);
         }
+        if (addTaskDraftScope) clearDraft(addTaskDraftScope);
+        setIsTaskDraftRestored(false);
+        setIsTaskFileRestoredFromDraft(false);
         setTaskTitle('');
         setTaskCriteria('');
         setTaskAmount('');
@@ -401,45 +546,44 @@ export const DealDetails = () => {
     await doAddTask();
   };
 
-  useEffect(() => {
-    const loadDeal = async () => {
-      try {
-        const foundDeal = await client.getDeal(id || '');
-        if (foundDeal) {
-          setDeal(foundDeal);
-          setChainInfo(getChainInfo(foundDeal.id));
+  const loadDeal = async () => {
+    try {
+      const foundDeal = await client.getDeal(id || '');
+      if (foundDeal) {
+        setDeal(foundDeal);
+        const cInfo = getChainInfo(foundDeal.id);
+        setChainInfo(cInfo);
+        await refreshChainStates(foundDeal, cInfo);
+      } else {
+        // Fallback: try to construct deal from query parameters
+        const params = new URLSearchParams(location.search);
+        const title = params.get('title');
+        const amount = params.get('amount');
+        const criteria = params.get('criteria');
+        const urlDeadline = params.get('deadline');
+        
+        if (title && amount) {
+          setDeal({
+            id: id || 'VIRTUAL', creator: 'VIRTUAL', createdAt: new Date().toISOString(),
+            customer: params.get('customerWallet') || 'Customer (Pending)',
+            contractor: params.get('contractorWallet') || '',
+            tasks: [{ taskIndex: 0, amount: parseFloat(amount), status: (params.get('status') as any) === 'searching' ? 'CustomerCreated' : 'Started', taskHash: 'virtual', solutionHash: null, solutionNote: null, deadline: urlDeadline || 'TBD', createdAt: new Date().toISOString(), deposited: false, meta: { title: title || 'VIRTUAL', successCriteria: criteria || '' } }],
+            history: []
+          });
+          // TEMP: virtual deals go away in stage B.
+          setVirtualStatusLabel(params.get('status') || 'Seeking Contractor');
         } else {
-          // Fallback: try to construct deal from query parameters
-          const params = new URLSearchParams(location.search);
-          const title = params.get('title');
-          const amount = params.get('amount');
-          const criteria = params.get('criteria');
-          const urlDeadline = params.get('deadline');
-          
-          if (title && amount) {
-            setDeal({
-              id: id || 'VIRTUAL', creator: 'VIRTUAL', createdAt: new Date().toISOString(),
-              
-              
-              
-              customer: params.get('customerWallet') || 'Customer (Pending)',
-              contractor: params.get('contractorWallet') || '',
-              
-              tasks: [{ taskIndex: 0, amount: parseFloat(amount), status: (params.get('status') as any) === 'searching' ? 'CustomerCreated' : 'Started', taskHash: 'virtual', solutionHash: null, solutionNote: null, deadline: urlDeadline || 'TBD', createdAt: new Date().toISOString(), deposited: false, meta: { title: title || 'VIRTUAL', successCriteria: criteria || '' } }],
-              history: []
-            });
-            // TEMP: virtual deals go away in stage B.
-            setVirtualStatusLabel(params.get('status') || 'Seeking Contractor');
-          } else {
-            throw new Error("Deal not found");
-          }
+          throw new Error("Deal not found");
         }
-      } catch (err: any) {
-        setError(err.message || "Failed to load deal");
-      } finally {
-        setLoading(false);
       }
-    };
+    } catch (err: any) {
+      setError(err.message || "Failed to load deal");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     loadDeal();
     const handleDealsChanged = () => {
       loadDeal();
@@ -455,8 +599,11 @@ export const DealDetails = () => {
 
   const getEscrowState = () => {
     if (!deal || !deal.tasks) return 'Not funded';
-    const activeTasks = deal.tasks.filter(t => t.status !== 'Cancelled');
-    if (activeTasks.length === 0) return 'Not funded';
+    const activeTasks = deal.tasks.filter(t => t.status !== 'Cancelled' && t.status !== 'Refunded');
+    if (activeTasks.length === 0) {
+      if (deal.tasks.some(t => t.status === 'Refunded')) return 'Refunded';
+      return 'Not funded';
+    }
     
     const allDone = activeTasks.every(t => t.status === 'Completed' || t.status === 'Resolved');
     if (allDone) {
@@ -494,7 +641,7 @@ export const DealDetails = () => {
   const getDealStatusLabel = (deal: Deal) => {
     const status = deriveDealStatus(deal);
     if (status === 'awaiting_funding') {
-      const firstActive = deal.tasks.find(t => t.status !== 'Cancelled');
+      const firstActive = deal.tasks.find(t => t.status !== 'Cancelled' && t.status !== 'Refunded');
       if (firstActive?.status === 'ContractorCreated') {
         const customerAddr = chainInfo?.customer || deal.customer;
         const contractorAddr = (chainInfo ? (chainInfo.contractor || deal.contractor) : deal.contractor) || '';
@@ -509,12 +656,20 @@ export const DealDetails = () => {
     return getStatusLabel(status);
   };
 
-  // deleted handleSubmitWork
-
   const handleTaskAction = async (taskIndex: number, action: () => Promise<any>, successMsg: string) => {
     setTaskActionLoading(prev => ({...prev, [taskIndex]: true}));
     try {
-      await action();
+      const res = await action();
+      if (res && typeof res === 'object' && 'id' in res) {
+        setDeal(res);
+        const cInfo = getChainInfo(res.id);
+        setChainInfo(cInfo);
+        if (isChainMode && cInfo) {
+          refreshChainStates(res, cInfo);
+        }
+      } else {
+        await loadDeal();
+      }
       toast.success(successMsg, getLastTxSig() || undefined);
     } catch (err: any) {
       notifyActionError(toast, err, () => handleTaskAction(taskIndex, action, successMsg));
@@ -526,7 +681,17 @@ export const DealDetails = () => {
   const handleGlobalAction = async (action: () => Promise<any>, successMsg: string) => {
     setGlobalLoading(true);
     try {
-      await action();
+      const res = await action();
+      if (res && typeof res === 'object' && 'id' in res) {
+        setDeal(res);
+        const cInfo = getChainInfo(res.id);
+        setChainInfo(cInfo);
+        if (isChainMode && cInfo) {
+          refreshChainStates(res, cInfo);
+        }
+      } else {
+        await loadDeal();
+      }
       toast.success(successMsg, getLastTxSig() || undefined);
     } catch (err: any) {
       notifyActionError(toast, err, () => handleGlobalAction(action, successMsg));
@@ -538,6 +703,14 @@ export const DealDetails = () => {
   const renderTaskActions = (task: Task, index: number) => {
     if (isVirtualDeal) return null;
 
+    if (isDealClosed) {
+      return (
+        <div className="mt-4 pt-4 border-t border-gray-800/50">
+          <p className="text-gray-500 text-sm italic">Task closed. Deposit returned.</p>
+        </div>
+      );
+    }
+
     if ((role === 'contractor' && !deal.contractor) || (role === 'customer' && !deal.customer)) {
       return (
         <p className="text-gray-500 text-sm italic mt-4 pt-4 border-t border-gray-800/50">
@@ -548,16 +721,79 @@ export const DealDetails = () => {
     
     const loading = taskActionLoading[index];
     const submissionText = taskSubmissions[index] || '';
-    
-    if (task.status === 'Resolved') {
-      let text = 'Resolved';
-      if (task.disputeResult === 'customer') text += ' — Customer won (refund)';
-      else if (task.disputeResult === 'contractor') text += ' — Contractor won (payout)';
-      return <p className="text-gray-300 text-sm mt-4 pt-4 border-t border-gray-800/50">{text}</p>;
-    }
+    const now = Date.now() / 1000;
+    const DAY14 = 14 * 24 * 3600;
 
-    if (task.status === 'Completed' || task.status === 'Cancelled') {
-      return <p className="text-gray-500 text-sm italic mt-4 pt-4 border-t border-gray-800/50">Task is closed.</p>;
+    const isTerminalStatus =
+      task.status === 'Completed' ||
+      task.status === 'Cancelled' ||
+      task.status === 'Resolved' ||
+      task.status === 'Refunded';
+
+    if (isTerminalStatus) {
+      let terminalLabel = taskStatusLabel(task);
+      if (task.status === 'Completed' && task.autoReleased) {
+        terminalLabel = 'Completed · Accepted automatically';
+      } else if (task.status === 'Resolved') {
+        if (task.disputeResult === 'customer') terminalLabel = 'Resolved — Customer won (refund)';
+        else if (task.disputeResult === 'contractor') terminalLabel = 'Resolved — Contractor won (payout)';
+        else terminalLabel = 'Resolved';
+      }
+
+      const taskRead = taskChainReads[index] || 'unknown';
+      const isTaskClosed = Boolean(
+        task.closed ||
+        (isChainMode && chainInfo && taskRead === 'missing')
+      );
+
+      if (isTaskClosed) {
+        return (
+          <div className="mt-4 pt-4 border-t border-gray-800/50 space-y-1">
+            <p className="text-gray-300 text-sm font-medium">{terminalLabel}</p>
+            <p className="text-gray-500 text-sm italic">Task closed. Deposit returned.</p>
+          </div>
+        );
+      }
+
+      const tState = typeof taskRead === 'object' ? (taskRead as TaskChainInfo) : null;
+      const taskCreator =
+        (tState ? tState.creator.toBase58() : null) ||
+        (task.status === 'ContractorCreated' ? deal.contractor : deal.customer) ||
+        deal.creator;
+      const isTaskCreator = Boolean(connected && myWallet && taskCreator && myWallet === taskCreator);
+      const refundSolStr = taskRefundSol !== null ? `${taskRefundSol.toFixed(4)} SOL` : 'calculating…';
+
+      return (
+        <div className="mt-4 pt-4 border-t border-gray-800/50 space-y-3">
+          <p className="text-gray-300 text-sm font-medium">{terminalLabel}</p>
+          {!connected ? (
+            <Button variant="outline" onClick={() => setVisible(true)}>Connect Wallet to Close Task</Button>
+          ) : !isTaskCreator ? (
+            <p className="text-sm text-gray-400">The task creator can close it to get the network deposit back.</p>
+          ) : (
+            <div className="space-y-1">
+              {renderSolWarning()}
+              <Button
+                variant="outline"
+                onClick={() =>
+                  handleTaskAction(
+                    index,
+                    () => client.closeTask(deal.id, index),
+                    taskRefundSol !== null
+                      ? `Task closed. ${taskRefundSol.toFixed(4)} SOL returned to your wallet.`
+                      : 'Task closed. Network deposit returned to your wallet.'
+                  )
+                }
+                disabled={loading || !hasEnoughSol}
+              >
+                {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> : null}
+                Close task
+              </Button>
+              <p className="text-xs text-gray-400">Get back the network deposit: {refundSolStr}</p>
+            </div>
+          )}
+        </div>
+      );
     }
     
     if (task.status === 'Disputed') {
@@ -621,10 +857,68 @@ export const DealDetails = () => {
       }
       
       if (task.status === 'Started') {
-        return <p className="text-gray-500 text-sm italic mt-4 pt-4 border-t border-gray-800/50">Waiting for the contractor to submit work</p>;
+        const isChain = isChainMode && Boolean(chainInfo);
+        const taskRead = taskChainReads[index] || 'unknown';
+        const tState = typeof taskRead === 'object' ? (taskRead as TaskChainInfo) : null;
+        if (isChain && !tState) {
+          return <p className="text-gray-500 text-sm italic mt-4 pt-4 border-t border-gray-800/50">Checking…</p>;
+        }
+
+        const startedAt = isChain
+          ? (tState?.startedAt || 0)
+          : Math.floor(Date.parse(task.createdAt) / 1000);
+        let deadlineSecs = isChain ? (tState?.deadlineSecs || 0) : 0;
+        if (!isChain && task.deadline && task.deadline !== 'TBD') {
+          deadlineSecs = Math.max(0, Math.floor(Date.parse(task.deadline) / 1000) - startedAt);
+        }
+        const refundAt = startedAt + deadlineSecs + DAY14;
+        const refundDate = new Date(refundAt * 1000).toLocaleDateString();
+        const canRefund = now > refundAt;
+
+        if (!canRefund) {
+          return (
+            <p className="text-gray-500 text-sm italic mt-4 pt-4 border-t border-gray-800/50">
+              If no work is submitted by {refundDate}, you can take your USDC back.
+            </p>
+          );
+        }
+
+        return (
+          <div className="mt-4 pt-4 border-t border-gray-800/50 space-y-3">
+            <p className="text-sm text-gray-400">
+              The deadline has passed and the contractor did not submit work.
+            </p>
+            {!isWrongCustomer && renderSolWarning()}
+            {!connected ? (
+              <Button onClick={() => setVisible(true)}>Connect Wallet to Get Refund</Button>
+            ) : isWrongCustomer ? (
+              <p className="text-sm text-gray-400">
+                Only the customer wallet ({truncateAddress(chainInfo!.customer)}) can do this. Switch Phantom to that account.
+              </p>
+            ) : (
+              <Button
+                variant="primary"
+                onClick={() => handleTaskAction(index, () => client.refundTask(deal.id, index), 'Refund claimed')}
+                disabled={loading || !hasEnoughSol}
+              >
+                {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> : null}
+                Get refund
+              </Button>
+            )}
+          </div>
+        );
       }
       
       if (task.status === 'Finished') {
+        const isChain = isChainMode && Boolean(chainInfo);
+        const taskRead = taskChainReads[index] || 'unknown';
+        const tState = typeof taskRead === 'object' ? (taskRead as TaskChainInfo) : null;
+        const finishedAt = isChain
+          ? (tState ? tState.finishedAt : 0)
+          : Math.floor(Date.parse(task.createdAt) / 1000);
+        const reviewBy = finishedAt + DAY14;
+        const reviewDate = finishedAt > 0 ? new Date(reviewBy * 1000).toLocaleDateString() : null;
+
         return (
           <div className="mt-4 pt-4 border-t border-gray-800/50 space-y-3">
             <p className="text-sm text-gray-400">Review the contractor's submission above.</p>
@@ -648,15 +942,51 @@ export const DealDetails = () => {
                  </>
                )}
             </div>
+            {isChain && !tState ? (
+              <p className="text-xs text-gray-500 italic">Checking review deadline…</p>
+            ) : reviewDate ? (
+              <p className="text-xs text-gray-400">
+                Please review by {reviewDate}. After that the contractor can claim the payment.
+              </p>
+            ) : null}
           </div>
         );
       }
     }
     
     if (role === 'contractor') {
-      const isPendingDeposit = task.status === 'CustomerCreated' || task.status === 'ContractorCreated';
+      const contractorAddr = (chainInfo ? (chainInfo.contractor || deal.contractor) : deal.contractor) || '';
+      const isWrongContractor = Boolean(chainInfo && connected && myWallet && contractorAddr && myWallet !== contractorAddr);
 
-      if (!task.deposited && isPendingDeposit) {
+      if (!task.deposited && task.status === 'ContractorCreated') {
+        return (
+          <div className="mt-4 pt-4 border-t border-gray-800/50 space-y-3">
+            <p className="text-gray-500 text-sm italic">Waiting for the customer to fund this task</p>
+            {!isWrongContractor && renderSolWarning()}
+            <div className="space-y-2">
+              {!connected ? (
+                <Button variant="outline" onClick={() => setVisible(true)}>Connect Wallet to Withdraw Proposal</Button>
+              ) : isWrongContractor ? (
+                <p className="text-sm text-gray-400">
+                  Only the selected contractor wallet ({truncateAddress(contractorAddr)}) can do this. Switch Phantom to that account.
+                </p>
+              ) : (
+                <Button
+                  variant="outline"
+                  onClick={() => handleTaskAction(index, () => client.cancelTask(deal.id, index), 'Proposal withdrawn')}
+                  disabled={loading || !hasEnoughSol}
+                >
+                  {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> : null}
+                  Withdraw proposal
+                </Button>
+              )}
+              <p className="text-xs text-gray-400">The customer has not funded this task. Withdrawing it frees the deal so you can close it.</p>
+            </div>
+          </div>
+        );
+      }
+
+      if (!task.deposited && task.status === 'CustomerCreated') {
         return (
           <div className="mt-4 pt-4 border-t border-gray-800/50 space-y-3">
             <p className="text-gray-500 text-sm italic">Waiting for the customer to fund this task</p>
@@ -704,8 +1034,6 @@ export const DealDetails = () => {
       }
       
       if (task.status === 'Started') {
-        const contractorAddr = (chainInfo ? (chainInfo.contractor || deal.contractor) : deal.contractor) || '';
-        const isWrongContractor = Boolean(chainInfo && connected && myWallet && contractorAddr && myWallet !== contractorAddr);
         return (
           <div className="mt-4 pt-4 border-t border-gray-800/50 space-y-3">
             {!isWrongContractor && (
@@ -746,7 +1074,53 @@ export const DealDetails = () => {
       }
       
       if (task.status === 'Finished') {
-        return <p className="text-gray-500 text-sm italic mt-4 pt-4 border-t border-gray-800/50">Waiting for the customer's review</p>;
+        const isChain = isChainMode && Boolean(chainInfo);
+        const taskRead = taskChainReads[index] || 'unknown';
+        const tState = typeof taskRead === 'object' ? (taskRead as TaskChainInfo) : null;
+        if (isChain && !tState) {
+          return <p className="text-gray-500 text-sm italic mt-4 pt-4 border-t border-gray-800/50">Checking…</p>;
+        }
+
+        const finishedAt = isChain
+          ? (tState?.finishedAt || 0)
+          : Math.floor(Date.parse(task.createdAt) / 1000);
+        const reviewBy = finishedAt + DAY14;
+        const reviewDate = new Date(reviewBy * 1000).toLocaleDateString();
+        const canClaim = finishedAt > 0 && now >= reviewBy;
+
+        if (!canClaim) {
+          return (
+            <p className="text-gray-400 text-sm mt-4 pt-4 border-t border-gray-800/50">
+              Waiting for the customer's review. If there is no review by {reviewDate}, you can claim the payment yourself.
+            </p>
+          );
+        }
+
+        return (
+          <div className="mt-4 pt-4 border-t border-gray-800/50 space-y-3">
+            {!isWrongContractor && renderSolWarning()}
+            {!connected ? (
+              <Button onClick={() => setVisible(true)}>Connect Wallet to Claim Payment</Button>
+            ) : isWrongContractor ? (
+              <p className="text-sm text-gray-400">
+                Only the selected contractor wallet ({truncateAddress(contractorAddr)}) can do this. Switch Phantom to that account.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                <Button
+                  variant="primary"
+                  className="bg-green-600 hover:bg-green-500"
+                  onClick={() => handleTaskAction(index, () => client.releaseTask(deal.id, index), 'Payment claimed')}
+                  disabled={loading || !hasEnoughSol}
+                >
+                  {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> : null}
+                  Claim payment
+                </Button>
+                <p className="text-xs text-gray-400">The customer did not review the work in 14 days.</p>
+              </div>
+            )}
+          </div>
+        );
       }
     }
     
@@ -788,6 +1162,13 @@ export const DealDetails = () => {
         </div>
       </div>
 
+      {isDealClosed && (
+        <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-4 text-purple-300 font-medium flex items-center gap-2">
+          <CheckCircle2 className="w-5 h-5 text-purple-400 shrink-0" />
+          <span>Deal closed. All network deposits returned.</span>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <Card className="p-4 sm:p-5">
@@ -818,7 +1199,7 @@ export const DealDetails = () => {
             )}
           </Card>
 
-          {!isVirtualDeal && !(isChainMode && chainInfo) && ((role === 'contractor' && !deal.contractor) || (role === 'customer' && !deal.customer)) && (
+          {!isVirtualDeal && !isDealClosed && !(isChainMode && chainInfo) && ((role === 'contractor' && !deal.contractor) || (role === 'customer' && !deal.customer)) && (
             <Card className="p-6 border-purple-500/20 bg-purple-500/5">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div>
@@ -842,7 +1223,7 @@ export const DealDetails = () => {
             </Card>
           )}
 
-          {!isVirtualDeal && isChainMode && chainInfo && !deal.contractor && <ApplicationsPanel deal={deal} chainInfo={chainInfo} role={role} />}
+          {!isVirtualDeal && !isDealClosed && isChainMode && chainInfo && !deal.contractor && <ApplicationsPanel deal={deal} chainInfo={chainInfo} role={role} />}
           <Card className="p-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
               <h3 className="text-lg font-medium flex items-center gap-2">
@@ -883,6 +1264,19 @@ export const DealDetails = () => {
                     <X className="w-4 h-4" />
                   </button>
                 </div>
+
+                {isTaskDraftRestored && (
+                  <div className="px-3 py-1.5 rounded-lg bg-purple-500/10 border border-purple-500/20 text-xs text-purple-300 flex items-center justify-between">
+                    <span>Draft restored</span>
+                    <button
+                      type="button"
+                      onClick={handleClearTaskDraft}
+                      className="underline hover:text-white cursor-pointer ml-2"
+                    >
+                      Clear draft
+                    </button>
+                  </div>
+                )}
 
                 <div>
                   <label htmlFor="new-task-title" className="block text-xs font-medium text-gray-300 mb-1">
@@ -985,6 +1379,11 @@ export const DealDetails = () => {
                         <p className="text-[11px] text-gray-500 leading-tight">
                           The file is not uploaded. Only its SHA-256 fingerprint is stored in the deal. Send the file to {role === 'contractor' ? 'the customer' : 'your contractor'} separately.
                         </p>
+                        {isTaskFileRestoredFromDraft && (
+                          <p className="text-[11px] text-purple-400 mt-1">
+                            File restored from the draft. Attach it again if you want to replace it.
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>
@@ -998,6 +1397,8 @@ export const DealDetails = () => {
                     ref={taskDeadlineRef}
                     id="new-task-deadline"
                     type="date"
+                    min={minDeadlineStr}
+                    max={maxDeadlineStr}
                     required
                     value={taskDeadline}
                     onChange={(e) => {
@@ -1112,6 +1513,91 @@ export const DealDetails = () => {
                 })
               )}
             </div>
+
+            {isChainMode && chainInfo && !isVirtualDeal && !isDealClosed && (
+              <div className="mt-5 pt-4 border-t border-gray-800/60 space-y-3">
+                <div className="text-xs text-gray-400 space-y-1">
+                  <div>
+                    Network deposit locked in this deal:{' '}
+                    <strong className="text-gray-200 font-semibold">
+                      {totalDepositLocked !== null ? `${totalDepositLocked.toFixed(4)} SOL` : 'calculating…'}
+                    </strong>
+                    . It is returned to the creators when the tasks and the deal are closed.{' '}
+                    <button
+                      type="button"
+                      onClick={() => setShowDealDepositExplainer((prev) => !prev)}
+                      className="text-purple-400 hover:text-purple-300 underline inline focus:outline-none"
+                    >
+                      [What is this?]
+                    </button>
+                  </div>
+                  {showDealDepositExplainer && (
+                    <div className="text-[11px] text-gray-400 bg-gray-950 p-2.5 rounded border border-gray-800 leading-relaxed mt-1">
+                      Solana keeps a small refundable deposit for every account that stores data on-chain. BlinkFlow does not receive it. You get it back when the account is closed.
+                    </div>
+                  )}
+                </div>
+
+                {allTasksClosed && (
+                  <div className="pt-2 border-t border-gray-800/40 space-y-2">
+                    {!connected ? (
+                      <Button variant="outline" onClick={() => setVisible(true)}>Connect Wallet to Close Deal</Button>
+                    ) : !isDealCreator ? (
+                      <p className="text-sm text-gray-400">The deal creator can close it to get the network deposit back.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {renderSolWarning()}
+                        <Button
+                          variant="primary"
+                          onClick={() => handleGlobalAction(
+                            () => client.closeDeal(deal.id),
+                            dealRefundSol !== null
+                              ? `Deal closed. ${dealRefundSol.toFixed(4)} SOL returned to your wallet.`
+                              : 'Deal closed. Network deposit returned to your wallet.'
+                          )}
+                          disabled={globalLoading || !hasEnoughSol}
+                        >
+                          {globalLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> : null}
+                          Close deal
+                        </Button>
+                        <p className="text-xs text-gray-400">
+                          Get back the network deposit: {dealRefundSol !== null ? `${dealRefundSol.toFixed(4)} SOL` : 'calculating…'}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {!isChainMode && allTasksClosed && !isDealClosed && (
+              <div className="mt-5 pt-4 border-t border-gray-800/60 space-y-2">
+                {!connected ? (
+                  <Button variant="outline" onClick={() => setVisible(true)}>Connect Wallet to Close Deal</Button>
+                ) : !isDealCreator ? (
+                  <p className="text-sm text-gray-400">The deal creator can close it to get the network deposit back.</p>
+                ) : (
+                  <div className="space-y-2">
+                    <Button
+                      variant="primary"
+                      onClick={() => handleGlobalAction(
+                        () => client.closeDeal(deal.id),
+                        dealRefundSol !== null
+                          ? `Deal closed. ${dealRefundSol.toFixed(4)} SOL returned to your wallet.`
+                          : 'Deal closed. Network deposit returned to your wallet.'
+                      )}
+                      disabled={globalLoading}
+                    >
+                      {globalLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> : null}
+                      Close deal
+                    </Button>
+                    <p className="text-xs text-gray-400">
+                      Get back the network deposit: {dealRefundSol !== null ? `${dealRefundSol.toFixed(4)} SOL` : 'calculating…'}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </Card>
 
           {!isVirtualDeal && deal.history && deal.history.length > 0 && (

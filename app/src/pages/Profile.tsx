@@ -125,7 +125,11 @@ export const Profile = () => {
     return `${month} ${day}, ${year}`;
   };
 
-  const renderRoleStats = (title: string, stats: { won: number, arbitratedWon: number, lost: number, volume: number }) => {
+  const renderRoleStats = (
+    title: string,
+    stats: { won: number, arbitratedWon: number, lost: number, volume: number },
+    extra?: { label: string; value: number; tooltip: string }
+  ) => {
     const { won, arbitratedWon, lost, volume } = stats;
     const total = won + arbitratedWon + lost;
     const rate = total > 0 ? Math.round(((won + arbitratedWon) / total) * 100) : 0;
@@ -168,6 +172,15 @@ export const Profile = () => {
             <div className="w-2 h-2 rounded-full bg-red-500/80 shadow-[0_0_8px_rgba(239,68,68,0.4)]"></div>
             <span className="font-semibold text-red-400">{lost}</span>
           </div>
+          {extra && (
+            <>
+              <div className="w-px h-3 bg-gray-800 hidden sm:block"></div>
+              <div className="flex items-center gap-1.5 cursor-help" title={extra.tooltip}>
+                <span className="text-xs font-medium text-gray-500">{extra.label}:</span>
+                <span className="font-semibold text-gray-300">{extra.value}</span>
+              </div>
+            </>
+          )}
         </div>
 
         <div className="h-4 w-full flex rounded-full overflow-hidden bg-gray-950 border border-gray-800 shadow-inner">
@@ -226,8 +239,24 @@ export const Profile = () => {
             </h3>
             
             <div className="space-y-8">
-              {renderRoleStats("As Contractor", contractorStats)}
-              {renderRoleStats("As Customer", customerStats)}
+              {renderRoleStats(
+                "As Contractor",
+                contractorStats,
+                {
+                  label: "Paid automatically",
+                  value: reputation?.contractor?.autoReleased ?? 0,
+                  tooltip: "Payments claimed after the customer did not review the work in 14 days",
+                }
+              )}
+              {renderRoleStats(
+                "As Customer",
+                customerStats,
+                {
+                  label: "Missed reviews",
+                  value: reputation?.customer?.unresponsive ?? 0,
+                  tooltip: "Times the contractor was paid automatically because the work was not reviewed in 14 days",
+                }
+              )}
             </div>
 
             {/* Shared Legend */}

@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Card } from './Card';
 import { Button } from './Button';
 import { X, Link2, Check, Loader2, Plus } from 'lucide-react';
@@ -16,6 +16,8 @@ import { PublicKey } from '@solana/web3.js';
 import { useToast, notifyActionError } from './Toast';
 import { NetworkDepositInfo } from '../lib/rent';
 import { getLastTxSig } from '../lib/client/chainClient';
+import { loadDraft, saveDraft, clearDraft } from '../lib/draft';
+import { useTxBarVisible } from './TxStatusBar';
 
 export interface CreateDealInitialValues {
   title?: string;
@@ -80,6 +82,74 @@ export const CreateDealModal = ({
   const [contractorWalletInput, setContractorWalletInput] = useState('');
   const [customerWalletInput, setCustomerWalletInput] = useState('');
 
+  // Draft state
+  const [isDraftRestored, setIsDraftRestored] = useState(false);
+  const [isFileRestoredFromDraft, setIsFileRestoredFromDraft] = useState(false);
+
+  const txBarVisible = useTxBarVisible();
+  const draftScope = role === 'customer' ? 'create:customer' : 'create:contractor';
+
+  useEffect(() => {
+    if (!isOpen) { setIsDraftRestored(false); setIsFileRestoredFromDraft(false); return; }
+    const d = loadDraft<any>(draftScope);
+    if (d) {
+      setIsDraftRestored(true);
+      setTitle(initialValues?.title ?? d.title ?? '');
+      setAmount(initialValues?.amount ?? d.amount ?? '');
+      setDeadline(initialValues?.deadline ?? d.deadline ?? '');
+      if (d.criteria) setCriteria(d.criteria);
+      if (d.contractorWalletInput) setContractorWalletInput(d.contractorWalletInput);
+      if (d.customerWalletInput) setCustomerWalletInput(d.customerWalletInput);
+      if (d.severalStages) setSeveralStages(Boolean(d.severalStages));
+      if (d.dealTitleInput) setDealTitleInput(d.dealTitleInput);
+      if (d.dealDescriptionInput) setDealDescriptionInput(d.dealDescriptionInput);
+      if (d.reqFile?.name && d.reqFile?.sha256) {
+        setReqFile({ name: d.reqFile.name, sha256: d.reqFile.sha256 });
+        setIsFileRestoredFromDraft(true);
+      }
+      if (Array.isArray(d.extraStages)) {
+        setExtraStages(d.extraStages.map((s: any, idx: number) => ({
+          id: s.id || `stage-${idx + 1}-${Date.now()}`,
+          title: s.title || '', amount: s.amount || '', criteria: s.criteria || '', deadline: s.deadline || '',
+          reqFile: s.reqFile ? { name: s.reqFile.name, sha256: s.reqFile.sha256 } : null,
+        })));
+      }
+    } else {
+      if (initialValues?.title) setTitle(initialValues.title);
+      if (initialValues?.amount) setAmount(initialValues.amount);
+      if (initialValues?.deadline) setDeadline(initialValues.deadline);
+    }
+  }, [isOpen, role]);
+
+  useEffect(() => {
+    if (!isOpen || step !== 1) return;
+    const timer = setTimeout(() => {
+      const hasContent = Boolean(title.trim() || amount || criteria.trim() || deadline || contractorWalletInput.trim() || customerWalletInput.trim() || dealTitleInput.trim() || dealDescriptionInput.trim() || reqFile || (extraStages && extraStages.length > 0));
+      if (!hasContent) return;
+      saveDraft(draftScope, {
+        title, amount, criteria, deadline, contractorWalletInput, customerWalletInput, severalStages, dealTitleInput, dealDescriptionInput,
+        reqFile: reqFile ? { name: reqFile.name, sha256: reqFile.sha256 } : null,
+        extraStages: extraStages.map(s => ({ id: s.id, title: s.title, amount: s.amount, criteria: s.criteria, deadline: s.deadline, reqFile: s.reqFile ? { name: s.reqFile.name, sha256: s.reqFile.sha256 } : null })),
+      });
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [isOpen, step, draftScope, title, amount, criteria, deadline, contractorWalletInput, customerWalletInput, severalStages, dealTitleInput, dealDescriptionInput, reqFile, extraStages]);
+
+  const handleClearDraft = () => {
+    clearDraft(draftScope);
+    setIsDraftRestored(false);
+    setIsFileRestoredFromDraft(false);
+    setTitle(initialValues?.title || ''); setAmount(initialValues?.amount || ''); setDeadline(initialValues?.deadline || '');
+    setCriteria(''); setReqFile(null); setSeveralStages(false); setDealTitleInput(''); setDealDescriptionInput('');
+    setExtraStages([]); setContractorWalletInput(''); setCustomerWalletInput(''); setFieldErrors({});
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const minDeadlineStr = new Date().toISOString().slice(0, 10);
+  const maxDeadlineDate = new Date();
+  maxDeadlineDate.setDate(maxDeadlineDate.getDate() + 365);
+  const maxDeadlineStr = maxDeadlineDate.toISOString().slice(0, 10);
+
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const toast = useToast();
@@ -113,6 +183,7 @@ export const CreateDealModal = ({
       setFileError('');
       const sha256 = await sha256HexOfFile(file);
       setReqFile({ name: file.name, sha256 });
+      setIsFileRestoredFromDraft(false);
     } catch (err) {
       console.error('Failed to hash file', err);
       setFileError('Failed to compute file hash');
@@ -124,6 +195,7 @@ export const CreateDealModal = ({
 
   const handleRemoveFile = () => {
     setReqFile(null);
+    setIsFileRestoredFromDraft(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -201,10 +273,24 @@ export const CreateDealModal = ({
         try {
           new PublicKey(trimmedCustomer);
           if (publicKey && trimmedCustomer === publicKey.toBase58()) {
-            setFieldError('deal-customer', 'customerWallet', 'The customer cannot be the contractor.');
+            setFieldError('deal-customer', 'customerWallet', 'You cannot use your own wallet for both roles.');
           }
         } catch {
           setFieldError('deal-customer', 'customerWallet', 'Invalid customer wallet: must be a valid Solana public key');
+        }
+      }
+    }
+
+    if (role === 'customer') {
+      const trimmedContractor = contractorWalletInput.trim();
+      if (trimmedContractor) {
+        try {
+          new PublicKey(trimmedContractor);
+          if (publicKey && trimmedContractor === publicKey.toBase58()) {
+            setFieldError('deal-contractor', 'contractorWallet', 'You cannot use your own wallet for both roles.');
+          }
+        } catch {
+          setFieldError('deal-contractor', 'contractorWallet', 'Invalid contractor wallet: must be a valid Solana public key');
         }
       }
     }
@@ -237,8 +323,13 @@ export const CreateDealModal = ({
       const selectedDate = new Date(deadline);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
+      const maxAllowed = new Date();
+      maxAllowed.setDate(maxAllowed.getDate() + 365);
+      maxAllowed.setHours(23, 59, 59, 999);
       if (selectedDate < today) {
         setFieldError(stage1DeadlineId, stage1DeadlineKey, 'Deadline cannot be in the past');
+      } else if (selectedDate > maxAllowed) {
+        setFieldError(stage1DeadlineId, stage1DeadlineKey, 'The deadline cannot be more than 365 days from now.');
       }
     }
 
@@ -263,8 +354,13 @@ export const CreateDealModal = ({
           const selectedDate = new Date(stage.deadline);
           const today = new Date();
           today.setHours(0, 0, 0, 0);
+          const maxAllowed = new Date();
+          maxAllowed.setDate(maxAllowed.getDate() + 365);
+          maxAllowed.setHours(23, 59, 59, 999);
           if (selectedDate < today) {
             setFieldError(`stage-${stageIdx}-deadline`, `stage_${stageIdx}_deadline`, 'Deadline cannot be in the past');
+          } else if (selectedDate > maxAllowed) {
+            setFieldError(`stage-${stageIdx}-deadline`, `stage_${stageIdx}_deadline`, 'The deadline cannot be more than 365 days from now.');
           }
         }
       });
@@ -310,6 +406,9 @@ export const CreateDealModal = ({
         } : {}),
       });
       dealId = deal.id;
+      clearDraft(draftScope);
+      setIsDraftRestored(false);
+      setIsFileRestoredFromDraft(false);
       const txSig = getLastTxSig();
       toast.success('Deal created', { txSig: txSig || undefined });
     } catch (err: any) {
@@ -368,12 +467,24 @@ export const CreateDealModal = ({
           <X className="w-5 h-5" />
         </button>
 
-        <div className="p-6 overflow-y-auto max-h-[90vh]">
+        <div className={`p-6 overflow-y-auto max-h-[90vh] ${txBarVisible ? 'pb-28' : ''}`}>
           {step === 1 ? (
             <form noValidate onSubmit={handleGenerate} className="space-y-4">
               <div>
                 <h2 className="text-xl font-bold mb-1">Create New Deal</h2>
                 <p className="text-sm text-gray-400 mb-6">Set escrow terms and generate a link for your partner.</p>
+                {isDraftRestored && (
+                  <div className="mb-4 px-3 py-2 rounded-lg bg-purple-500/10 border border-purple-500/20 text-xs text-purple-300 flex items-center justify-between">
+                    <span>Draft restored</span>
+                    <button
+                      type="button"
+                      onClick={handleClearDraft}
+                      className="underline hover:text-white cursor-pointer ml-2"
+                    >
+                      Clear draft
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Deal Title (and description when severalStages is ON) */}
@@ -442,6 +553,7 @@ export const CreateDealModal = ({
                     onChange={(e) => {
                       const val = e.target.value;
                       setContractorWalletInput(val);
+                      setFieldErrors(prev => ({ ...prev, contractorWallet: '' }));
                       if (!val.trim() && severalStages) {
                         setSeveralStages(false);
                         setExtraStages([]);
@@ -449,6 +561,7 @@ export const CreateDealModal = ({
                     }}
                     className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-2.5 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all text-white font-mono text-sm"
                   />
+                  {fieldErrors.contractorWallet && <p className="text-red-400 text-xs mt-1">{fieldErrors.contractorWallet}</p>}
                   <p className="text-xs text-gray-500 mt-1">You can also invite a specific contractor by pasting their wallet.</p>
                 </div>
               )}
@@ -598,6 +711,11 @@ export const CreateDealModal = ({
                             <p className="text-[11px] text-gray-500 leading-tight">
                               The file is not uploaded. Only its SHA-256 fingerprint is stored in the deal. Send the file to {role === 'contractor' ? 'the customer' : 'your contractor'} separately.
                             </p>
+                            {isFileRestoredFromDraft && (
+                              <p className="text-[11px] text-purple-400 mt-1">
+                                File restored from the draft. Attach it again if you want to replace it.
+                              </p>
+                            )}
                           </div>
                         )}
                       </div>
@@ -608,6 +726,8 @@ export const CreateDealModal = ({
                       <input 
                         id="stage-0-deadline"
                         type="date" 
+                        min={minDeadlineStr}
+                        max={maxDeadlineStr}
                         value={deadline}
                         onChange={(e) => {
                           setDeadline(e.target.value);
@@ -740,6 +860,8 @@ export const CreateDealModal = ({
                           <input 
                             id={`stage-${stageIdx}-deadline`}
                             type="date" 
+                            min={minDeadlineStr}
+                            max={maxDeadlineStr}
                             value={stage.deadline}
                             onChange={(e) => {
                               const val = e.target.value;
@@ -828,6 +950,11 @@ export const CreateDealModal = ({
                           <p className="text-[11px] text-gray-500 leading-tight">
                             The file is not uploaded. Only its SHA-256 fingerprint is stored in the deal. Send the file to {role === 'contractor' ? 'the customer' : 'your contractor'} separately.
                           </p>
+                          {isFileRestoredFromDraft && (
+                            <p className="text-[11px] text-purple-400 mt-1">
+                              File restored from the draft. Attach it again if you want to replace it.
+                            </p>
+                          )}
                         </div>
                       )}
                     </div>
@@ -838,6 +965,8 @@ export const CreateDealModal = ({
                     <input 
                       id="deal-deadline"
                       type="date" 
+                      min={minDeadlineStr}
+                      max={maxDeadlineStr}
                       value={deadline}
                       onChange={(e) => { setDeadline(e.target.value); setFieldErrors(prev => ({ ...prev, deadline: '' })); }}
                       onClick={(e) => 'showPicker' in HTMLInputElement.prototype && e.currentTarget.showPicker()}

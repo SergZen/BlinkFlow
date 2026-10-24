@@ -20,6 +20,7 @@ import {
 import { BlinkflowClient } from './types';
 import { mockClient, getDeals, replaceDeals } from './mockClient';
 import { syncNow, push } from './sync';
+import { Deal, TaskStatus } from '../types';
 import { taskHashInput } from '../fileHash';
 import { friendlyError } from '../errors';
 import { createConnection } from '../rpc';
@@ -46,6 +47,10 @@ const DISC = {
   cancelTaskByContractor: [155, 183, 94, 233, 91, 29, 155, 211],
   setTrustAuthority: [130, 95, 184, 81, 201, 79, 106, 112],
   resolveDispute: [231, 6, 202, 6, 96, 103, 12, 230],
+  releaseTaskAfterReviewPeriod: [218, 58, 105, 143, 22, 62, 24, 126],
+  refundTaskDeadline:           [247, 12, 46, 88, 158, 188, 72, 108],
+  closeTaskAccount:             [222, 216, 130, 120, 218, 31, 220, 215],
+  closeDealAccount:             [221, 144, 249, 23, 234, 143, 244, 80],
 };
 
 const conn = createConnection('confirmed');
@@ -110,27 +115,130 @@ export function getLastTxSig(): string | null {
   return lastTxSig;
 }
 
+export type TxStage = 'idle' | 'preparing' | 'waiting_signature' | 'sending' | 'confirming';
+export interface TxProgress {
+  stage: TxStage;
+  startedAt: number;
+  sig?: string;
+}
+
+type ProgressListener = (p: TxProgress) => void;
+const progressListeners = new Set<ProgressListener>();
+let currentProgress: TxProgress = { stage: 'idle', startedAt: 0 };
+let activeAttemptId = 0;
+let cancelActiveTx: (() => void) | null = null;
+
+export function getTxProgress(): TxProgress {
+  return currentProgress;
+}
+
+export function subscribeTxProgress(cb: ProgressListener): () => void {
+  progressListeners.add(cb);
+  cb(currentProgress);
+  return () => {
+    progressListeners.delete(cb);
+  };
+}
+
+export function cancelPendingTx(): void {
+  if (cancelActiveTx) {
+    cancelActiveTx();
+  }
+}
+
+function setTxProgress(stage: TxStage, sig?: string) {
+  if (stage === 'idle') {
+    currentProgress = { stage: 'idle', startedAt: 0 };
+  } else {
+    currentProgress = {
+      stage,
+      startedAt: currentProgress.startedAt || Date.now(),
+      sig: sig || currentProgress.sig,
+    };
+  }
+  progressListeners.forEach((cb) => {
+    try { cb(currentProgress); } catch {}
+  });
+}
+
 async function sendTx(ixs: TransactionInstruction[]): Promise<string> {
+  if (currentProgress.stage !== 'idle') {
+    throw new Error('Another action is waiting for your wallet. Finish or cancel it first.');
+  }
+
+  const attemptId = ++activeAttemptId;
   lastTxSig = null;
-  const p = provider();
-  const tx = new Transaction().add(
-    ComputeBudgetProgram.setComputeUnitLimit({ units: 600000 }),
-    ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 50_000 }),
-    ...ixs
-  );
-  tx.feePayer = new PublicKey(p.publicKey.toString());
-  const { blockhash, lastValidBlockHeight } = await withRetry(() => conn.getLatestBlockhash('confirmed'));
-  tx.recentBlockhash = blockhash;
-  const estimatedTxSize = tx.serializeMessage().length + 1 + 64;
-  if (estimatedTxSize > 1232) {
-    throw new Error('Too many stages for one transaction. Remove a stage now and add it later with Add task.');
-  }
-  let signed: Transaction;
+  setTxProgress('preparing');
+
   try {
-    signed = await p.signTransaction(tx);
-  } catch (e: any) {
-    throw new Error(friendlyError(e));
-  }
+    const p = provider();
+    const tx = new Transaction().add(
+      ComputeBudgetProgram.setComputeUnitLimit({ units: 600000 }),
+      ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 50_000 }),
+      ...ixs
+    );
+    tx.feePayer = new PublicKey(p.publicKey.toString());
+    const { blockhash, lastValidBlockHeight } = await withRetry(() => conn.getLatestBlockhash('confirmed'));
+    tx.recentBlockhash = blockhash;
+    const estimatedTxSize = tx.serializeMessage().length + 1 + 64;
+    if (estimatedTxSize > 1232) {
+      throw new Error('Too many stages for one transaction. Remove a stage now and add it later with Add task.');
+    }
+
+    setTxProgress('waiting_signature');
+
+    let signed: Transaction;
+    try {
+      signed = await new Promise<Transaction>((resolve, reject) => {
+        let timer: any = null;
+        let settled = false;
+
+        const cleanup = () => {
+          settled = true;
+          if (timer) clearTimeout(timer);
+          if (cancelActiveTx === onCancel) cancelActiveTx = null;
+        };
+
+        const onCancel = () => {
+          if (settled) return;
+          cleanup();
+          const err: any = new Error('Cancelled.');
+          err.code = 'USER_CANCELLED';
+          reject(err);
+        };
+        cancelActiveTx = onCancel;
+
+        timer = setTimeout(() => {
+          if (settled) return;
+          cleanup();
+          const err: any = new Error('No signature received from the wallet. Try again.');
+          err.code = 'SIGN_TIMEOUT';
+          reject(err);
+        }, 120_000);
+
+        p.signTransaction(tx)
+          .then((s: Transaction) => {
+            if (activeAttemptId !== attemptId) return; // Drop late signature silently!
+            if (settled) return;
+            cleanup();
+            resolve(s);
+          })
+          .catch((e: any) => {
+            if (activeAttemptId !== attemptId) return;
+            if (settled) return;
+            cleanup();
+            reject(e);
+          });
+      });
+    } catch (e: any) {
+      if (e?.code === 'USER_CANCELLED' || e?.code === 'SIGN_TIMEOUT') {
+        throw e;
+      }
+      throw new Error(friendlyError(e));
+    }
+
+    setTxProgress('sending');
+
   const raw = signed.serialize();
   let sig!: string;
   for (let attempt = 1; attempt <= 6; attempt++) {
@@ -161,6 +269,9 @@ async function sendTx(ixs: TransactionInstruction[]): Promise<string> {
       throw new Error(friendlyError(e));
     }
   }
+
+  setTxProgress('confirming', sig);
+
   let done = false;
   const rebroadcastStart = Date.now();
   const rebroadcastIntervalMs = 2_000;
@@ -239,9 +350,11 @@ async function sendTx(ixs: TransactionInstruction[]): Promise<string> {
       }
     }
 
-    throw new Error(
+    const sentErr: any = new Error(
       'The transaction was sent but is not confirmed yet. Wait 30 seconds, refresh the page and check the deal status before trying again.'
     );
+    sentErr.txSig = sig;
+    throw sentErr;
   } finally {
     done = true;
   }
@@ -253,28 +366,126 @@ async function sendTx(ixs: TransactionInstruction[]): Promise<string> {
   }
   lastTxSig = sig;
   return sig;
+  } finally {
+    if (activeAttemptId === attemptId) {
+      setTxProgress('idle');
+      cancelActiveTx = null;
+    }
+  }
 }
+
 
 // ---- addresses ------------------------------------------------------------------------------------
 const taskPda = (deal: PublicKey, index: number) =>
   pda([enc.encode('task'), deal.toBuffer(), Uint8Array.of(index)]);
 
-async function readTaskTotalCount(deal: PublicKey): Promise<number> {
-  const account = await withRetry(() => conn.getAccountInfo(deal));
-  if (!account || !account.data) {
-    throw new Error('Could not find on-chain deal account.');
+const TASK_STATUS_ENUM: TaskStatus[] = [
+  'CustomerCreated',
+  'ContractorCreated',
+  'Started',
+  'Finished',
+  'Disputed',
+  'Resolved',
+  'Completed',
+  'Cancelled',
+  'Refunded',
+];
+
+export async function ensureAtaIx(payer: PublicKey, owner: PublicKey): Promise<TransactionInstruction | null> {
+  const account = await withRetry(() => conn.getAccountInfo(ata(owner)));
+  if (account) return null;
+  return new TransactionInstruction({
+    programId: ATA_PROGRAM,
+    keys: [
+      meta(payer, true, true),
+      meta(ata(owner), false, true),
+      meta(owner, false, false),
+      meta(MINT, false, false),
+      meta(SystemProgram.programId, false, false),
+      meta(TOKEN_PROGRAM, false, false),
+    ],
+    data: Uint8Array.of(1) as any, // createIdempotent
+  });
+}
+
+export async function readTaskOnChain(deal: PublicKey, index: number): Promise<{
+  status: TaskStatus;
+  creator: PublicKey;
+  deposited: boolean;
+  deadlineSecs: number;
+  startedAt: number;
+  finishedAt: number;
+} | null> {
+  const account = await withRetry(() => conn.getAccountInfo(taskPda(deal, index)));
+  if (!account) return null;
+  if (!account.data || account.data.length < 204) {
+    throw new Error('Corrupted or invalid task account data on-chain.');
   }
   const data = account.data;
+  const creator = new PublicKey(data.subarray(41, 73));
+  const status = TASK_STATUS_ENUM[data[81]] || 'CustomerCreated';
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  const deadlineSecs = Number(view.getBigInt64(146, true));
+  const deposited = data[162] !== 0;
+  const startedAt = Number(view.getBigInt64(171, true));
+  const finishedAt = Number(view.getBigInt64(187, true));
+  return {
+    status,
+    creator,
+    deposited,
+    deadlineSecs,
+    startedAt,
+    finishedAt,
+  };
+}
+
+export async function readDealOnChain(deal: PublicKey): Promise<{
+  creator: PublicKey;
+  taskTotal: number;
+  taskClosed: number;
+} | null> {
+  const account = await withRetry(() => conn.getAccountInfo(deal));
+  if (!account) return null;
+  const data = account.data;
   const tagOffset = 8 + 192 + 8;
-  if (data.length <= tagOffset) {
-    throw new Error('Deal account data is truncated.');
+  if (!data || data.length <= tagOffset) {
+    throw new Error('Corrupted or invalid deal account data on-chain.');
   }
+  const creator = new PublicKey(data.subarray(8, 40));
   const tag = data[tagOffset];
   const countOffset = tagOffset + (tag !== 0 ? 33 : 1) + 8;
-  if (data.length <= countOffset) {
-    throw new Error('Deal account data is too short for task_total_count.');
+  if (data.length <= countOffset + 7) {
+    throw new Error('Corrupted or invalid deal account data on-chain.');
   }
-  return data[countOffset];
+  const taskTotal = data[countOffset];
+  const taskClosed = data[countOffset + 7];
+  return { creator, taskTotal, taskClosed };
+}
+
+export async function getTaskChainState(dealId: string, index: number) {
+  const info = getChainInfo(dealId);
+  if (!info) return null;
+  const customer = new PublicKey(info.customer);
+  const contractor = info.contractor ? new PublicKey(info.contractor) : customer;
+  const dealKey = info.deal ? new PublicKey(info.deal) : addrs(customer, contractor, BigInt(info.seed)).deal;
+  return readTaskOnChain(dealKey, index);
+}
+
+export async function getDealChainState(dealId: string) {
+  const info = getChainInfo(dealId);
+  if (!info) return null;
+  const customer = new PublicKey(info.customer);
+  const contractor = info.contractor ? new PublicKey(info.contractor) : customer;
+  const dealKey = info.deal ? new PublicKey(info.deal) : addrs(customer, contractor, BigInt(info.seed)).deal;
+  return readDealOnChain(dealKey);
+}
+
+async function readTaskTotalCount(deal: PublicKey): Promise<number> {
+  const info = await readDealOnChain(deal);
+  if (!info) {
+    throw new Error('Could not find on-chain deal account.');
+  }
+  return info.taskTotal;
 }
 
 function addrs(customer: PublicKey, contractor: PublicKey, seed: bigint) {
@@ -430,7 +641,7 @@ export const chainClient: BlinkflowClient = {
         throw new Error('Invalid customer wallet.');
       }
       if (customer.equals(contractor)) {
-        throw new Error('The customer cannot be the contractor.');
+        throw new Error('The customer and the contractor must be different wallets.');
       }
 
       let trust: PublicKey;
@@ -445,7 +656,15 @@ export const chainClient: BlinkflowClient = {
 
       const seed = BigInt(Date.now());
       const a = addrs(customer, contractor, seed);
+      const custAtaAccount = await withRetry(() => conn.getAccountInfo(a.customerAta));
+      if (!custAtaAccount) {
+        throw new Error('The customer has no USDC account yet, so the deal cannot be created now. Ask them to get USDC first.');
+      }
+
       const seconds = Math.max(86400, Math.floor((new Date(input.deadline).getTime() - Date.now()) / 1000) || 604800);
+      if (seconds > 365 * 86400) {
+        throw new Error('The deadline cannot be more than 365 days from now.');
+      }
       const taskHash = await sha256(taskHashInput(input.title, input.successCriteria, input.requirementsFile?.sha256));
 
       const data = cat(
@@ -465,6 +684,7 @@ export const chainClient: BlinkflowClient = {
         meta(a.task0, false, true),
         meta(MINT, false, false),
         meta(a.dealVault, false, true),
+        meta(a.customerAta, false, false),
         meta(a.sbtCollection, false, true),
         meta(a.sbtContractor, false, true),
         meta(MPL_CORE, false, false),
@@ -479,6 +699,9 @@ export const chainClient: BlinkflowClient = {
           const extra = input.extraTasks[i];
           const extraTaskIndex = i + 1;
           const extraSeconds = Math.max(86400, Math.floor((new Date(extra.deadline).getTime() - Date.now()) / 1000) || 604800);
+          if (extraSeconds > 365 * 86400) {
+            throw new Error('The deadline cannot be more than 365 days from now.');
+          }
           const extraTaskHash = await sha256(taskHashInput(extra.title, extra.successCriteria, extra.requirementsFile?.sha256));
           const extraAmountU64 = u64(BigInt(Math.round(extra.amount * 10 ** DECIMALS)));
           const newTask = taskPda(a.deal, extraTaskIndex);
@@ -538,6 +761,9 @@ export const chainClient: BlinkflowClient = {
     const customer = new PublicKey(input.wallet);
     const contractorStr: string = ((input as any).contractorWallet || '').trim();
     const contractor = contractorStr ? new PublicKey(contractorStr) : null;
+    if (contractor && customer.equals(contractor)) {
+      throw new Error('The customer and the contractor must be different wallets.');
+    }
     const seed = BigInt(Date.now());
     const a = addrs(customer, contractor ?? customer, seed);
     const totalAmount = input.amount + (input.extraTasks?.reduce((acc, t) => acc + t.amount, 0) || 0);
@@ -565,6 +791,9 @@ export const chainClient: BlinkflowClient = {
       console.warn('[createDeal] balance pre-check skipped due to RPC error:', err?.message || err);
     }
     const seconds = Math.max(86400, Math.floor((new Date(input.deadline).getTime() - Date.now()) / 1000) || 604800);
+    if (seconds > 365 * 86400) {
+      throw new Error('The deadline cannot be more than 365 days from now.');
+    }
     const taskHash = await sha256(taskHashInput(input.title, input.successCriteria, input.requirementsFile?.sha256));
     let trust: PublicKey;
     try {
@@ -586,6 +815,9 @@ export const chainClient: BlinkflowClient = {
         const extra = input.extraTasks[i];
         const extraTaskIndex = i + 1;
         const extraSeconds = Math.max(86400, Math.floor((new Date(extra.deadline).getTime() - Date.now()) / 1000) || 604800);
+        if (extraSeconds > 365 * 86400) {
+          throw new Error('The deadline cannot be more than 365 days from now.');
+        }
         const extraTaskHash = await sha256(taskHashInput(extra.title, extra.successCriteria, extra.requirementsFile?.sha256));
         const extraAmountU64 = u64(BigInt(Math.round(extra.amount * 10 ** DECIMALS)));
         const newTask = taskPda(a.deal, extraTaskIndex);
@@ -637,7 +869,7 @@ export const chainClient: BlinkflowClient = {
     const c = await ctx(dealId); if (!c) throw new Error('This deal is not on-chain, so this action cannot be performed.');
     requireWallet(c.info.customer, 'customer');
     let picked: PublicKey; try { picked = new PublicKey(contractorWallet); } catch { throw new Error('Invalid contractor wallet.'); }
-    if (picked.toBase58() === c.info.customer) throw new Error('The customer cannot be the contractor.');
+    if (picked.toBase58() === c.info.customer) throw new Error('The customer and the contractor must be different wallets.');
     const d = getDeals().find((x) => x.id === dealId);
     if (!d || d.contractor || d.tasks?.[0]?.status !== 'CustomerCreated') throw new Error('The contractor already accepted this deal. It can no longer be changed.');
     const a = c.a;
@@ -690,7 +922,11 @@ export const chainClient: BlinkflowClient = {
       throw new Error('Protocol is currently paused.');
     }
 
-    const nextIndex = await readTaskTotalCount(c.a.deal);
+    const dealOnChain = await readDealOnChain(c.a.deal);
+    if (!dealOnChain) {
+      throw new Error('Could not find on-chain deal account.');
+    }
+    const nextIndex = dealOnChain.taskTotal;
     if (nextIndex >= 255) {
       throw new Error('Maximum tasks per deal reached (255).');
     }
@@ -698,6 +934,9 @@ export const chainClient: BlinkflowClient = {
     const seconds = Math.max(86400, Math.floor((new Date(input.deadline).getTime() - Date.now()) / 1000) || 604800);
     if (seconds <= 0) {
       throw new Error('Deadline must be in the future.');
+    }
+    if (seconds > 365 * 86400) {
+      throw new Error('The deadline cannot be more than 365 days from now.');
     }
 
     const taskHash = await sha256(taskHashInput(input.title.trim(), input.successCriteria.trim(), input.requirementsFile?.sha256));
@@ -934,6 +1173,12 @@ export const chainClient: BlinkflowClient = {
     requireWallet(c.info.customer, 'customer');
     const a = c.a;
     const task = taskPda(a.deal, taskIndex);
+    if (approved) {
+      const contractorAtaAccount = await withRetry(() => conn.getAccountInfo(a.contractorAta));
+      if (!contractorAtaAccount) {
+        throw new Error('The contractor has no USDC account yet, so the payment cannot be made. Ask them to get USDC first.');
+      }
+    }
     const sig = await sendTx([ix(cat(Uint8Array.from(DISC.completeTaskByCustomer), Uint8Array.of(taskIndex), Uint8Array.of(approved ? 1 : 0)), [
       meta(c.customer, true, true), meta(c.contractor), meta(a.protocol), meta(a.deal, false, true), meta(task, false, true), meta(MINT),
       meta(a.dealVault, false, true), meta(a.protocolVault, false, true), meta(a.contractorAta, false, true), meta(a.sbtCollection, false, true),
@@ -981,32 +1226,48 @@ export const chainClient: BlinkflowClient = {
         throw new Error('The contractor already accepted this deal. The customer can no longer cancel it.');
       }
     } else {
-      if (currentStatus !== 'Started') {
-        throw new Error('The contractor can cancel only after accepting the task.');
+      if (currentStatus !== 'Started' && currentStatus !== 'ContractorCreated') {
+        throw new Error('The contractor can cancel only an unfunded proposal or a started task.');
       }
     }
     const a = c.a;
     const task = taskPda(a.deal, taskIndex);
     const disc = side === 'customer' ? DISC.cancelTaskByCustomer : DISC.cancelTaskByContractor;
     const signerKey = side === 'customer' ? c.customer : c.contractor;
-    const sig = await sendTx([ix(cat(Uint8Array.from(disc), Uint8Array.of(taskIndex)), [
-      meta(signerKey, true),
-      meta(a.deal, false, true),
-      meta(task, false, true),
-      meta(MINT),
-      meta(a.dealVault, false, true),
-      meta(a.customerAta, false, true),
-      meta(ATA_PROGRAM),
-      meta(TOKEN_PROGRAM),
-      meta(SystemProgram.programId),
-    ])]);
+
+    if (side === 'contractor' && currentStatus === 'ContractorCreated') {
+      const custAtaAccount = await withRetry(() => conn.getAccountInfo(a.customerAta));
+      if (!custAtaAccount) {
+        throw new Error("The customer's USDC account no longer exists, so the proposal cannot be withdrawn. Ask them to get USDC first.");
+      }
+    }
+
+    const sig = await sendTx([
+      ix(cat(Uint8Array.from(disc), Uint8Array.of(taskIndex)), [
+        meta(signerKey, true),
+        meta(a.deal, false, true),
+        meta(task, false, true),
+        meta(MINT),
+        meta(a.dealVault, false, true),
+        meta(a.customerAta, false, true),
+        meta(ATA_PROGRAM),
+        meta(TOKEN_PROGRAM),
+        meta(SystemProgram.programId),
+      ]),
+    ]);
     addSig(dealId, 'cancel', sig);
     return afterStep(mockClient.cancelTask(dealId, taskIndex).then((r) =>
       patchDeal(dealId, (d) => {
         if (d.tasks?.[taskIndex]) {
           d.tasks[taskIndex].status = 'Cancelled';
         }
-        d.history.push({ date: today(), action: side === 'customer' ? 'Cancelled by Customer, Escrow Refunded On-chain' : 'Cancelled by Contractor, Escrow Refunded to Customer On-chain' });
+        let action = 'Cancelled by Customer, Escrow Refunded On-chain';
+        if (side === 'contractor') {
+          action = currentStatus === 'ContractorCreated'
+            ? 'Proposal withdrawn by the contractor (no funds moved)'
+            : 'Cancelled by Contractor, Escrow Refunded to Customer On-chain';
+        }
+        d.history.push({ date: today(), action });
       }) ?? r));
   },
 
@@ -1029,21 +1290,8 @@ export const chainClient: BlinkflowClient = {
 
     // Ensure ATAs exist for accounts receiving tokens if not yet created
     for (const owner of [dealTrustAuth, c.contractor, c.customer]) {
-      const existing = await withRetry(() => conn.getAccountInfo(ata(owner)));
-      if (!existing) {
-        ixs.push(new TransactionInstruction({
-          programId: ATA_PROGRAM,
-          keys: [
-            meta(dealTrustAuth, true, true),
-            meta(ata(owner), false, true),
-            meta(owner, false, false),
-            meta(MINT, false, false),
-            meta(SystemProgram.programId, false, false),
-            meta(TOKEN_PROGRAM, false, false),
-          ],
-          data: Uint8Array.of(1) as any, // createIdempotent
-        }));
-      }
+      const ataIx = await ensureAtaIx(dealTrustAuth, owner);
+      if (ataIx) ixs.push(ataIx);
     }
 
     const data = cat(
@@ -1094,4 +1342,228 @@ export const chainClient: BlinkflowClient = {
       )
     );
   },
+
+  async releaseTask(dealId, taskIndex) {
+    const c = await ctx(dealId);
+    if (!c) throw new Error('This deal is not on-chain, so this action cannot be performed.');
+    if (!c.info.contractor) throw new Error('Contractor must be assigned.');
+    requireWallet(c.info.contractor, 'contractor');
+
+    const a = c.a;
+    const task = taskPda(a.deal, taskIndex);
+    const ixs: TransactionInstruction[] = [];
+    const ataIx = await ensureAtaIx(c.contractor, c.contractor);
+    if (ataIx) ixs.push(ataIx);
+
+    const data = cat(Uint8Array.from(DISC.releaseTaskAfterReviewPeriod), Uint8Array.of(taskIndex));
+    const keys = [
+      meta(c.contractor, true, true),
+      meta(a.protocol, false, false),
+      meta(a.deal, false, true),
+      meta(task, false, true),
+      meta(MINT, false, false),
+      meta(a.dealVault, false, true),
+      meta(a.protocolVault, false, true),
+      meta(a.contractorAta, false, true),
+      meta(a.sbtCollection, false, true),
+      meta(a.sbtCustomer, false, true),
+      meta(a.sbtContractor, false, true),
+      meta(MPL_CORE, false, false),
+      meta(ATA_PROGRAM, false, false),
+      meta(TOKEN_PROGRAM, false, false),
+      meta(SystemProgram.programId, false, false),
+    ];
+    ixs.push(ix(data, keys));
+
+    const sig = await sendTx(ixs);
+    addSig(dealId, 'release', sig);
+    return afterStep(
+      mockClient.releaseTask(dealId, taskIndex).then((r) =>
+        patchDeal(dealId, (d) => {
+          if (d.tasks?.[taskIndex]) {
+            d.tasks[taskIndex].status = 'Completed';
+            d.tasks[taskIndex].autoReleased = true;
+          }
+          d.history.push({
+            date: today(),
+            action: 'Payment released after the review period (no review from the customer)',
+          });
+        }) ?? r
+      )
+    );
+  },
+
+  async refundTask(dealId, taskIndex) {
+    const c = await ctx(dealId);
+    if (!c) throw new Error('This deal is not on-chain, so this action cannot be performed.');
+    requireWallet(c.info.customer, 'customer');
+
+    const a = c.a;
+    const task = taskPda(a.deal, taskIndex);
+    const data = cat(Uint8Array.from(DISC.refundTaskDeadline), Uint8Array.of(taskIndex));
+    const keys = [
+      meta(c.customer, true, false),
+      meta(a.deal, false, true),
+      meta(task, false, true),
+      meta(MINT, false, false),
+      meta(a.dealVault, false, true),
+      meta(a.customerAta, false, true),
+      meta(ATA_PROGRAM, false, false),
+      meta(TOKEN_PROGRAM, false, false),
+      meta(SystemProgram.programId, false, false),
+    ];
+
+    const sig = await sendTx([ix(data, keys)]);
+    addSig(dealId, 'refund', sig);
+    return afterStep(
+      mockClient.refundTask(dealId, taskIndex).then((r) =>
+        patchDeal(dealId, (d) => {
+          if (d.tasks?.[taskIndex]) {
+            d.tasks[taskIndex].status = 'Refunded';
+          }
+          d.history.push({
+            date: today(),
+            action: 'Refunded to the customer after the deadline (no work submitted)',
+          });
+        }) ?? r
+      )
+    );
+  },
+
+  async closeTask(dealId, taskIndex) {
+    const c = await ctx(dealId);
+    if (!c) throw new Error('This deal is not on-chain, so this action cannot be performed.');
+
+    const taskOnChain = await readTaskOnChain(c.a.deal, taskIndex);
+    if (!taskOnChain) throw new Error('Task account not found on-chain.');
+    requireWallet(taskOnChain.creator.toBase58(), 'task creator');
+
+    const a = c.a;
+    const task = taskPda(a.deal, taskIndex);
+    const data = cat(Uint8Array.from(DISC.closeTaskAccount), Uint8Array.of(taskIndex));
+    const keys = [
+      meta(taskOnChain.creator, true, true),
+      meta(a.deal, false, true),
+      meta(task, false, true),
+      meta(SystemProgram.programId, false, false),
+    ];
+
+    const sig = await sendTx([ix(data, keys)]);
+    addSig(dealId, 'closeTask', sig);
+    return afterStep(
+      mockClient.closeTask(dealId, taskIndex).then((r) =>
+        patchDeal(dealId, (d) => {
+          if (d.tasks?.[taskIndex]) {
+            d.tasks[taskIndex].closed = true;
+          }
+          d.history.push({
+            date: today(),
+            action: `Task #${taskIndex} closed, network deposit returned`,
+          });
+        }) ?? r
+      )
+    );
+  },
+
+  async closeDeal(dealId) {
+    const c = await ctx(dealId);
+    if (!c) throw new Error('This deal is not on-chain, so this action cannot be performed.');
+
+    const dealOnChain = await readDealOnChain(c.a.deal);
+    if (!dealOnChain) throw new Error('Deal account not found on-chain.');
+    requireWallet(dealOnChain.creator.toBase58(), 'deal creator');
+
+    const a = c.a;
+    const ixs: TransactionInstruction[] = [];
+    const ataIx = await ensureAtaIx(dealOnChain.creator, dealOnChain.creator);
+    if (ataIx) ixs.push(ataIx);
+
+    const data = Uint8Array.from(DISC.closeDealAccount);
+    const keys = [
+      meta(dealOnChain.creator, true, true),
+      meta(a.deal, false, true),
+      meta(MINT, false, false),
+      meta(a.dealVault, false, true),
+      meta(ata(dealOnChain.creator), false, true),
+      meta(ATA_PROGRAM, false, false),
+      meta(TOKEN_PROGRAM, false, false),
+      meta(SystemProgram.programId, false, false),
+    ];
+    ixs.push(ix(data, keys));
+
+    const sig = await sendTx(ixs);
+    addSig(dealId, 'closeDeal', sig);
+    return afterStep(
+      mockClient.closeDeal(dealId).then((r) =>
+        patchDeal(dealId, (d) => {
+          d.closed = true;
+          d.history.push({
+            date: today(),
+            action: 'Deal closed, network deposit returned',
+          });
+        }) ?? r
+      )
+    );
+  },
+
+  async getDealsClosedState(deals: Deal[], wallet: string): Promise<Record<string, 'open' | 'closed' | 'unknown'>> {
+    if (!wallet) {
+      return {};
+    }
+
+    const FINAL_STATUSES = new Set(['Completed', 'Resolved', 'Cancelled', 'Refunded']);
+    const eligibleDeals: { dealId: string; dealKey: PublicKey }[] = [];
+    const result: Record<string, 'open' | 'closed' | 'unknown'> = {};
+
+    for (const deal of deals) {
+      const isParticipant = deal.customer === wallet || deal.contractor === wallet || deal.creator === wallet;
+      if (!isParticipant) continue;
+      if (!deal.tasks || deal.tasks.length === 0) continue;
+      const allFinal = deal.tasks.every(t => FINAL_STATUSES.has(t.status));
+      if (!allFinal) continue;
+
+      const info = getChainInfo(deal.id);
+      if (!info) continue;
+
+      try {
+        const customer = new PublicKey(info.customer);
+        const contractor = info.contractor ? new PublicKey(info.contractor) : customer;
+        const dealKey = info.deal ? new PublicKey(info.deal) : addrs(customer, contractor, BigInt(info.seed)).deal;
+        eligibleDeals.push({ dealId: deal.id, dealKey });
+      } catch (e) {
+        console.warn(`[getDealsClosedState] invalid key for ${deal.id}`, e);
+        result[deal.id] = 'unknown';
+      }
+    }
+
+    if (eligibleDeals.length === 0) {
+      return result;
+    }
+
+    const CHUNK_SIZE = 100;
+    for (let i = 0; i < eligibleDeals.length; i += CHUNK_SIZE) {
+      const chunk = eligibleDeals.slice(i, i + CHUNK_SIZE);
+      const chunkKeys = chunk.map(c => c.dealKey);
+      try {
+        const accounts = await withRetry(() => conn.getMultipleAccountsInfo(chunkKeys, 'confirmed'));
+        if (!accounts || accounts.length !== chunk.length) {
+          for (const item of chunk) {
+            result[item.dealId] = 'unknown';
+          }
+        } else {
+          for (let j = 0; j < chunk.length; j++) {
+            result[chunk[j].dealId] = accounts[j] === null ? 'closed' : 'open';
+          }
+        }
+      } catch (err) {
+        console.warn('[getDealsClosedState] RPC batch failed', err);
+        for (const item of chunk) {
+          result[item.dealId] = 'unknown';
+        }
+      }
+    }
+
+    return result;
+  },
 };
+

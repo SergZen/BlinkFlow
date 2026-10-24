@@ -55,11 +55,18 @@ export function notifyActionError(
   const logsArr = (err as any)?.logs ?? (err as any)?.transactionLogs;
   const logs = Array.isArray(logsArr) ? '\n\nLogs:\n' + logsArr.join('\n') : '';
   const details = raw + logs;
+  const code = (err as any)?.code;
+  const txSig = (err as any)?.txSig;
 
-  if (displayedText.startsWith('You cancelled the request in Phantom')) {
-    toast.info(displayedText);
+  if (
+    code === 'USER_CANCELLED' ||
+    code === 'SIGN_TIMEOUT' ||
+    displayedText.startsWith('You cancelled the request in Phantom')
+  ) {
+    toast.info(displayedText, txSig ? { txSig } : undefined);
   } else {
     toast.error(displayedText, {
+      txSig,
       details,
       action: onRetry ? { label: 'Try again', onClick: onRetry } : undefined,
     });
@@ -124,13 +131,19 @@ const ToastElement: React.FC<{ toast: ToastItem; onDismiss: (id: string) => void
       <div className="flex-1 min-w-0 pt-0.5 text-sm">
         <p className="font-medium text-gray-100 leading-snug break-words">{toast.message}</p>
 
-        {toast.type === 'success' && toast.opts?.txSig && (
+        {toast.opts?.txSig && (
           <div className="mt-2">
             <a
               href={explorerTx(toast.opts.txSig)}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-green-400 hover:text-green-300 font-medium underline"
+              className={`inline-flex items-center gap-1 text-xs font-medium underline ${
+                toast.type === 'error'
+                  ? 'text-red-300 hover:text-red-200'
+                  : toast.type === 'info'
+                  ? 'text-purple-300 hover:text-purple-200'
+                  : 'text-green-400 hover:text-green-300'
+              }`}
             >
               <ExternalLink className="w-3.5 h-3.5" />
               View transaction
