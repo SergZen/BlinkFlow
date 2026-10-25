@@ -112,7 +112,7 @@ function setupBot(app, baseUrl, frontendUrl) {
     bot.sendMessage(
       chatId,
       "ℹ️ *How it works*\n" +
-      "1. Either side creates the deal on the BlinkFlow site. A customer locks USDC in escrow right away. A contractor proposes the deal to a specific customer.\n" +
+      "1. Either side creates the deal on the BlinkFlow site. A customer locks USDC in escrow right away. A contractor either proposes the deal to a specific customer wallet, or prepares it and sends the customer a link; the customer reviews it and locks USDC in escrow.\n" +
       "2. Share the deal link in any chat or social network.\n" +
       "3. Customer-created deal: contractors open the link and apply, the customer picks one. Contractor-created deal: the customer opens the link and funds the escrow.\n" +
       "4. The contractor does the work and marks it finished.\n" +
@@ -146,12 +146,12 @@ function setupBot(app, baseUrl, frontendUrl) {
 
     const roleLabel = role === 'contractor' ? 'Contractor' : 'Customer';
     const roleText = role === 'contractor'
-      ? `Ready to finalize? Click below to create the deal on the website. You will need the customer's Solana wallet address. You pay only a small SOL network deposit, no USDC.\n\n` +
-        `After you create the deal, send the deal link from the website to the customer. The customer funds the escrow from that page.`
+      ? `Ready to finalize? Click below to prepare the deal on the website. You can propose it to a specific customer wallet, or get a link to send to your customer.\n\n` +
+        `After you prepare the deal, send the deal link from the website to the customer. The customer funds the escrow from that page.`
       : `Ready to finalize? Click below to connect your wallet and lock funds in escrow on the website.\n\n` +
         `After you create the deal on the website, share the deal link from there, not this message.`;
 
-    const buttonText = role === 'contractor' ? "Create on website" : "Create & fund on website";
+    const buttonText = role === 'contractor' ? "Prepare deal" : "Create & fund on website";
 
     const summary =
       `📋 *Deal Summary*\n\n` +

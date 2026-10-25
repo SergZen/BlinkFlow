@@ -21,6 +21,7 @@ import { Plus, ArrowRight, DollarSign, Briefcase, Clock, Search, Loader2, Inbox,
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
 import { CreateDealModal, type CreateDealInitialValues } from '../components/CreateDealModal';
+import { parseDealLink } from '../lib/dealLink';
 import { listCreateDrafts, clearDraft, type CreateDraftItem } from '../lib/draft';
 import { truncateAddress } from '../lib/utils';
 import type { Deal } from '../lib/types';
@@ -188,6 +189,25 @@ export const Dashboard = () => {
 
   useEffect(() => {
     if (searchParams.get('new') === '1') {
+      if (searchParams.has('d')) {
+        const parsed = parseDealLink(searchParams.toString());
+        if (parsed) {
+          setRole('customer');
+          setModalInitialValues({
+            fromLink: parsed,
+          });
+          setIsModalOpen(true);
+        } else {
+          toast.error('This deal link is not valid.');
+        }
+        const nextParams = new URLSearchParams(searchParams);
+        nextParams.delete('new');
+        nextParams.delete('role');
+        nextParams.delete('d');
+        setSearchParams(nextParams, { replace: true });
+        return;
+      }
+
       const roleParam = searchParams.get('role');
       if (roleParam === 'contractor') {
         setRole('contractor');

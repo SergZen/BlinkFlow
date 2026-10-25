@@ -18,11 +18,13 @@ import { NetworkDepositInfo } from '../lib/rent';
 import { getLastTxSig } from '../lib/client/chainClient';
 import { loadDraft, saveDraft, clearDraft } from '../lib/draft';
 import { useTxBarVisible } from './TxStatusBar';
+import { buildDealLink, type ParsedDealLink } from '../lib/dealLink';
 
 export interface CreateDealInitialValues {
   title?: string;
   amount?: string;
   deadline?: string;
+  fromLink?: ParsedDealLink;
 }
 
 interface ExtraStage {
@@ -31,6 +33,7 @@ interface ExtraStage {
   amount: string;
   criteria: string;
   deadline: string;
+  deadlineAdjusted?: boolean;
   reqFile: { name: string; sha256: string } | null;
   fileError?: string;
   isHashing?: boolean;
@@ -56,9 +59,13 @@ export const CreateDealModal = ({
   const [step, setStep] = useState<1 | 2>(1);
   const [rawActionUrl, setRawActionUrl] = useState('');
   const [createdDealId, setCreatedDealId] = useState('');
+  const [createdViaLink, setCreatedViaLink] = useState(false);
   const { role } = useRole();
   const { connected, publicKey } = useWallet();
   const { setVisible } = useWalletModal();
+
+  const isFromLink = Boolean(initialValues?.fromLink);
+  const fromLink = initialValues?.fromLink;
 
   // Deal-level fields (for several stages)
   const [severalStages, setSeveralStages] = useState(false);
@@ -81,6 +88,7 @@ export const CreateDealModal = ({
   // Wallets
   const [contractorWalletInput, setContractorWalletInput] = useState('');
   const [customerWalletInput, setCustomerWalletInput] = useState('');
+  const [contractorMode, setContractorMode] = useState<'link' | 'wallet'>('link');
 
   // Draft state
   const [isDraftRestored, setIsDraftRestored] = useState(false);
@@ -88,12 +96,49 @@ export const CreateDealModal = ({
 
   const txBarVisible = useTxBarVisible();
   const draftScope = role === 'customer' ? 'create:customer' : 'create:contractor';
+  const isContractorLinkMode = role === 'contractor' && contractorMode === 'link';
 
   useEffect(() => {
     if (!isOpen) { setIsDraftRestored(false); setIsFileRestoredFromDraft(false); return; }
+
+    if (isFromLink && fromLink) {
+      setIsDraftRestored(false);
+      setIsFileRestoredFromDraft(false);
+      setContractorWalletInput(fromLink.contractorWallet);
+      setTitle(fromLink.title);
+      setAmount(fromLink.amount);
+      setCriteria(fromLink.criteria);
+      setDeadline(fromLink.deadline);
+      setReqFile(fromLink.reqFile);
+      setSeveralStages(fromLink.extraStages.length > 0);
+      setDealTitleInput(fromLink.dealTitle || '');
+      setDealDescriptionInput(fromLink.dealDescription || '');
+      if (fromLink.extraStages.length > 0) {
+        setExtraStages(
+          fromLink.extraStages.map((s, idx) => ({
+            id: `stage-${idx + 1}-${Date.now()}`,
+            title: s.title,
+            amount: s.amount,
+            criteria: s.criteria,
+            deadline: s.deadline,
+            deadlineAdjusted: s.deadlineAdjusted,
+            reqFile: s.reqFile,
+          }))
+        );
+      } else {
+        setExtraStages([]);
+      }
+      return;
+    }
+
     const d = loadDraft<any>(draftScope);
     if (d) {
       setIsDraftRestored(true);
+      if (d.contractorMode === 'wallet' || d.contractorMode === 'link') {
+        setContractorMode(d.contractorMode);
+      } else {
+        setContractorMode('link');
+      }
       setTitle(initialValues?.title ?? d.title ?? '');
       setAmount(initialValues?.amount ?? d.amount ?? '');
       setDeadline(initialValues?.deadline ?? d.deadline ?? '');
@@ -115,30 +160,33 @@ export const CreateDealModal = ({
         })));
       }
     } else {
+      setContractorMode('link');
       if (initialValues?.title) setTitle(initialValues.title);
       if (initialValues?.amount) setAmount(initialValues.amount);
       if (initialValues?.deadline) setDeadline(initialValues.deadline);
     }
-  }, [isOpen, role]);
+  }, [isOpen, role, isFromLink, fromLink]);
 
   useEffect(() => {
-    if (!isOpen || step !== 1) return;
+    if (!isOpen || step !== 1 || isFromLink) return;
     const timer = setTimeout(() => {
       const hasContent = Boolean(title.trim() || amount || criteria.trim() || deadline || contractorWalletInput.trim() || customerWalletInput.trim() || dealTitleInput.trim() || dealDescriptionInput.trim() || reqFile || (extraStages && extraStages.length > 0));
       if (!hasContent) return;
       saveDraft(draftScope, {
+        contractorMode,
         title, amount, criteria, deadline, contractorWalletInput, customerWalletInput, severalStages, dealTitleInput, dealDescriptionInput,
         reqFile: reqFile ? { name: reqFile.name, sha256: reqFile.sha256 } : null,
         extraStages: extraStages.map(s => ({ id: s.id, title: s.title, amount: s.amount, criteria: s.criteria, deadline: s.deadline, reqFile: s.reqFile ? { name: s.reqFile.name, sha256: s.reqFile.sha256 } : null })),
       });
     }, 500);
     return () => clearTimeout(timer);
-  }, [isOpen, step, draftScope, title, amount, criteria, deadline, contractorWalletInput, customerWalletInput, severalStages, dealTitleInput, dealDescriptionInput, reqFile, extraStages]);
+  }, [isOpen, step, isFromLink, draftScope, contractorMode, title, amount, criteria, deadline, contractorWalletInput, customerWalletInput, severalStages, dealTitleInput, dealDescriptionInput, reqFile, extraStages]);
 
   const handleClearDraft = () => {
     clearDraft(draftScope);
     setIsDraftRestored(false);
     setIsFileRestoredFromDraft(false);
+    setContractorMode('link');
     setTitle(initialValues?.title || ''); setAmount(initialValues?.amount || ''); setDeadline(initialValues?.deadline || '');
     setCriteria(''); setReqFile(null); setSeveralStages(false); setDealTitleInput(''); setDealDescriptionInput('');
     setExtraStages([]); setContractorWalletInput(''); setCustomerWalletInput(''); setFieldErrors({});
@@ -265,7 +313,7 @@ export const CreateDealModal = ({
       }
     }
 
-    if (role === 'contractor') {
+    if (role === 'contractor' && contractorMode === 'wallet') {
       const trimmedCustomer = customerWalletInput.trim();
       if (!trimmedCustomer) {
         setFieldError('deal-customer', 'customerWallet', 'Customer wallet is required');
@@ -381,6 +429,41 @@ export const CreateDealModal = ({
     let dealId = `ESC-${Math.floor(1000 + Math.random() * 9000)}`;
     const walletAddr = connected && publicKey ? publicKey.toBase58() : '';
 
+    if (isContractorLinkMode) {
+      try {
+        const link = buildDealLink({
+          contractorWallet: walletAddr,
+          title: title.trim(),
+          amount: String(parsedStage1Amount),
+          criteria: criteria.trim(),
+          deadline,
+          reqFile: reqFile ? { name: reqFile.name, sha256: reqFile.sha256 } : null,
+          dealTitle: severalStages && dealTitleInput.trim() ? dealTitleInput.trim() : null,
+          dealDescription: severalStages && dealDescriptionInput.trim() ? dealDescriptionInput.trim() : null,
+          extraStages: severalStages ? extraStages.map(s => ({
+            title: s.title.trim(),
+            amount: String(parseFloat(s.amount)),
+            criteria: s.criteria.trim(),
+            deadline: s.deadline,
+            reqFile: s.reqFile ? { name: s.reqFile.name, sha256: s.reqFile.sha256 } : null,
+          })) : [],
+        });
+        clearDraft('create:contractor');
+        setIsDraftRestored(false);
+        setIsFileRestoredFromDraft(false);
+        setRawActionUrl(link);
+        setCreatedDealId('draft');
+        setCreatedViaLink(true);
+        toast.success('Link created');
+        setStep(2);
+        return;
+      } catch (err: any) {
+        toast.error(err?.message || 'Failed to create link');
+        return;
+      }
+    }
+
+    setCreatedViaLink(false);
     setIsSubmitting(true);
     try {
       const deal = await client.createDeal({
@@ -406,9 +489,11 @@ export const CreateDealModal = ({
         } : {}),
       });
       dealId = deal.id;
-      clearDraft(draftScope);
-      setIsDraftRestored(false);
-      setIsFileRestoredFromDraft(false);
+      if (!isFromLink) {
+        clearDraft(draftScope);
+        setIsDraftRestored(false);
+        setIsFileRestoredFromDraft(false);
+      }
       const txSig = getLastTxSig();
       toast.success('Deal created', { txSig: txSig || undefined });
     } catch (err: any) {
@@ -450,6 +535,7 @@ export const CreateDealModal = ({
     setDeadline('');
     setContractorWalletInput('');
     setCustomerWalletInput('');
+    setContractorMode('link');
     setSeveralStages(false);
     setDealTitleInput('');
     setDealDescriptionInput('');
@@ -457,6 +543,7 @@ export const CreateDealModal = ({
     setFieldErrors({});
     setReqFile(null);
     setCreatedDealId('');
+    setCreatedViaLink(false);
     onClose();
   };
 
@@ -471,9 +558,66 @@ export const CreateDealModal = ({
           {step === 1 ? (
             <form noValidate onSubmit={handleGenerate} className="space-y-4">
               <div>
-                <h2 className="text-xl font-bold mb-1">Create New Deal</h2>
-                <p className="text-sm text-gray-400 mb-6">Set escrow terms and generate a link for your partner.</p>
-                {isDraftRestored && (
+                <h2 className="text-xl font-bold mb-1">
+                  {isFromLink ? "Review and fund this deal" : "Create New Deal"}
+                </h2>
+                <p className="text-sm text-gray-400 mb-6">
+                  {isFromLink
+                    ? "Your contractor prepared these terms. Nothing is locked until you confirm and sign. Escrow means your payment is locked in a smart contract and released only when you approve the work."
+                    : role === 'contractor'
+                    ? "Fill in the terms. Send a link to your customer or propose directly to their wallet."
+                    : "Set escrow terms and generate a link for your partner."}
+                </p>
+
+                {role === 'contractor' && (
+                  <div className="space-y-2 mb-6">
+                    <div className="grid grid-cols-2 gap-2 bg-gray-950/60 p-1 rounded-lg border border-gray-800">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setContractorMode('link');
+                          setFieldErrors(prev => ({ ...prev, customerWallet: '' }));
+                        }}
+                        className={`py-2 px-3 text-xs sm:text-sm font-medium rounded-md transition-all ${
+                          contractorMode === 'link'
+                            ? 'bg-purple-600 text-white shadow-sm'
+                            : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
+                        }`}
+                      >
+                        Send a link to my customer
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setContractorMode('wallet')}
+                        className={`py-2 px-3 text-xs sm:text-sm font-medium rounded-md transition-all ${
+                          contractorMode === 'wallet'
+                            ? 'bg-purple-600 text-white shadow-sm'
+                            : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
+                        }`}
+                      >
+                        Propose to a specific wallet
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-400">
+                      {contractorMode === 'link'
+                        ? 'Send a link to your customer. They review the terms and fund the escrow. No network deposit or transaction needed from you.'
+                        : "Send an on-chain proposal directly to the customer's wallet. The customer will see it in their dashboard."}
+                    </p>
+                  </div>
+                )}
+
+                {isFromLink && fromLink && (
+                  <div className="mb-4 p-3 rounded-lg bg-purple-500/10 border border-purple-500/30 text-xs text-purple-200 space-y-1">
+                    <div className="font-semibold text-purple-300">Prepared by the contractor</div>
+                    <p className="text-gray-300">
+                      Check the wallet address and every term before you fund. If the address is not the one your contractor gave you, do not continue.
+                    </p>
+                    <div className="font-mono text-[11px] text-purple-300 break-all bg-purple-950/40 p-1.5 rounded border border-purple-800/40">
+                      {fromLink.contractorWallet}
+                    </div>
+                  </div>
+                )}
+                {!isFromLink && isDraftRestored && (
                   <div className="mb-4 px-3 py-2 rounded-lg bg-purple-500/10 border border-purple-500/20 text-xs text-purple-300 flex items-center justify-between">
                     <span>Draft restored</span>
                     <button
@@ -544,13 +688,18 @@ export const CreateDealModal = ({
               {/* Wallet Fields */}
               {role === 'customer' && isChainMode && (
                 <div>
-                  <label htmlFor="deal-contractor" className="block text-sm font-medium text-gray-300 mb-1.5">Contractor Wallet (Optional)</label>
+                  <label htmlFor="deal-contractor" className="block text-sm font-medium text-gray-300 mb-1.5">
+                    {isFromLink ? 'Contractor Wallet (Locked)' : 'Contractor Wallet (Optional)'}
+                  </label>
                   <input
                     id="deal-contractor"
                     type="text"
-                    placeholder="Leave empty: contractors will apply and you choose one"
+                    readOnly={isFromLink}
+                    disabled={isFromLink}
+                    placeholder={isFromLink ? '' : "Leave empty: contractors will apply and you choose one"}
                     value={contractorWalletInput}
                     onChange={(e) => {
+                      if (isFromLink) return;
                       const val = e.target.value;
                       setContractorWalletInput(val);
                       setFieldErrors(prev => ({ ...prev, contractorWallet: '' }));
@@ -559,16 +708,24 @@ export const CreateDealModal = ({
                         setExtraStages([]);
                       }
                     }}
-                    className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-2.5 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all text-white font-mono text-sm"
+                    className={`w-full border rounded-lg px-4 py-2.5 transition-all font-mono text-sm ${
+                      isFromLink 
+                        ? 'bg-gray-900/90 border-gray-700 text-purple-300 cursor-not-allowed select-all' 
+                        : 'bg-gray-950 border-gray-800 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 text-white'
+                    }`}
                   />
                   {fieldErrors.contractorWallet && <p className="text-red-400 text-xs mt-1">{fieldErrors.contractorWallet}</p>}
-                  <p className="text-xs text-gray-500 mt-1">You can also invite a specific contractor by pasting their wallet.</p>
+                  {!isFromLink && (
+                    <p className="text-xs text-gray-500 mt-1">You can also invite a specific contractor by pasting their wallet.</p>
+                  )}
                 </div>
               )}
 
-              {role === 'contractor' && (
+              {role === 'contractor' && contractorMode === 'wallet' && (
                 <div>
-                  <label htmlFor="deal-customer" className="block text-sm font-medium text-gray-300 mb-1.5">Customer Wallet</label>
+                  <label htmlFor="deal-customer" className="block text-sm font-medium text-gray-300 mb-1.5">
+                    Customer wallet
+                  </label>
                   <input
                     id="deal-customer"
                     type="text"
@@ -580,7 +737,9 @@ export const CreateDealModal = ({
                     }}
                     className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-2.5 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all text-white font-mono text-sm"
                   />
-                  <p className="text-xs text-gray-500 mt-1">The customer pays into escrow after opening the link.</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    The proposal will be sent directly to this customer wallet on-chain.
+                  </p>
                   {fieldErrors.customerWallet && <p className="text-red-400 text-xs mt-1">{fieldErrors.customerWallet}</p>}
                 </div>
               )}
@@ -702,16 +861,31 @@ export const CreateDealModal = ({
                               <button
                                 type="button"
                                 onClick={handleRemoveFile}
-                                className="text-gray-400 hover:text-white p-0.5 rounded transition-colors"
+                                className="text-gray-400 hover:text-white p-0.5 rounded transition-colors text-xs flex items-center gap-0.5"
                                 aria-label="Remove attached file"
+                                title="Remove attached file"
                               >
                                 <X className="w-3 h-3" />
+                                <span>Remove</span>
                               </button>
                             </div>
-                            <p className="text-[11px] text-gray-500 leading-tight">
-                              The file is not uploaded. Only its SHA-256 fingerprint is stored in the deal. Send the file to {role === 'contractor' ? 'the customer' : 'your contractor'} separately.
-                            </p>
-                            {isFileRestoredFromDraft && (
+                            {isFromLink && fromLink?.reqFile?.sha256 === reqFile.sha256 ? (
+                              <p className="text-[11px] text-purple-300 leading-tight">
+                                File fingerprint from the contractor's link. Ask them to send you the file.{' '}
+                                <button
+                                  type="button"
+                                  onClick={handleRemoveFile}
+                                  className="text-purple-400 hover:text-purple-200 underline font-medium cursor-pointer ml-1 inline-block"
+                                >
+                                  Remove
+                                </button>
+                              </p>
+                            ) : (
+                              <p className="text-[11px] text-gray-500 leading-tight">
+                                The file is not uploaded. Only its SHA-256 fingerprint is stored in the deal. Send the file to {role === 'contractor' ? 'the customer' : 'your contractor'} separately.
+                              </p>
+                            )}
+                            {!isFromLink && isFileRestoredFromDraft && (
                               <p className="text-[11px] text-purple-400 mt-1">
                                 File restored from the draft. Attach it again if you want to replace it.
                               </p>
@@ -737,6 +911,9 @@ export const CreateDealModal = ({
                         className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-2.5 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all text-white cursor-pointer [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:opacity-70 hover:[&::-webkit-calendar-picker-indicator]:opacity-100" 
                       />
                       {fieldErrors.stage_0_deadline && <p className="text-red-400 text-xs mt-1">{fieldErrors.stage_0_deadline}</p>}
+                      {isFromLink && fromLink?.deadlineAdjusted && !deadline && (
+                        <p className="text-amber-400 text-xs mt-1">The deadline from the link is no longer valid. Pick a new date.</p>
+                      )}
                     </div>
                   </div>
 
@@ -841,15 +1018,30 @@ export const CreateDealModal = ({
                                   <button
                                     type="button"
                                     onClick={() => handleRemoveExtraStageFile(idx)}
-                                    className="text-gray-400 hover:text-white p-0.5 rounded transition-colors"
+                                    className="text-gray-400 hover:text-white p-0.5 rounded transition-colors text-xs flex items-center gap-0.5"
                                     aria-label="Remove attached file"
+                                    title="Remove attached file"
                                   >
                                     <X className="w-3 h-3" />
+                                    <span>Remove</span>
                                   </button>
                                 </div>
-                                <p className="text-[11px] text-gray-500 leading-tight">
-                                  The file is not uploaded. Only its SHA-256 fingerprint is stored in the deal. Send the file to {role === 'contractor' ? 'the customer' : 'your contractor'} separately.
-                                </p>
+                                {isFromLink && fromLink?.extraStages?.[idx]?.reqFile?.sha256 === stage.reqFile.sha256 ? (
+                                  <p className="text-[11px] text-purple-300 leading-tight">
+                                    File fingerprint from the contractor's link. Ask them to send you the file.{' '}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveExtraStageFile(idx)}
+                                      className="text-purple-400 hover:text-purple-200 underline font-medium cursor-pointer ml-1 inline-block"
+                                    >
+                                      Remove
+                                    </button>
+                                  </p>
+                                ) : (
+                                  <p className="text-[11px] text-gray-500 leading-tight">
+                                    The file is not uploaded. Only its SHA-256 fingerprint is stored in the deal. Send the file to {role === 'contractor' ? 'the customer' : 'your contractor'} separately.
+                                  </p>
+                                )}
                               </div>
                             )}
                           </div>
@@ -872,6 +1064,9 @@ export const CreateDealModal = ({
                             className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-2.5 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all text-white cursor-pointer [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:opacity-70 hover:[&::-webkit-calendar-picker-indicator]:opacity-100" 
                           />
                           {fieldErrors[`stage_${stageIdx}_deadline`] && <p className="text-red-400 text-xs mt-1">{fieldErrors[`stage_${stageIdx}_deadline`]}</p>}
+                          {isFromLink && stage.deadlineAdjusted && !stage.deadline && (
+                            <p className="text-amber-400 text-xs mt-1">The deadline from the link is no longer valid. Pick a new date.</p>
+                          )}
                         </div>
                       </div>
                     );
@@ -941,16 +1136,31 @@ export const CreateDealModal = ({
                             <button
                               type="button"
                               onClick={handleRemoveFile}
-                              className="text-gray-400 hover:text-white p-0.5 rounded transition-colors"
+                              className="text-gray-400 hover:text-white p-0.5 rounded transition-colors text-xs flex items-center gap-0.5"
                               aria-label="Remove attached file"
+                              title="Remove attached file"
                             >
                               <X className="w-3 h-3" />
+                              <span>Remove</span>
                             </button>
                           </div>
-                          <p className="text-[11px] text-gray-500 leading-tight">
-                            The file is not uploaded. Only its SHA-256 fingerprint is stored in the deal. Send the file to {role === 'contractor' ? 'the customer' : 'your contractor'} separately.
-                          </p>
-                          {isFileRestoredFromDraft && (
+                          {isFromLink && fromLink?.reqFile?.sha256 === reqFile.sha256 ? (
+                            <p className="text-[11px] text-purple-300 leading-tight">
+                              File fingerprint from the contractor's link. Ask them to send you the file.{' '}
+                              <button
+                                type="button"
+                                onClick={handleRemoveFile}
+                                className="text-purple-400 hover:text-purple-200 underline font-medium cursor-pointer ml-1 inline-block"
+                              >
+                                Remove
+                              </button>
+                            </p>
+                          ) : (
+                            <p className="text-[11px] text-gray-500 leading-tight">
+                              The file is not uploaded. Only its SHA-256 fingerprint is stored in the deal. Send the file to {role === 'contractor' ? 'the customer' : 'your contractor'} separately.
+                            </p>
+                          )}
+                          {!isFromLink && isFileRestoredFromDraft && (
                             <p className="text-[11px] text-purple-400 mt-1">
                               File restored from the draft. Attach it again if you want to replace it.
                             </p>
@@ -973,22 +1183,27 @@ export const CreateDealModal = ({
                       className="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-2.5 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all text-white cursor-pointer [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:opacity-70 hover:[&::-webkit-calendar-picker-indicator]:opacity-100" 
                     />
                     {fieldErrors.deadline && <p className="text-red-400 text-xs mt-1">{fieldErrors.deadline}</p>}
+                    {isFromLink && fromLink?.deadlineAdjusted && !deadline && (
+                      <p className="text-amber-400 text-xs mt-1">The deadline from the link is no longer valid. Pick a new date.</p>
+                    )}
                   </div>
                 </>
               )}
 
               <div className="pt-4 space-y-4">
-                <NetworkDepositInfo
-                  type="deal"
-                  extraTasks={severalStages ? extraStages.length : 0}
-                  wallet={publicKey?.toBase58()}
-                />
+                {!isContractorLinkMode && (
+                  <NetworkDepositInfo
+                    type="deal"
+                    extraTasks={severalStages ? extraStages.length : 0}
+                    wallet={publicKey?.toBase58()}
+                  />
+                )}
                 {isInsufficientUsdc && (
                   <div className="mb-4 bg-orange-500/10 border border-orange-500/20 rounded-lg p-3 text-sm text-orange-400">
                     You have {usdcBalance.toFixed(2)} {symbol}, this deal needs {totalAmount.toFixed(2)}. Use "Get USDC/SOL" in the header.
                   </div>
                 )}
-                {lowSol && (role === 'customer' || role === 'contractor') && (
+                {!isContractorLinkMode && lowSol && (role === 'customer' || role === 'contractor') && (
                   <div className="mb-4 bg-orange-500/10 border border-orange-500/20 rounded-lg p-3 text-sm text-orange-400">
                     You need a small amount of SOL (~0.01) to cover network fees and account rent.
                     {balanceKnown && ` Your SOL balance: ${solBalance.toFixed(3)} SOL.`}
@@ -999,10 +1214,10 @@ export const CreateDealModal = ({
                     )}
                   </div>
                 )}
-                {severalStages && (
+                {(isFromLink || severalStages) && (
                   <p className="text-xs text-gray-400 text-center">
                     {role === 'customer'
-                      ? `You will lock ${totalAmount.toFixed(2)} ${symbol} in escrow now: ${totalStages} stages.`
+                      ? `You will lock ${totalAmount.toFixed(2)} ${symbol} in escrow now${severalStages ? `: ${totalStages} stages.` : '.'}`
                       : 'The customer funds each stage separately.'}
                   </p>
                 )}
@@ -1018,20 +1233,29 @@ export const CreateDealModal = ({
                 ) : (
                   <Button 
                     variant="gradient" 
-                    className={`w-full py-2.5 text-base ${(lowSol && (role === 'customer' || role === 'contractor')) || isInsufficientUsdc || isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`} 
+                    className={`w-full py-2.5 text-base ${(!isContractorLinkMode && lowSol && (role === 'customer' || role === 'contractor')) || isInsufficientUsdc || isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`} 
                     type="submit"
-                    disabled={(lowSol && (role === 'customer' || role === 'contractor')) || isInsufficientUsdc || isSubmitting}
-                    title={lowSol && (role === 'customer' || role === 'contractor') ? "Not enough SOL for network fees" : isInsufficientUsdc ? `Not enough ${symbol} to fund deal` : undefined}
+                    disabled={(!isContractorLinkMode && lowSol && (role === 'customer' || role === 'contractor')) || isInsufficientUsdc || isSubmitting}
+                    title={!isContractorLinkMode && lowSol && (role === 'customer' || role === 'contractor') ? "Not enough SOL for network fees" : isInsufficientUsdc ? `Not enough ${symbol} to fund deal` : undefined}
                   >
                     {isSubmitting ? (
                       <span className="inline-flex items-center justify-center gap-2">
                         <Loader2 className="w-4 h-4 animate-spin" />
                         Creating... confirm in Phantom
                       </span>
+                    ) : isContractorLinkMode ? (
+                      'Create link for customer'
+                    ) : isFromLink ? (
+                      'Fund and create deal'
                     ) : (
                       'Create Deal Link'
                     )}
                   </Button>
+                )}
+                {isContractorLinkMode && (
+                  <p className="text-xs text-gray-400 text-center">
+                    Anyone with the link can read these terms. Do not put secrets in them.
+                  </p>
                 )}
               </div>
             </form>
@@ -1043,13 +1267,15 @@ export const CreateDealModal = ({
                     <Check className="w-5 h-5 text-gray-950" strokeWidth={4} />
                   </div>
                   <h3 className="text-2xl font-bold text-white tracking-tight">
-                    {role === 'contractor' ? 'Deal Created!' : 'Deal Created & Funded!'}
+                    {createdViaLink ? 'Link Created!' : (role === 'contractor' ? 'Deal Created!' : 'Deal Created & Funded!')}
                   </h3>
                 </div>
                 <p className="text-sm text-gray-400">
-                  {role === 'contractor' 
-                    ? 'Send this link to the customer so they can fund the escrow.' 
-                    : 'Send this link to potential contractors.'}
+                  {createdViaLink
+                    ? 'Nothing is on the network yet. Your customer opens this link, checks the terms and funds the escrow. You will see the deal on your dashboard after that.'
+                    : (role === 'contractor' 
+                        ? 'Send this link to the customer so they can fund the escrow.' 
+                        : 'Send this link to potential contractors.')}
                 </p>
               </div>
               
@@ -1057,6 +1283,23 @@ export const CreateDealModal = ({
                 rawActionUrl={rawActionUrl} 
                 dealId={createdDealId} 
               />
+
+              {createdViaLink && (
+                <div className="w-full text-left bg-gray-950/60 border border-gray-800 rounded-lg p-3.5 text-xs text-gray-300 space-y-2">
+                  <div className="flex items-start gap-2">
+                    <span className="flex items-center justify-center w-4 h-4 rounded-full bg-purple-500/20 text-purple-300 font-bold text-[10px] shrink-0 mt-0.5">1</span>
+                    <span>Send this link to your customer in any chat or messenger.</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="flex items-center justify-center w-4 h-4 rounded-full bg-purple-500/20 text-purple-300 font-bold text-[10px] shrink-0 mt-0.5">2</span>
+                    <span>Your customer reviews the terms and locks USDC in escrow.</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="flex items-center justify-center w-4 h-4 rounded-full bg-purple-500/20 text-purple-300 font-bold text-[10px] shrink-0 mt-0.5">3</span>
+                    <span>You will see the deal on your dashboard once funded.</span>
+                  </div>
+                </div>
+              )}
 
               <Button
                 variant="gradient"
