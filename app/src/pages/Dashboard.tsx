@@ -23,6 +23,7 @@ import { useState, useEffect, useRef } from 'react';
 import { CreateDealModal, type CreateDealInitialValues } from '../components/CreateDealModal';
 import { parseDealLink } from '../lib/dealLink';
 import { listCreateDrafts, clearDraft, type CreateDraftItem } from '../lib/draft';
+import { listSentLinks, removeSentLink, markSentLinkFunded, type SentLink } from '../lib/sentLinks';
 import { truncateAddress } from '../lib/utils';
 import type { Deal } from '../lib/types';
 import { useToken } from '../lib/constants';
@@ -63,6 +64,8 @@ export const Dashboard = () => {
   const [showReadyToClose, setShowReadyToClose] = useState(false);
   const [unfinishedDrafts, setUnfinishedDrafts] = useState<CreateDraftItem[]>([]);
   const [confirmDeleteScope, setConfirmDeleteScope] = useState<string | null>(null);
+  const [sentLinks, setSentLinks] = useState<SentLink[]>([]);
+  const [confirmRemoveLinkId, setConfirmRemoveLinkId] = useState<string | null>(null);
   const checkSeqRef = useRef(0);
 
   useEffect(() => {
@@ -83,6 +86,59 @@ export const Dashboard = () => {
       window.removeEventListener('storage', refreshDrafts);
     };
   }, []);
+
+  useEffect(() => {
+    const refreshLinks = () => {
+      const wallet = publicKey?.toBase58();
+      if (!connected || !wallet) {
+        setSentLinks([]);
+        return;
+      }
+      try {
+        setSentLinks(listSentLinks(wallet));
+      } catch {
+        setSentLinks([]);
+      }
+    };
+    refreshLinks();
+    window.addEventListener('blinkflow:links-changed', refreshLinks);
+    window.addEventListener('storage', refreshLinks);
+    return () => {
+      window.removeEventListener('blinkflow:links-changed', refreshLinks);
+      window.removeEventListener('storage', refreshLinks);
+    };
+  }, [connected, publicKey]);
+
+  useEffect(() => {
+    if (!connected || !publicKey || sentLinks.length === 0 || deals.length === 0) return;
+    const unfunded = sentLinks.filter(r => !r.fundedDealId);
+    if (unfunded.length === 0) return;
+
+    const usedDealIds = new Set(
+      sentLinks.map(r => r.fundedDealId).filter(Boolean) as string[]
+    );
+
+    for (const record of unfunded) {
+      const matches = deals.filter(deal => {
+        if (deal.contractor !== record.contractor) return false;
+        if (!deal.customer || deal.customer === deal.contractor) return false;
+        if (dealTitle(deal).trim() !== record.title.trim()) return false;
+        const sum = deal.tasks.reduce((acc, t) => acc + (t.amount || 0), 0);
+        if (Math.abs(sum - record.total) >= 0.000001) return false;
+        const dealTime = new Date(deal.createdAt).getTime();
+        if (isNaN(dealTime) || dealTime < record.createdAt - 5 * 60 * 1000) return false;
+        if (usedDealIds.has(deal.id)) return false;
+        return true;
+      });
+
+      if (matches.length > 0) {
+        matches.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+        const best = matches[0];
+        usedDealIds.add(best.id);
+        markSentLinkFunded(record.id, best.id);
+      }
+    }
+  }, [deals, sentLinks, connected, publicKey]);
 
   useEffect(() => {
     if (!hasUserSelectedFilter) {
@@ -280,14 +336,14 @@ export const Dashboard = () => {
     try { setUnfinishedDrafts(listCreateDrafts()); } catch { setUnfinishedDrafts([]); }
   };
 
-  const formatRelativeTime = (savedAt: number): string => {
-    const diffSec = Math.max(0, Math.floor((Date.now() - savedAt) / 1000));
-    if (diffSec < 60) return 'Saved just now';
+  const formatRelativeTime = (time: number, prefix = 'Saved'): string => {
+    const diffSec = Math.max(0, Math.floor((Date.now() - time) / 1000));
+    if (diffSec < 60) return `${prefix} just now`;
     const diffMin = Math.floor(diffSec / 60);
-    if (diffMin < 60) return `Saved ${diffMin}m ago`;
+    if (diffMin < 60) return `${prefix} ${diffMin}m ago`;
     const diffHours = Math.floor(diffMin / 60);
-    if (diffHours < 24) return `Saved ${diffHours}h ago`;
-    return `Saved ${Math.floor(diffHours / 24)}d ago`;
+    if (diffHours < 24) return `${prefix} ${diffHours}h ago`;
+    return `${prefix} ${Math.floor(diffHours / 24)}d ago`;
   };
 
   const myWallet = publicKey?.toBase58() ?? null;
@@ -698,6 +754,122 @@ export const Dashboard = () => {
               </div>
             ))}
           </div>
+        </Card>
+      )}
+
+      {/* Links sent to customers */}
+      {connected && sentLinks.length > 0 && (
+        <Card className="p-3 sm:p-4 bg-gray-900/40 border-gray-800/80 backdrop-blur-sm space-y-2">
+          <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-purple-400/80 shrink-0" />
+            Links sent to customers
+          </div>
+          <div className="space-y-1.5">
+            {sentLinks.map((link) => {
+              const todayStr = new Date().toISOString().slice(0, 10);
+              const isPast = !link.fundedDealId && link.deadlines.some(dl => dl && dl < todayStr);
+              return (
+                <div
+                  key={link.id}
+                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-lg bg-gray-950/40 border border-gray-800/60 text-xs"
+                >
+                  <div className="min-w-0 space-y-0.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium text-gray-200 truncate">{link.title}</span>
+                      <span className="font-semibold text-purple-300">
+                        ${link.total.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })} USDC
+                      </span>
+                      {link.stages > 1 && (
+                        <span className="px-1.5 py-0.5 rounded bg-gray-800/80 text-[11px] text-gray-400">
+                          {link.stages} stages
+                        </span>
+                      )}
+                      <span className="text-gray-500 text-[11px]">
+                        {formatRelativeTime(link.createdAt, 'Created')}
+                      </span>
+                    </div>
+                    {link.fundedDealId ? (
+                      <p className="text-[11px] text-green-400 font-medium">
+                        Funded by the customer
+                      </p>
+                    ) : isPast ? (
+                      <p className="text-[11px] text-amber-400">
+                        A deadline in this link has passed. The customer will be asked to pick a new date.
+                      </p>
+                    ) : (
+                      <p className="text-[11px] text-gray-500">
+                        Waiting for the customer to fund it.
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                    {confirmRemoveLinkId === link.id ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-gray-400 text-xs">Remove link?</span>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            removeSentLink(link.id);
+                            setConfirmRemoveLinkId(null);
+                            if (publicKey) {
+                              try { setSentLinks(listSentLinks(publicKey.toBase58())); } catch { setSentLinks([]); }
+                            }
+                          }}
+                          className="text-xs h-7 px-2.5 py-1 border-red-500/50 bg-red-500/10 text-red-400 hover:bg-red-500/20"
+                        >
+                          Sure?
+                        </Button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmRemoveLinkId(null)}
+                          className="text-gray-400 hover:text-gray-200 text-xs px-1 cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        {link.fundedDealId ? (
+                          <Button
+                            variant="outline"
+                            onClick={() => navigate(`/deal/${link.fundedDealId}`)}
+                            className="text-xs h-7 px-3 py-1 border-purple-500/40 text-purple-300 hover:text-white hover:bg-purple-500/10"
+                          >
+                            Open deal
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            onClick={async () => {
+                              try {
+                                await navigator.clipboard.writeText(link.url);
+                                toast.success('Link copied');
+                              } catch {
+                                toast.error('Could not copy the link');
+                              }
+                            }}
+                            className="text-xs h-7 px-3 py-1 border-purple-500/40 text-purple-300 hover:text-white hover:bg-purple-500/10"
+                          >
+                            Copy link
+                          </Button>
+                        )}
+                        <Button
+                          variant="outline"
+                          onClick={() => setConfirmRemoveLinkId(link.id)}
+                          className="text-xs h-7 px-2.5 py-1 border-gray-700 text-gray-400 hover:text-red-400 hover:border-red-500/40"
+                        >
+                          Remove
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <p className="text-[11px] text-gray-500">
+            Saved in this browser only.
+          </p>
         </Card>
       )}
 
