@@ -1008,26 +1008,38 @@ export const DealDetails = () => {
         );
       }
 
-      if (task.status === 'CustomerCreated' && index > 0) {
+      if (task.status === 'CustomerCreated') {
+        const isNotAccepted = index > 0 && deal.tasks?.[0]?.status === 'CustomerCreated';
         return (
           <div className="mt-4 pt-4 border-t border-gray-800/50 space-y-3">
             <p className="text-sm text-gray-400">The customer funded this task. Start the task when you are ready to begin work.</p>
-            {!isWrongContractor && renderSolWarning()}
-            {!connected ? (
-              <Button onClick={() => setVisible(true)}>Connect Wallet to Start Task</Button>
-            ) : isWrongContractor ? (
-              <p className="text-sm text-gray-400">
-                Only the selected contractor wallet ({truncateAddress(contractorAddr)}) can do this. Switch your wallet to that account.
-              </p>
+            {isNotAccepted ? (
+              <p className="text-sm text-gray-400">Start stage #1 first. It accepts the deal, then the other stages can be started.</p>
             ) : (
-              <Button
-                variant="primary"
-                onClick={() => handleTaskAction(index, () => client.acceptTask(deal.id, index, publicKey!.toBase58()), 'Task started')}
-                disabled={loading || !hasEnoughSol}
-              >
-                {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> : null}
-                Start task
-              </Button>
+              <>
+                {!isWrongContractor && renderSolWarning()}
+                {!connected ? (
+                  <Button onClick={() => setVisible(true)}>Connect Wallet to Start Task</Button>
+                ) : isWrongContractor ? (
+                  <p className="text-sm text-gray-400">
+                    Only the selected contractor wallet ({truncateAddress(contractorAddr)}) can do this. Switch your wallet to that account.
+                  </p>
+                ) : (
+                  <>
+                    <Button
+                      variant="primary"
+                      onClick={() => handleTaskAction(index, () => client.acceptTask(deal.id, index, publicKey!.toBase58()), index === 0 ? 'Deal accepted' : 'Task started')}
+                      disabled={loading || !hasEnoughSol}
+                    >
+                      {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> : null}
+                      {index === 0 ? 'Accept deal & start stage #1' : 'Start task'}
+                    </Button>
+                    {index === 0 && (
+                      <p className="text-xs text-gray-500">Accepting the deal starts stage #1. After that you can start the other stages in any order.</p>
+                    )}
+                  </>
+                )}
+              </>
             )}
           </div>
         );

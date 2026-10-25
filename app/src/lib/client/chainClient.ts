@@ -445,6 +445,8 @@ export async function readTaskOnChain(deal: PublicKey, index: number): Promise<{
 
 export async function readDealOnChain(deal: PublicKey): Promise<{
   creator: PublicKey;
+  contractor: PublicKey;
+  accepted: boolean;
   taskTotal: number;
   taskClosed: number;
 } | null> {
@@ -456,6 +458,8 @@ export async function readDealOnChain(deal: PublicKey): Promise<{
     throw new Error('Corrupted or invalid deal account data on-chain.');
   }
   const creator = new PublicKey(data.subarray(8, 40));
+  const contractor = new PublicKey(data.subarray(72, 104));
+  const accepted = !contractor.equals(PublicKey.default);
   const tag = data[tagOffset];
   const countOffset = tagOffset + (tag !== 0 ? 33 : 1) + 8;
   if (data.length <= countOffset + 7) {
@@ -463,7 +467,7 @@ export async function readDealOnChain(deal: PublicKey): Promise<{
   }
   const taskTotal = data[countOffset];
   const taskClosed = data[countOffset + 7];
-  return { creator, taskTotal, taskClosed };
+  return { creator, contractor, accepted, taskTotal, taskClosed };
 }
 
 export async function getTaskChainState(dealId: string, index: number) {
@@ -1055,6 +1059,14 @@ export const chainClient: BlinkflowClient = {
     }
     const c = await ctx(dealId);
     if (!c) throw new Error('This deal is not on-chain, so this action cannot be performed.');
+    try {
+      const onChain = await readDealOnChain(c.a.deal);
+      if (onChain && !onChain.accepted) {
+        throw new Error('Start stage #1 first: it accepts the deal.');
+      }
+    } catch (e: any) {
+      if (e?.message === 'Start stage #1 first: it accepts the deal.') throw e;
+    }
     if (!c.info.contractor) throw new Error('The customer has not picked a contractor yet.');
     requireWallet(c.info.contractor, 'contractor');
     const a = c.a;
