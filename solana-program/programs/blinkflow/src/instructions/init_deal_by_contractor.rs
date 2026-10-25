@@ -6,7 +6,7 @@ use anchor_spl::{
 use mpl_core::ID as MPL_CORE_ID;
 
 use crate::{
-    DIAL_SEED, FIRST_TASK_INDEX, PROTOCOL_SEED, Protocol, SBT_COLLECTION_SEED, SBT_SEED, TASK_SEED, Task, TaskStatus, error::BlinkFlowError, events::{DealCreated, SbtCreated, TaskCreated}, sbt::{SbtContext, ensure_sbt_asset}, state::Deal,
+    DEADLINE_MAX_SECS, DEADLINE_MIN_SECS, DIAL_SEED, FIRST_TASK_INDEX, PROTOCOL_SEED, Protocol, SBT_COLLECTION_SEED, SBT_SEED, TASK_SEED, Task, TaskStatus, error::BlinkFlowError, events::{DealCreated, SbtCreated, TaskCreated}, sbt::{SbtContext, ensure_sbt_asset}, state::Deal,
 };
 
 #[derive(Accounts)]
@@ -112,7 +112,7 @@ impl<'info> InitDealByContractor<'info> {
     ) -> Result<()> {
         require!(!self.protocol.paused, BlinkFlowError::ProtocolPaused);
         require!(amount > 0, BlinkFlowError::InvalidAmount);
-        require!(deadline > 0, BlinkFlowError::InvalidDeadline);
+        require!(deadline >= DEADLINE_MIN_SECS && deadline <= DEADLINE_MAX_SECS, BlinkFlowError::InvalidDeadline);
         require!(task_hash != [0; 32], BlinkFlowError::InvalidTaskHash);
         require!(
             self.trust_authority.key() != self.contractor.key()

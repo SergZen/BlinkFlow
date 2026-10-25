@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 
 use crate::{
-    DIAL_SEED, MAX_COUNT_TASK_BY_DIAL, PROTOCOL_SEED, Protocol, TASK_SEED, Task, TaskStatus, error::BlinkFlowError, events::TaskCreated, state::Deal,
+    DEADLINE_MAX_SECS, DEADLINE_MIN_SECS, DIAL_SEED, MAX_COUNT_TASK_BY_DIAL, PROTOCOL_SEED, Protocol, TASK_SEED, Task, TaskStatus, error::BlinkFlowError, events::TaskCreated, state::Deal,
 };
 
 #[derive(Accounts)]
@@ -45,7 +45,7 @@ impl<'info> AddTaskByContractor<'info> {
     ) -> Result<()> {
         require!(!self.protocol.paused, BlinkFlowError::ProtocolPaused);
         require!(amount > 0, BlinkFlowError::InvalidAmount);
-        require!(deadline > 0, BlinkFlowError::InvalidDeadline);
+        require!(deadline >= DEADLINE_MIN_SECS && deadline <= DEADLINE_MAX_SECS, BlinkFlowError::InvalidDeadline);
         require!(task_hash != [0; 32], BlinkFlowError::InvalidTaskHash);
         require!(
             self.deal.task_total_count < MAX_COUNT_TASK_BY_DIAL,
