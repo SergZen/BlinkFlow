@@ -365,6 +365,7 @@ async function sendTx(ixs: TransactionInstruction[]): Promise<string> {
     throw new Error(friendlyError(JSON.stringify(res.value.err) + (logsStr ? ' ' + logsStr : '')));
   }
   lastTxSig = sig;
+  window.dispatchEvent(new Event('blinkflow:refresh_balance'));
   return sig;
   } finally {
     if (activeAttemptId === attemptId) {

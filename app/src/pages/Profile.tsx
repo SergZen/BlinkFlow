@@ -76,7 +76,9 @@ export const Profile = () => {
     if (!isUnavailable || !targetWallet) return;
 
     const timer = setInterval(() => {
-      setRetryCount((c) => c + 1);
+      if (!document.hidden) {
+        setRetryCount((c) => c + 1);
+      }
     }, 15000);
 
     return () => {

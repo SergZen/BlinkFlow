@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
+import { getSolBalanceCached } from '../lib/balanceCache';
 
 export const useSolBalance = () => {
   const { connection } = useConnection();
@@ -31,7 +32,13 @@ export const useSolBalance = () => {
       );
     };
 
-    const fetchBalance = async () => {
+    let retryTimer: any = null;
+
+    const fetchBalance = async (force = false, isRetry = false) => {
+      if (retryTimer) {
+        clearTimeout(retryTimer);
+        retryTimer = null;
+      }
       const currentId = ++fetchId;
       setLoading(true);
       setError(false);
@@ -41,7 +48,7 @@ export const useSolBalance = () => {
       for (let attempt = 1; attempt <= 3; attempt++) {
         if (cancelled || currentId !== fetchId) return;
         try {
-          const lamports = await connection.getBalance(publicKey);
+          const lamports = await getSolBalanceCached(connection, publicKey, { force });
           if (!cancelled && currentId === fetchId) {
             setSolBalance(lamports / 1e9);
             setError(false);
@@ -64,27 +71,43 @@ export const useSolBalance = () => {
         setSolBalance((prev) => prev);
         setError(true);
         setLoading(false);
+
+        if (!isRetry) {
+          retryTimer = setTimeout(() => {
+            if (!cancelled && !document.hidden) {
+              fetchBalance(false, true);
+            }
+          }, 10000);
+        }
       }
     };
 
     fetchBalance();
 
-    const interval = setInterval(() => {
-      fetchBalance();
-    }, 15000);
-
-    const handleFocusOrTrigger = () => {
+    const handleFocus = () => {
       fetchBalance();
     };
 
-    window.addEventListener('focus', handleFocusOrTrigger);
-    window.addEventListener('blinkflow:refresh_balance', handleFocusOrTrigger);
+    const handleRefresh = () => {
+      fetchBalance(true);
+    };
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        fetchBalance();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('blinkflow:refresh_balance', handleRefresh);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       cancelled = true;
-      clearInterval(interval);
-      window.removeEventListener('focus', handleFocusOrTrigger);
-      window.removeEventListener('blinkflow:refresh_balance', handleFocusOrTrigger);
+      if (retryTimer) clearTimeout(retryTimer);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('blinkflow:refresh_balance', handleRefresh);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [connection, publicKey, connected]);
 
