@@ -1250,7 +1250,7 @@ export const CreateDealModal = ({
                     {isSubmitting ? (
                       <span className="inline-flex items-center justify-center gap-2">
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        Creating... confirm in Phantom
+                        Creating... confirm in your wallet
                       </span>
                     ) : isContractorLinkMode ? (
                       'Create link for customer'

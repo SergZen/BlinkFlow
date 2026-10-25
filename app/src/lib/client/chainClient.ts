@@ -1,5 +1,5 @@
 // chainClient.ts — BlinkflowClient that executes the real BlinkFlow Anchor instructions on Devnet
-// (signed by the connected Phantom account) and then updates the same UI state as mockClient.
+// (signed by the connected wallet) and then updates the same UI state as mockClient.
 //
 // All deal and milestone actions execute on-chain for any task index (0..255).
 // Actions never fall back to mock in chain mode; if a deal has no chain info, an error is thrown.
@@ -85,10 +85,13 @@ function addSig(dealId: string, step: string, sig: string) {
 }
 
 // ---- wallet ---------------------------------------------------------------------------------------
-function provider(): any {
-  const p = (window as any).phantom?.solana ?? (window as any).solana;
-  if (!p?.publicKey) throw new Error('Connect Phantom first.');
-  return p;
+type WalletSigner = { publicKey: PublicKey; signTransaction: (tx: Transaction) => Promise<Transaction> };
+let activeSigner: WalletSigner | null = null;
+export function setWalletSigner(s: WalletSigner | null) { activeSigner = s; }
+
+function provider(): WalletSigner {
+  if (!activeSigner) throw new Error('Connect your wallet first.');
+  return activeSigner;
 }
 
 async function withRetry<T>(fn: () => Promise<T>, tries = 4): Promise<T> {
@@ -597,7 +600,7 @@ export async function fetchDealTrustAuthority(dealId: string): Promise<string | 
 
 function requireWallet(expected: string, role: string) {
   const me = provider().publicKey.toString();
-  if (me !== expected) throw new Error(`Switch Phantom to the ${role} account (${expected.slice(0, 4)}…${expected.slice(-4)}).`);
+  if (me !== expected) throw new Error(`Switch your wallet to the ${role} account (${expected.slice(0, 4)}…${expected.slice(-4)}).`);
 }
 
 // After every action: let the mock state settle, then push the FINAL state to the shared server so the other
@@ -1218,7 +1221,7 @@ export const chainClient: BlinkflowClient = {
     } else if (me === c.info.contractor) {
       side = 'contractor';
     } else {
-      throw new Error('Switch Phantom to the customer or contractor account of this deal.');
+      throw new Error('Switch your wallet to the customer or contractor account of this deal.');
     }
     const currentDeal = getDeals().find((d) => d.id === dealId);
     const currentStatus = currentDeal?.tasks?.[taskIndex]?.status;

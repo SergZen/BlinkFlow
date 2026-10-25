@@ -181,8 +181,8 @@ export const ArbiterPage = ({ view }: ArbiterPageProps) => {
             <h1 className="text-2xl font-bold text-white tracking-tight">{pageTitle}</h1>
             <p className="text-sm text-gray-400">
               {view === 'admin'
-                ? 'Please connect your authorized Phantom wallet to access protocol administration.'
-                : 'Please connect your authorized Phantom wallet to access dispute resolution tools.'}
+                ? 'Please connect your authorized wallet to access protocol administration.'
+                : 'Please connect your authorized wallet to access dispute resolution tools.'}
             </p>
           </div>
           <div className="flex justify-center pt-2">
@@ -534,7 +534,7 @@ export const ArbiterPage = ({ view }: ArbiterPageProps) => {
                 {!isAdmin && config && (
                   <div className="p-3 bg-amber-950/20 border border-amber-900/40 rounded-lg text-xs text-amber-300 flex items-center gap-2">
                     <Lock className="w-4 h-4 shrink-0" />
-                    Only the admin wallet ({truncateAddress(config.admin)}) can sign. Switch Phantom
+                    Only the admin wallet ({truncateAddress(config.admin)}) can sign. Switch your wallet
                     to that account.
                   </div>
                 )}
@@ -559,7 +559,7 @@ export const ArbiterPage = ({ view }: ArbiterPageProps) => {
                     {isSubmittingAuth ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        Setting in Phantom...
+                        Setting in your wallet...
                       </>
                     ) : (
                       'Set trust authority'
@@ -775,7 +775,7 @@ export const ArbiterPage = ({ view }: ArbiterPageProps) => {
                         {!isDealArbiter && (
                           <div className="p-3 bg-amber-950/20 border border-amber-900/40 rounded-lg text-xs text-amber-300 flex items-center gap-2">
                             <Lock className="w-3.5 h-3.5 shrink-0" />
-                            Only the arbiter of this deal ({truncateAddress(dealArbiter)}) can sign. Switch Phantom to that account.
+                            Only the arbiter of this deal ({truncateAddress(dealArbiter)}) can sign. Switch your wallet to that account.
                           </div>
                         )}
 
@@ -895,7 +895,7 @@ export const ArbiterPage = ({ view }: ArbiterPageProps) => {
                   {isSubmittingAuth ? (
                     <>
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      Signing in Phantom...
+                      Signing in your wallet...
                     </>
                   ) : (
                     'Confirm & Sign'
@@ -965,7 +965,7 @@ export const ArbiterPage = ({ view }: ArbiterPageProps) => {
                   {isSubmittingResolve ? (
                     <>
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      Resolving in Phantom...
+                      Resolving in your wallet...
                     </>
                   ) : (
                     'Confirm & Resolve'

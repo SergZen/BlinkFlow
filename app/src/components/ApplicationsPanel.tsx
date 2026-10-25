@@ -260,7 +260,7 @@ export const ApplicationsPanel = ({ deal, chainInfo, role }: ApplicationsPanelPr
 
             {isWrongCustomer && (
               <p className="text-sm text-gray-400 mb-3">
-                Only the customer wallet ({truncateAddress(chainInfo.customer)}) can do this. Switch Phantom to that account.
+                Only the customer wallet ({truncateAddress(chainInfo.customer)}) can do this. Switch your wallet to that account.
               </p>
             )}
 
