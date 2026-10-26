@@ -1,0 +1,692 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="How BlinkFlow works: step-by-step guide for clients and freelancers, every feature and FAQ.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<title>BlinkFlow Guide</title>
+
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: role switch on top, goal list beside a step player with a live mock of the real screen, then the full feature reference and FAQ. Dark only, like the product. */
+:root{
+  color-scheme: dark;
+  --bg:#0b0c13; --bg-2:#10121c; --surface:#151827; --surface-2:#1b1f31; --line:#262b40; --line-soft:#1e2234;
+  --fg:#e8e9f3; --fg-2:#b9bdd0; --muted:#878da6; --faint:#5d637c;
+  --accent:#9b7bff; --accent-2:#7c5cf0; --accent-ink:#efeaff; --accent-wash:rgba(155,123,255,.12);
+  --blue:#4f8cff; --ok:#3ecf8e; --ok-wash:rgba(62,207,142,.12); --warn:#f5b546; --warn-wash:rgba(245,181,70,.12); --bad:#f2676b; --bad-wash:rgba(242,103,107,.12);
+  --display:"Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --r:12px;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+a{color:var(--accent)}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+.wrap{max-width:1180px;margin:0 auto;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px))}
+
+/* top bar */
+.top{border-bottom:1px solid var(--line-soft);background:linear-gradient(180deg,#0e1019,var(--bg))}
+.top .wrap{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-block:14px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px;font-family:var(--display);font-weight:700;font-size:19px;letter-spacing:-.01em}
+.logo{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--blue));display:grid;place-items:center}
+.logo svg{width:16px;height:16px}
+.brand small{font-family:var(--body);font-weight:500;font-size:12px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-left:4px}
+.top-links{display:flex;gap:8px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:8px;border-radius:10px;padding:8px 14px;font-weight:600;font-size:14px;text-decoration:none;border:1px solid var(--line);background:var(--surface);color:var(--fg);cursor:pointer;transition:border-color .15s, background .15s}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent-2);border-color:var(--accent-2);color:#fff}
+.btn.primary:hover{background:var(--accent)}
+
+/* hero */
+.hero{padding-block:36px 8px}
+.devnet{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;color:var(--warn);background:var(--warn-wash);border:1px solid rgba(245,181,70,.3);border-radius:999px;padding:5px 12px;margin-bottom:18px}
+.devnet i{width:7px;height:7px;border-radius:50%;background:var(--warn);display:inline-block}
+h1{font-family:var(--display);font-weight:700;font-size:clamp(30px,5vw,48px);line-height:1.05;letter-spacing:-.025em;margin:0 0 12px;text-wrap:balance;max-width:20ch}
+.lede{color:var(--fg-2);font-size:17px;max-width:62ch;margin:0}
+
+/* role switch */
+.roles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:28px;max-width:720px}
+.role{display:flex;gap:14px;align-items:flex-start;text-align:left;padding:16px 18px;border-radius:14px;border:1px solid var(--line);background:var(--surface);cursor:pointer;transition:border-color .15s, background .15s}
+.role:hover{border-color:#3a3f5c}
+.role[aria-pressed="true"]{border-color:var(--accent);background:linear-gradient(180deg,rgba(155,123,255,.14),rgba(155,123,255,.04))}
+.role .ico{flex:none;width:38px;height:38px;border-radius:10px;display:grid;place-items:center;background:var(--surface-2);color:var(--accent)}
+.role[aria-pressed="true"] .ico{background:var(--accent-2);color:#fff}
+.role b{display:block;font-family:var(--display);font-size:18px;font-weight:700;letter-spacing:-.01em}
+.role span{display:block;font-size:13.5px;color:var(--muted);margin-top:2px}
+
+/* section heads */
+.sec{padding-block:44px 8px}
+.eyebrow{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:600;margin:0 0 6px}
+h2{font-family:var(--display);font-weight:700;font-size:clamp(24px,3.4vw,32px);letter-spacing:-.02em;margin:0 0 6px;text-wrap:balance}
+.sec-sub{color:var(--fg-2);margin:0 0 20px;max-width:65ch}
+
+/* player */
+.player{display:grid;grid-template-columns:300px minmax(0,1fr);gap:20px;align-items:start}
+.goals{display:flex;flex-direction:column;gap:6px;position:sticky;top:calc(env(safe-area-inset-top, 0px) + 12px)}
+.goal{display:flex;align-items:center;gap:10px;text-align:left;padding:11px 12px;border-radius:10px;border:1px solid transparent;background:transparent;cursor:pointer;color:var(--fg-2);font-size:14.5px}
+.goal:hover{background:var(--surface)}
+.goal[aria-current="true"]{background:var(--surface);border-color:var(--line);color:var(--fg)}
+.goal .n{flex:none;width:24px;height:24px;border-radius:7px;display:grid;place-items:center;background:var(--surface-2);font-size:12px;color:var(--muted);font-weight:600}
+.goal[aria-current="true"] .n{background:var(--accent-2);color:#fff}
+.goal small{display:block;font-size:12px;color:var(--faint)}
+.stage{border:1px solid var(--line);border-radius:16px;background:var(--bg-2);overflow:hidden;min-width:0}
+.stage-head{padding:18px 20px 0}
+.stage-head h3{font-family:var(--display);font-size:22px;font-weight:700;letter-spacing:-.015em;margin:0 0 4px}
+.stage-head p{margin:0;color:var(--muted);font-size:14px}
+.steps-bar{display:flex;gap:6px;padding:16px 20px 0;flex-wrap:wrap}
+.pip{height:6px;flex:1 1 24px;min-width:18px;border-radius:99px;background:var(--line);border:0;cursor:pointer;padding:0}
+.pip.done{background:#5a4aa8}
+.pip.on{background:var(--accent)}
+.step{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:20px;padding:20px}
+.step-text .k{font-size:12px;color:var(--accent);font-weight:600;letter-spacing:.06em;text-transform:uppercase}
+.step-text h4{font-family:var(--display);font-size:20px;font-weight:700;margin:4px 0 8px;letter-spacing:-.01em;text-wrap:balance}
+.step-text p{margin:0 0 10px;color:var(--fg-2)}
+.step-text ul{margin:0 0 10px;padding-left:18px;color:var(--fg-2)}
+.step-text li{margin:3px 0}
+.tip{display:flex;gap:10px;font-size:13.5px;color:var(--fg-2);background:var(--surface);border:1px solid var(--line-soft);border-radius:10px;padding:10px 12px;margin-top:6px}
+.tip b{color:var(--fg)}
+.tip.warn{border-color:rgba(245,181,70,.28);background:var(--warn-wash)}
+.stage-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:14px 20px;border-top:1px solid var(--line-soft);background:var(--bg)}
+.stage-foot .count{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.nav{display:flex;gap:8px}
+
+/* ---------- mock UI (mirrors the BlinkFlow site) ---------- */
+.mock{background:#0a0b12;border:1px solid var(--line);border-radius:12px;padding:14px;font-size:12.5px;color:#d7d9e6;min-width:0;overflow:hidden;position:relative}
+.mock .cap{position:absolute;top:8px;right:10px;font-size:10.5px;color:var(--faint);letter-spacing:.08em;text-transform:uppercase}
+.m-title{font-family:var(--display);font-size:15px;font-weight:700;color:#fff;margin:0 0 2px}
+.m-sub{color:#8f94ab;font-size:11.5px;margin:0 0 10px}
+.m-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.m-field{margin-bottom:9px}
+.m-label{font-size:11px;color:#a5a9bd;margin-bottom:4px;display:block}
+.m-input{background:#06070c;border:1px solid #232739;border-radius:8px;padding:7px 9px;color:#e7e8f1;font-size:12px;min-height:30px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.m-input.lock{color:#c7b8ff;font-family:var(--mono);font-size:11px;background:#0e0c19;border-color:#2c2550}
+.m-input.area{white-space:normal;min-height:44px}
+.m-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border-radius:8px;padding:7px 11px;font-weight:600;font-size:12px;border:1px solid #2a2f45;background:#141726;color:#d9dbe8}
+.m-btn.p{background:linear-gradient(90deg,#7c5cf0,#4f6bff);border-color:transparent;color:#fff}
+.m-btn.g{background:#1f8f5f;border-color:#1f8f5f;color:#fff}
+.m-btn.r{border-color:rgba(242,103,107,.5);color:#ff9a9d;background:rgba(242,103,107,.08)}
+.m-btn.w{width:100%}
+.m-btn.hl,.m-chip.hl,.hl-box{box-shadow:0 0 0 2px var(--accent),0 0 0 6px rgba(155,123,255,.22);animation:pulse 2.2s ease-in-out infinite}
+@keyframes pulse{50%{box-shadow:0 0 0 2px var(--accent),0 0 0 9px rgba(155,123,255,.08)}}
+@media (prefers-reduced-motion: reduce){.m-btn.hl,.m-chip.hl,.hl-box{animation:none}}
+.m-seg{display:grid;grid-template-columns:1fr 1fr;background:#06070c;border:1px solid #232739;border-radius:9px;padding:3px;gap:3px;margin-bottom:6px}
+.m-seg span{text-align:center;padding:6px 4px;border-radius:7px;font-size:11px;color:#9599ae;font-weight:600}
+.m-seg span.on{background:#2a2550;color:#fff}
+.m-hint{font-size:10.5px;color:#868ba2;margin:0 0 10px}
+.m-chip{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:600;padding:3px 8px;border-radius:99px;border:1px solid #2a2f45;color:#b9bdd0;background:#11131f}
+.m-chip.ok{color:#5ee0a5;border-color:rgba(62,207,142,.35);background:rgba(62,207,142,.08)}
+.m-chip.blue{color:#86b0ff;border-color:rgba(79,140,255,.35);background:rgba(79,140,255,.08)}
+.m-chip.warn{color:#f7c66b;border-color:rgba(245,181,70,.35);background:rgba(245,181,70,.08)}
+.m-chip.bad{color:#ff9a9d;border-color:rgba(242,103,107,.35);background:rgba(242,103,107,.08)}
+.m-chip.vio{color:#c7b8ff;border-color:rgba(155,123,255,.4);background:rgba(155,123,255,.1)}
+.m-card{background:#0f111b;border:1px solid #20243a;border-radius:10px;padding:10px}
+.m-banner{background:rgba(124,92,240,.12);border:1px solid rgba(155,123,255,.35);border-radius:10px;padding:9px 10px;margin-bottom:10px}
+.m-banner b{color:#d6caff;font-size:11.5px}
+.m-banner p{margin:3px 0 6px;font-size:11px;color:#c9cbe0}
+.m-addr{font-family:var(--mono);font-size:10.5px;color:#c7b8ff;background:#140f28;border:1px solid #2c2550;border-radius:6px;padding:5px 7px;word-break:break-all}
+.m-task{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 10px;border:1px solid #20243a;border-radius:9px;background:#0d0f19;margin-bottom:6px}
+.m-task .t{display:flex;align-items:center;gap:8px;min-width:0}
+.m-task .t b{color:#fff;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.m-task .num{color:#6c7189;font-size:11px}
+.m-task .amt{color:#fff;font-weight:700;font-size:12.5px;font-variant-numeric:tabular-nums}
+.m-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.m-header{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.m-pill{display:inline-flex;align-items:center;gap:6px;border:1px solid #262b40;border-radius:99px;padding:5px 10px;font-size:11px;background:#0f111b;color:#d7d9e6;white-space:nowrap}
+.m-pill.faucet{color:#7fb0ff}
+.m-pill.test{color:#f5b546;border-color:rgba(245,181,70,.5)}
+.m-pill .sol{color:#fff}.m-pill .usdc{color:#c7b8ff}
+.m-roles{display:inline-flex;background:#06070c;border:1px solid #232739;border-radius:9px;padding:3px;gap:3px}
+.m-roles span{padding:4px 10px;border-radius:7px;font-size:11px;color:#9599ae}
+.m-roles span.on{background:#20243a;color:#fff}
+.m-bar{position:relative;margin-top:12px;background:#0f1120;border:1px solid #2a2f48;border-radius:10px;padding:9px 10px;display:flex;align-items:center;gap:10px}
+.m-spin{width:14px;height:14px;border-radius:50%;border:2px solid #3a3566;border-top-color:var(--accent);animation:spin 1s linear infinite;flex:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){.m-spin{animation:none}}
+.m-steps{display:flex;gap:4px;font-size:10px;color:#6c7189;flex-wrap:wrap}
+.m-steps .on{color:#d6caff;font-weight:600}
+.m-steps .done{color:#5ee0a5}
+.m-list{margin:6px 0 0;padding-left:16px;font-size:11.5px;color:#c9cbe0}
+.m-list li{margin:3px 0}
+.m-chat{display:flex;flex-direction:column;gap:6px}
+.m-msg{max-width:88%;padding:7px 10px;border-radius:10px;font-size:11.5px;line-height:1.45}
+.m-msg.bot{background:#182033;color:#dfe6f5;border-top-left-radius:3px}
+.m-msg.me{background:#2b5278;color:#fff;align-self:flex-end;border-top-right-radius:3px}
+.m-kb{display:flex;gap:5px;flex-wrap:wrap}
+.m-kb span{background:#1d2840;border-radius:7px;padding:5px 9px;font-size:11px;color:#cfe0ff}
+.m-stat{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:8px}
+.m-stat div{background:#0d0f19;border:1px solid #20243a;border-radius:8px;padding:7px;text-align:center}
+.m-stat b{display:block;color:#fff;font-size:14px;font-variant-numeric:tabular-nums}
+.m-stat span{font-size:10px;color:#8f94ab}
+.m-phantom{width:min(220px,100%);margin:0 auto;background:#1c1c28;border:1px solid #33334a;border-radius:14px;padding:12px;text-align:center}
+.m-phantom .ph-logo{width:30px;height:30px;border-radius:9px;background:#ab9ff2;margin:0 auto 6px;display:grid;place-items:center;color:#1c1c28;font-weight:800}
+.m-dim{color:#7b8099}
+.m-sep{height:1px;background:#1e2234;margin:9px 0}
+.m-note{font-size:10.5px;color:#868ba2}
+.m-ok{color:#5ee0a5}.m-warn{color:#f7c66b}.m-bad{color:#ff9a9d}
+
+/* feature reference */
+.ref-tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:18px}
+.search{flex:1 1 260px;display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:0 12px}
+.search input{flex:1;background:transparent;border:0;color:var(--fg);font:inherit;padding:10px 0;outline:none;min-width:0}
+.search:focus-within{border-color:var(--accent)}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:var(--surface);border-radius:99px;padding:7px 12px;font-size:13px;font-weight:600;color:var(--fg-2);cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--accent-2);border-color:var(--accent-2);color:#fff}
+.ref-group{margin-bottom:26px}
+.ref-group h3{font-family:var(--display);font-size:18px;font-weight:700;margin:0 0 10px;display:flex;align-items:baseline;gap:8px}
+.ref-group h3 span{font-family:var(--body);font-size:12.5px;color:var(--faint);font-weight:500}
+.ref-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,330px),1fr));gap:10px}
+.feat{border:1px solid var(--line-soft);background:var(--bg-2);border-radius:12px;padding:13px 14px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.feat-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.feat b{font-size:14.5px;font-weight:600;color:var(--fg)}
+.who{display:flex;gap:4px;flex:none}
+.who span{font-size:10.5px;font-weight:600;letter-spacing:.04em;padding:2px 7px;border-radius:99px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.who .c{color:#86b0ff;border-color:rgba(79,140,255,.35)}
+.who .f{color:#c7b8ff;border-color:rgba(155,123,255,.4)}
+.feat p{margin:0;color:var(--fg-2);font-size:13.5px}
+.feat .go{align-self:flex-start;font-size:12.5px;font-weight:600;color:var(--accent);background:none;border:0;padding:0;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.empty{color:var(--muted);padding:18px;border:1px dashed var(--line);border-radius:12px;text-align:center}
+mark{background:rgba(155,123,255,.3);color:inherit;border-radius:3px;padding:0 1px}
+
+/* faq */
+.faq{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+details{border:1px solid var(--line-soft);background:var(--bg-2);border-radius:12px;padding:0 16px}
+summary{cursor:pointer;list-style:none;padding:14px 0;font-weight:600;display:flex;justify-content:space-between;gap:12px}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"+";color:var(--accent);font-size:18px;line-height:1}
+details[open] summary::after{content:"−"}
+details p{margin:0 0 14px;color:var(--fg-2);font-size:14px}
+
+footer{border-top:1px solid var(--line-soft);margin-top:48px}
+footer .wrap{padding-block:24px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;color:var(--muted);font-size:13px}
+
+@media (max-width: 920px){
+  .player{grid-template-columns:minmax(0,1fr)}
+  .goals{position:static;flex-direction:row;overflow-x:auto;padding-bottom:4px;scrollbar-width:thin}
+  .goal{flex:none;max-width:240px}
+  .goal small{display:none}
+  .step{grid-template-columns:minmax(0,1fr)}
+  .faq{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width: 520px){
+  .roles{grid-template-columns:minmax(0,1fr)}
+  .stage-head,.steps-bar,.step,.stage-foot{padding-left:14px;padding-right:14px}
+  .nav .btn{padding:8px 11px}
+}
+</style>
+<style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+
+
+<header class="top">
+  <div class="wrap">
+    <div class="brand">
+      <span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 6v6c0 5 3.4 8.6 8 10 4.6-1.4 8-5 8-10V6l-8-4z"/><path d="m13 7-3 6h4l-3 5"/></svg></span>
+      BlinkFlow <small>Guide</small>
+    </div>
+    <nav class="top-links">
+      <a class="btn" href="#features">All features</a>
+      <a class="btn" href="#faq">FAQ</a>
+      <a class="btn primary" data-site href="https://blinkflow-frontend-production.up.railway.app/">Open BlinkFlow</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="wrap hero">
+    <div class="devnet"><i></i>Devnet only: test USDC, no real money. The contract is not audited yet.</div>
+    <h1>Safe payments for deals you make in chat</h1>
+    <p class="lede">BlinkFlow locks the client's USDC in a smart contract on Solana and releases it to the freelancer when the client approves the work. If you disagree, an arbiter decides. Pick your side to see how it works step by step.</p>
+    <div class="roles" role="group" aria-label="Choose your role">
+      <button class="role" id="role-client" data-role="client" aria-pressed="true">
+        <span class="ico" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></span>
+        <span><b>I'm a client</b><span>I pay for work. On the site this role is called Customer.</span></span>
+      </button>
+      <button class="role" id="role-freelancer" data-role="freelancer" aria-pressed="false">
+        <span class="ico" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/></svg></span>
+        <span><b>I'm a freelancer</b><span>I do the work and get paid. On the site: Contractor.</span></span>
+      </button>
+    </div>
+  </section>
+
+  <section class="wrap sec" id="guide" aria-labelledby="guide-h">
+    <p class="eyebrow" id="guide-eyebrow">Client guide</p>
+    <h2 id="guide-h">What do you want to do?</h2>
+    <p class="sec-sub">Pick a goal. Each step shows the part of the screen you will see, with the button to press highlighted.</p>
+    <div class="player">
+      <div class="goals" id="goals" role="tablist" aria-label="Goals"></div>
+      <div class="stage" id="stage" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <section class="wrap sec" id="features" aria-labelledby="feat-h">
+    <p class="eyebrow">Reference</p>
+    <h2 id="feat-h">Everything BlinkFlow can do</h2>
+    <p class="sec-sub">The full list of features on the site, in the contract and in the Telegram bot. Search or filter by role.</p>
+    <div class="ref-tools">
+      <label class="search" for="q">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="color:var(--muted)"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="q" type="search" placeholder="Search features, e.g. refund, stages, link" autocomplete="off">
+      </label>
+      <div class="chips" role="group" aria-label="Filter by role">
+        <button class="chip" data-f="all" aria-pressed="true">All</button>
+        <button class="chip" data-f="client" aria-pressed="false">Client</button>
+        <button class="chip" data-f="freelancer" aria-pressed="false">Freelancer</button>
+      </div>
+    </div>
+    <div id="ref"></div>
+  </section>
+
+  <section class="wrap sec" id="faq" aria-labelledby="faq-h">
+    <p class="eyebrow">Questions</p>
+    <h2 id="faq-h">FAQ</h2>
+    <p class="sec-sub">Short answers to what people ask most.</p>
+    <div class="faq" id="faq-list"></div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>BlinkFlow · Solana Devnet · test USDC only</span>
+    <span>Bot: <a href="https://t.me/BlinkFlowApp_bot" target="_blank" rel="noopener">@BlinkFlowApp_bot</a> · X: <a href="https://x.com/BlinkFlowApp" target="_blank" rel="noopener">@BlinkFlowApp</a></span>
+  </div>
+</footer>
+
+<script>
+(function(){
+const SITE = /blinkflow/i.test(location.hostname) ? location.origin : 'https://blinkflow-frontend-production.up.railway.app';
+document.querySelectorAll('a[data-site]').forEach(a=>a.href=SITE+'/');
+const ADDR_F = '7xKpQ2…mN4r'; const ADDR_C = 'E9vT3a…Lq8s';
+const FULL_F = '7xKpQ2wZ8hYv3cR5tB9nJ1mL6sD4fG0aH2kE7uWqmN4r';
+
+/* ---------- mock screens ---------- */
+const header = (hl) => `<div class="m-header">
+  <span class="m-roles"><span class="${hl==='freelancer'?'on':''}">Contractor</span><span class="${hl==='freelancer'?'':'on'}">Customer</span></span>
+  <span class="m-pill faucet ${hl==='faucet'?'hl-box':''}">💧 Get USDC/SOL</span>
+  <span class="m-pill"><span class="sol">2.39 SOL</span> | <span class="usdc">150 USDC-Dev</span></span>
+  <span class="m-pill test">● TEST MODE</span>
+  <span class="m-pill ${hl==='wallet'?'hl-box':''}">${hl==='wallet'?'Select Wallet':'E1wQ..LAAm'}</span></div>`;
+
+const M = {
+  connect: () => `<div class="mock"><span class="cap">Header</span>${header('wallet')}
+    <div class="m-sep"></div>
+    <div class="m-card"><div class="m-title">Connect a wallet</div><p class="m-sub">Wallets installed in your browser</p><div class="m-task"><div class="t"><b>Phantom</b></div><span class="m-chip ok">Detected</span></div><div class="m-task"><div class="t"><b>Solflare</b></div><span class="m-chip">Detected</span></div><span class="m-btn p w hl">Connect</span></div></div>`,
+  faucet: () => `<div class="mock"><span class="cap">Header</span>${header('faucet')}
+    <div class="m-sep"></div><div class="m-card"><div class="m-title">Get test funds</div><p class="m-sub">Opens free Devnet faucets in a new tab.</p>
+    <div class="m-task"><div class="t"><b>SOL</b><span class="m-note">faucet.solana.com · paste your address, pick Devnet</span></div></div><div class="m-task"><div class="t"><b>USDC-Dev</b><span class="m-note">spl-token-faucet.com · connect wallet, pick Devnet</span></div></div><div class="m-row"><span class="m-btn">Get SOL</span><span class="m-btn p hl">Get USDC-Dev</span></div></div></div>`,
+  createClient: (stages) => `<div class="mock"><span class="cap">Create Deal · Customer</span>
+    <p class="m-title">Create New Deal</p><p class="m-sub">Lock USDC in escrow now. Share the link to find a contractor.</p>
+    <div class="m-field"><span class="m-label">Deal Title</span><div class="m-input">Logo for coffee shop</div></div>
+    <div class="m-field"><span class="m-label">Contractor Wallet (Optional)</span><div class="m-input m-dim">Leave empty: contractors will apply and you choose one</div></div>
+    <div class="m-row" style="margin-bottom:9px"><span class="m-chip ${stages?'hl':''}">☐ Several stages</span><span class="m-note">needs a contractor wallet</span></div>
+    <div class="m-row" style="gap:8px"><div class="m-field" style="flex:1"><span class="m-label">Amount (USDC-Dev)</span><div class="m-input">$ 50</div></div><div class="m-field" style="flex:1"><span class="m-label">Deadline</span><div class="m-input">05.11.2026</div></div></div>
+    <div class="m-field"><span class="m-label">Success Criteria</span><div class="m-input area">3 logo concepts in SVG and PNG, one round of edits</div></div>
+    <span class="m-btn p w ${stages?'':'hl'}">Create &amp; Fund Deal</span></div>`,
+  txbar: () => `<div class="mock"><span class="cap">Bottom of the screen</span>
+    <div class="m-phantom" style="margin-bottom:8px"><div class="ph-logo">P</div><b style="color:#fff">Approve transaction</b><div class="m-note" style="margin:4px 0 8px">−50 USDC-Dev · network fee ~0.00001 SOL</div><div class="m-row" style="justify-content:center"><span class="m-btn">Cancel</span><span class="m-btn p hl">Confirm</span></div></div>
+    <div class="m-bar"><span class="m-spin"></span><div style="flex:1;min-width:0"><b style="color:#fff;font-size:12px">Waiting for signature in your wallet… 14s</b><div class="m-steps"><span class="done">Preparing ✓</span>›<span class="on">Signature</span>›<span>Sending</span>›<span>Confirming</span></div></div><span class="m-btn">Cancel</span></div></div>`,
+  share: (contractorLink) => `<div class="mock"><span class="cap">After creating</span>
+    <p class="m-title">${contractorLink?'Link ready':'Deal created'}</p>
+    ${contractorLink?`<ol class="m-list"><li>Send this link to your customer in your chat.</li><li>They check the terms and lock the payment in escrow.</li><li>The deal then appears on your dashboard.</li></ol>`:`<p class="m-sub">Your USDC is locked in escrow. Send this link to potential contractors.</p>`}
+    <div class="m-input" style="margin:10px 0 8px">${SITE.replace('https://','')}/?new=1&amp;role=customer&amp;d=eyJ2Ijox…</div>
+    <div class="m-row"><span class="m-btn p hl">Copy link</span><span class="m-btn">Telegram</span><span class="m-btn">LinkedIn</span><span class="m-btn">Facebook</span><span class="m-btn">Instagram</span></div></div>`,
+  applications: () => `<div class="mock"><span class="cap">Deal page · Customer</span>
+    <p class="m-title">Applications</p><p class="m-sub">Contractors who opened your link and applied.</p>
+    <div class="m-task"><div class="t"><span class="m-addr" style="padding:3px 6px">${ADDR_F}</span><span class="m-note">"Did 20+ logos, can start today"</span></div><span class="m-btn p hl">Choose</span></div>
+    <div class="m-task"><div class="t"><span class="m-addr" style="padding:3px 6px">4hRt8c…Pz2d</span><span class="m-note">"Portfolio in profile"</span></div><span class="m-btn">Choose</span></div>
+    <div class="m-sep"></div><div class="m-row"><span class="m-dim">Profile:</span><span class="m-chip ok">92% Success</span><span class="m-chip">12 Deals</span><span class="m-chip vio">Vol: 840 USDC</span></div></div>`,
+  reviewFund: () => `<div class="mock"><span class="cap">Opened from the link</span>
+    <p class="m-title">Review and fund this deal</p><p class="m-sub">Your contractor prepared these terms. Nothing is locked until you confirm and sign. Escrow means your payment is locked in a smart contract and released only when you approve the work.</p>
+    <div class="m-banner hl-box"><b>Prepared by the contractor</b><p>Check the wallet address and every term before you fund. If the address is not the one your contractor gave you, do not continue.</p><div class="m-addr">${FULL_F}</div></div>
+    <div class="m-field"><span class="m-label">Contractor Wallet (Locked)</span><div class="m-input lock">${FULL_F}</div></div>
+    <div class="m-row" style="gap:8px"><div class="m-field" style="flex:1"><span class="m-label">Amount</span><div class="m-input">$ 50</div></div><div class="m-field" style="flex:1"><span class="m-label">Deadline</span><div class="m-input">05.11.2026</div></div></div>
+    <span class="m-btn p w">Fund and create deal</span></div>`,
+  awaiting: (who) => `<div class="mock"><span class="cap">Dashboard</span>
+    <p class="m-title">Awaiting Your Action</p>
+    <div class="m-card hl-box" style="margin-top:6px"><div class="m-row" style="justify-content:space-between"><b style="color:#fff">${who==='client'?'Landing page copy':'Logo for coffee shop'}</b><span class="m-chip ${who==='client'?'warn':'blue'}">${who==='client'?'Fund the proposal':'Start the task'}</span></div>
+    <div class="m-note" style="margin-top:4px">${who==='client'?'Proposal from '+ADDR_F+' · $3':'Funded by the customer · $50'}</div></div>
+    <div class="m-sep"></div><div class="m-row"><span class="m-chip">Active</span><span class="m-chip">All</span><span class="m-chip hl">Needs my action</span><span class="m-chip">Ready to close</span><span class="m-chip">Closed</span></div></div>`,
+  fundProposal: () => `<div class="mock"><span class="cap">Deal page · Customer</span>
+    <div class="m-task"><div class="t"><span class="num">#1</span><b>Landing page copy</b></div><div class="m-row"><span class="amt">$3</span><span class="m-chip warn">Awaiting Funding</span></div></div>
+    <div class="m-note" style="margin:4px 0 8px">Proposed by the contractor. Funding locks $3 in escrow and starts the work.</div>
+    <span class="m-btn p hl">Fund Task</span></div>`,
+  review: () => `<div class="mock"><span class="cap">Deal page · Customer</span>
+    <div class="m-task"><div class="t"><span class="num">#1</span><b>Logo for coffee shop</b></div><div class="m-row"><span class="amt">$50</span><span class="m-chip vio">Submitted</span></div></div>
+    <div class="m-card"><span class="m-label">Solution Note</span><div style="color:#e7e8f1">Final logos are in the shared folder: drive.example/logo-final</div>
+    <div class="m-note" style="margin-top:4px">File fingerprint: 9f2c…a71e · <u>Verify file</u></div></div>
+    <div class="m-actions"><span class="m-btn g hl">Approve &amp; Release</span><span class="m-btn r">Open Dispute</span></div></div>`,
+  verify: () => `<div class="mock"><span class="cap">Requirements file</span>
+    <div class="m-card"><b style="color:#fff">brief.pdf</b> <span class="m-note">fingerprint 4be1…09cd</span>
+    <div class="m-actions"><span class="m-btn hl">Verify file</span></div>
+    <div class="m-sep"></div><div class="m-ok">✓ This file matches the fingerprint saved in the deal.</div><div class="m-bad" style="margin-top:3px">✗ Different file: it was changed after the deal was created.</div></div>
+    <p class="m-note" style="margin-top:8px">Only the file's fingerprint (SHA-256) is stored, never the file itself.</p></div>`,
+  dispute: () => `<div class="mock"><span class="cap">Dispute</span>
+    <div class="m-task"><div class="t"><span class="num">#1</span><b>Logo for coffee shop</b></div><div class="m-row"><span class="amt">$50</span><span class="m-chip bad">Disputed</span></div></div>
+    <div class="m-note" style="margin:6px 0">The money stays locked. The arbiter reviews the terms, the criteria and the submitted work, then decides who gets it.</div>
+    <div class="m-card"><div class="m-row" style="justify-content:space-between"><b style="color:#fff">Public Dispute Log</b><span class="m-chip ok">Customer refunded</span></div><div class="m-note" style="margin-top:4px">Every decision is visible to everyone.</div></div></div>`,
+  refund: () => `<div class="mock"><span class="cap">Deal page · Customer</span>
+    <div class="m-task"><div class="t"><span class="num">#1</span><b>Wireframes</b></div><div class="m-row"><span class="amt">$20</span><span class="m-chip blue">In Progress</span></div></div>
+    <div class="m-note" style="margin:4px 0 8px">Deadline 03.11.2026 passed without submitted work. Refund available 14 days after the deadline.</div>
+    <span class="m-btn hl">Get Refund</span>
+    <div class="m-sep"></div>
+    <div class="m-task"><div class="t"><span class="num">#2</span><b>Visual design</b></div><div class="m-row"><span class="amt">$20</span><span class="m-chip">Funded</span></div></div>
+    <div class="m-note">Not started yet: you can cancel it and get the money back at once.</div><div class="m-actions"><span class="m-btn">Cancel Task</span></div></div>`,
+  stages: () => `<div class="mock"><span class="cap">Deal page</span>
+    <div class="m-task"><div class="t"><span class="num">#1</span><b>Wireframes</b></div><div class="m-row"><span class="amt">$20</span><span class="m-chip ok">Completed</span></div></div>
+    <div class="m-task"><div class="t"><span class="num">#2</span><b>Visual design</b></div><div class="m-row"><span class="amt">$20</span><span class="m-chip blue">In Progress</span></div></div>
+    <div class="m-task"><div class="t"><span class="num">#3</span><b>Final files</b></div><div class="m-row"><span class="amt">$30</span><span class="m-chip">Funded</span></div></div>
+    <div class="m-row" style="justify-content:space-between;margin-top:8px"><span class="m-note">Each stage is paid on its own.</span><span class="m-btn hl">+ Add task</span></div></div>`,
+  close: () => `<div class="mock"><span class="cap">Dashboard</span>
+    <div class="m-card hl-box"><div class="m-row" style="justify-content:space-between"><b style="color:#fff">2 deals ready to close</b><span class="m-btn">Review</span></div><div class="m-note" style="margin-top:4px">All tasks are finished. Closing returns your network deposit.</div></div>
+    <div class="m-sep"></div>
+    <div class="m-task"><div class="t"><b>Logo for coffee shop</b></div><div class="m-row"><span class="m-chip ok">Completed</span><span class="m-btn hl">Close deal</span></div></div>
+    <p class="m-note">Network deposit locked in this deal: 0.0052 SOL. It is returned to the creator when the tasks and the deal are closed.</p></div>`,
+  drafts: () => `<div class="mock"><span class="cap">Dashboard</span>
+    <p class="m-dim" style="font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;margin:0 0 6px">● Unfinished deals</p>
+    <div class="m-task"><div class="t"><b>Logo for coffee shop</b><span class="m-chip">as customer</span></div><div class="m-row"><span class="m-btn p hl">Continue</span><span class="m-btn">Delete</span></div></div>
+    <p class="m-note">Not on the network yet. Nothing is locked. Drafts are kept in this browser for 7 days.</p></div>`,
+  createFreelancer: () => `<div class="mock"><span class="cap">Create Deal · Contractor</span>
+    <p class="m-title">Create New Deal</p>
+    <div class="m-seg"><span class="on hl-box">Send a link to my customer</span><span>Propose to a specific wallet</span></div>
+    <p class="m-hint">You get a link to send in your chat. Nothing is sent to the network and you pay nothing.</p>
+    <div class="m-field"><span class="m-label">Deal Title</span><div class="m-input">Logo for coffee shop</div></div>
+    <div class="m-row" style="gap:8px"><div class="m-field" style="flex:1"><span class="m-label">Amount</span><div class="m-input">$ 50</div></div><div class="m-field" style="flex:1"><span class="m-label">Deadline</span><div class="m-input">05.11.2026</div></div></div>
+    <div class="m-field"><span class="m-label">Success Criteria</span><div class="m-input area">3 logo concepts in SVG and PNG, one round of edits</div></div>
+    <span class="m-btn p w hl">Create link for customer</span>
+    <p class="m-note" style="margin-top:6px">Anyone with the link can read these terms. Do not put secrets in them.</p></div>`,
+  linksSent: () => `<div class="mock"><span class="cap">Dashboard · Contractor</span>
+    <p class="m-dim" style="font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;margin:0 0 6px">● Links sent to customers</p>
+    <div class="m-task" style="align-items:flex-start"><div style="min-width:0"><div class="m-row"><b style="color:#fff">Website redesign</b><span class="m-chip vio">$70</span><span class="m-chip">3 stages</span></div><div class="m-ok" style="font-size:11px;margin-top:3px">Funded by the customer</div></div><span class="m-btn p">Open deal</span></div>
+    <div class="m-task" style="align-items:flex-start"><div style="min-width:0"><div class="m-row"><b style="color:#fff">Logo for coffee shop</b><span class="m-chip vio">$50</span></div><div class="m-note" style="margin-top:3px">Waiting for the customer to fund it.</div></div><span class="m-btn hl">Copy link</span></div>
+    <p class="m-note">Saved in this browser only.</p></div>`,
+  proposeWallet: () => `<div class="mock"><span class="cap">Create Deal · Contractor</span>
+    <div class="m-seg"><span>Send a link to my customer</span><span class="on hl-box">Propose to a specific wallet</span></div>
+    <p class="m-hint">Sends an on-chain proposal that this customer sees in their dashboard. It needs their USDC account and a small network deposit from you, returned if you withdraw.</p>
+    <div class="m-field"><span class="m-label">Customer Wallet</span><div class="m-input lock">${ADDR_C}</div></div>
+    <div class="m-card" style="margin-bottom:9px"><span class="m-note">Network deposit ≈ 0.0052 SOL, returned when the deal is closed.</span></div>
+    <span class="m-btn p w">Create Deal</span></div>`,
+  withdraw: () => `<div class="mock"><span class="cap">Deal page · Contractor</span>
+    <div class="m-task"><div class="t"><span class="num">#1</span><b>Landing page copy</b></div><div class="m-row"><span class="amt">$3</span><span class="m-chip warn">Awaiting Funding</span></div></div>
+    <div class="m-note" style="margin:4px 0 8px">The customer has not funded your proposal yet.</div>
+    <span class="m-btn hl">Withdraw proposal</span></div>`,
+  apply: () => `<div class="mock"><span class="cap">Deal page · opened from a link</span>
+    <div class="m-row" style="justify-content:space-between"><b style="color:#fff">Logo for coffee shop</b><span class="m-chip ok">Funded · $50</span></div>
+    <div class="m-note" style="margin:4px 0 10px">Escrow funded by the customer. Looking for a contractor.</div>
+    <div class="m-card"><b style="color:#fff">Apply to this deal</b><div class="m-field" style="margin-top:6px"><span class="m-label">Note for the customer</span><div class="m-input">Did 20+ logos, can start today</div></div><span class="m-btn p hl">Apply</span></div></div>`,
+  accept: () => `<div class="mock"><span class="cap">Deal page · Contractor</span>
+    <div class="m-task"><div class="t"><span class="num">#1</span><b>Wireframes</b></div><div class="m-row"><span class="amt">$20</span><span class="m-chip">Funded</span></div></div>
+    <span class="m-btn p hl">Accept deal &amp; start stage #1</span><p class="m-note" style="margin:6px 0 8px">Accepting the deal starts stage #1. After that you can start the other stages in any order.</p>
+    <div class="m-task"><div class="t"><span class="num">#2</span><b>Visual design</b></div><div class="m-row"><span class="amt">$20</span><span class="m-chip">Funded</span></div></div><p class="m-note">Start stage #1 first. It accepts the deal, then the other stages can be started.</p></div>`,
+  start: () => `<div class="mock"><span class="cap">Deal page · Contractor</span>
+    <div class="m-task"><div class="t"><span class="num">#2</span><b>Visual design</b></div><div class="m-row"><span class="amt">$20</span><span class="m-chip">Funded</span></div></div>
+    <div class="m-note" style="margin:4px 0 8px">The money for this stage is in escrow. Start when you are ready to work on it.</div>
+    <span class="m-btn p hl">Start Task</span></div>`,
+  submit: () => `<div class="mock"><span class="cap">Submit Work</span>
+    <p class="m-title">Submit Work</p><p class="m-sub">Visual design · $20 · before 12.11.2026</p>
+    <div class="m-field"><span class="m-label">Solution Note</span><div class="m-input area">Figma mockups: figma.example/file/abc (desktop and mobile)</div></div>
+    <div class="m-field"><span class="m-label">Result file (optional)</span><div class="m-input m-dim">mockups.zip · fingerprint saved on-chain</div></div>
+    <span class="m-btn p w hl">Submit Work</span></div>`,
+  claim: () => `<div class="mock"><span class="cap">Deal page · Contractor</span>
+    <div class="m-task"><div class="t"><span class="num">#1</span><b>Logo for coffee shop</b></div><div class="m-row"><span class="amt">$50</span><span class="m-chip vio">Submitted</span></div></div>
+    <div class="m-note" style="margin:4px 0 8px">The customer did not respond for 14 days after you submitted. You can release the payment yourself.</div>
+    <span class="m-btn g hl">Claim Payment</span></div>`,
+  paid: () => `<div class="mock"><span class="cap">Deal page</span>
+    <div class="m-task"><div class="t"><span class="num">#1</span><b>Logo for coffee shop</b></div><div class="m-row"><span class="amt">$50</span><span class="m-chip ok">Completed</span></div></div>
+    <div class="m-card" style="margin-top:6px"><div class="m-ok">✓ Task approved. $49.75 USDC sent to your wallet.</div><div class="m-note" style="margin-top:3px">0.5% protocol fee · reputation updated</div></div></div>`,
+  profile: () => `<div class="mock"><span class="cap">Profile</span>
+    <p class="m-title">Reputation Profile (SBT)</p><p class="m-sub">On-chain soulbound reputation badge · cannot be bought or moved</p>
+    <div class="m-row"><span class="m-addr" style="padding:3px 6px">${ADDR_F}</span><span class="m-chip ok">92% Success</span></div>
+    <div class="m-stat"><div><b>12</b><span>Deals</span></div><div><b>840</b><span>USDC volume</span></div><div><b>1 / 0</b><span>Disputes won / lost</span></div></div>
+    <p class="m-note" style="margin-top:8px">First seen 14.10.2026 · Last seen 25.10.2026</p></div>`,
+  bot: (role) => `<div class="mock"><span class="cap">Telegram · @BlinkFlowApp_bot</span><div class="m-chat">
+    <div class="m-msg me">/newdeal</div>
+    <div class="m-msg bot">What is your role in this deal?</div>
+    <div class="m-kb"><span>${role==='freelancer'?'Contractor ✓':'Customer ✓'}</span><span>${role==='freelancer'?'Customer':'Contractor'}</span></div>
+    <div class="m-msg bot">📋 Deal Summary<br>Title: Logo for coffee shop<br>Amount: 50 USDC · Deadline: 7 days</div>
+    <div class="m-kb"><span style="background:#2b5278;color:#fff">${role==='freelancer'?'Prepare deal':'Create &amp; fund on website'}</span></div></div></div>`,
+};
+
+/* ---------- scenarios ---------- */
+const S = {
+client: [
+ {id:'c-start', t:'Get started', s:'Wallet and test funds', d:'Two minutes of setup before your first deal.', steps:[
+  {h:'Connect a Solana wallet on Devnet', p:['Use a Solana browser wallet such as Phantom (tested), Solflare or Backpack. Switch it to Solana Devnet: in Phantom, Settings → Developer settings → Testnet mode → Solana Devnet.','Then press <b>Select Wallet</b> in the top right corner of BlinkFlow and pick your wallet.'], tip:'Devnet uses test money. MetaMask has no Solana Devnet yet, so use another wallet for testing.', m:M.connect},
+  {h:'Get free test SOL and USDC', p:['Press <b>Get USDC/SOL</b> in the header. It opens two free Devnet faucets: <b>faucet.solana.com</b> for SOL (paste your wallet address) and <b>spl-token-faucet.com</b> for USDC-Dev (connect your wallet there and pick Devnet).','SOL pays tiny network fees, USDC-Dev is the money you put into deals. Your balance appears in the BlinkFlow header.'], m:M.faucet},
+  {h:'Choose your role', p:['Switch the toggle at the top to <b>Customer</b>. The site shows forms and actions for the role you pick.'], tip:'One wallet cannot be the client and the freelancer in the same deal.', m:()=>`<div class="mock"><span class="cap">Header</span>${header('')}</div>`}
+ ]},
+ {id:'c-create', t:'Create and fund a deal', s:'Lock the payment, then share', d:'You lock USDC first, so the freelancer knows the money is real.', steps:[
+  {h:'Open Create Deal', p:['On the dashboard press <b>Create Deal</b> with the Customer role.','Fill in the title, amount, deadline (1 to 365 days) and success criteria: what exactly counts as done. Clear criteria make approvals and disputes easy.'], tip:'You can attach a requirements file. Only its fingerprint is saved, so later anyone can check it was not changed.', m:()=>M.createClient(false)},
+  {h:'Know your freelancer already? Add their wallet', p:['Paste the freelancer\'s wallet to assign them right away. Leave it empty to receive applications instead.','With a wallet you can also split the job into <b>Several stages</b>: up to 5 stages, each with its own amount and deadline, all funded in one transaction.'], m:()=>M.createClient(true)},
+  {h:'Sign in Phantom', p:['Press <b>Create &amp; Fund Deal</b>. Phantom asks you to confirm.','The bar at the bottom shows each step: preparing, waiting for your signature, sending, confirming. You have 120 seconds to sign, and you can cancel at any moment.'], tip:'Closed the form before signing? It is saved as a draft under <b>Unfinished deals</b> on the dashboard for 7 days.', m:M.txbar},
+  {h:'Share the deal link', p:['Your USDC is now locked in escrow. Copy the link or share it to Telegram, LinkedIn, Facebook or Instagram.','The link opens a deal page with a preview card, so people see the amount and status.'], m:()=>M.share(false)}
+ ]},
+ {id:'c-hire', t:'Choose a freelancer', s:'Applications from your link', d:'For deals created without a freelancer wallet.', steps:[
+  {h:'Freelancers apply from your link', p:['Anyone who opens your deal link can apply with a short note.','Open the deal to see all applications.'], m:M.applications},
+  {h:'Check their reputation and choose', p:['Each applicant has an on-chain reputation profile: deals done, success rate, volume and disputes.','Press <b>Choose</b> on the one you want.'], m:M.profile},
+  {h:'The freelancer accepts', p:['The chosen freelancer presses <b>Accept &amp; Start</b>. This accepts the deal and starts stage #1.','You will see the task as <b>In Progress</b>.'], m:M.accept}
+ ]},
+ {id:'c-link', t:'Fund a deal your freelancer prepared', s:'Open their link, check, pay', d:'Your freelancer filled in the terms and sent you a link.', steps:[
+  {h:'Open the link from your freelancer', p:['The form opens already filled: title, amount, deadline, criteria and stages.','At the top a banner shows the freelancer\'s full wallet address.'], tip:'Compare the address with the one your freelancer gave you in chat. If it differs, do not continue.', warn:true, m:M.reviewFund},
+  {h:'Check every term, then fund', p:['The freelancer\'s wallet is locked and cannot be edited. You can still change the amount, deadline or criteria before you sign.','Press <b>Fund and create deal</b> and confirm in Phantom.'], tip:'If a deadline in the link has already passed, the form asks you to pick a new date.', m:M.txbar},
+  {h:'Pay stage by stage', p:['A deal with several stages is funded in one transaction, but each stage is released separately when you approve it.','Your freelancer accepts the deal by starting stage #1, then works on the other stages in any order.'], m:M.stages}
+ ]},
+ {id:'c-proposal', t:'Fund a proposal in your dashboard', s:'Freelancer proposed to your wallet', d:'A freelancer can also send a proposal straight to your wallet.', steps:[
+  {h:'See it in Awaiting Your Action', p:['Proposals sent to your wallet appear at the top of your dashboard. The filter <b>Needs my action</b> shows everything waiting for you.'], m:()=>M.awaiting('client')},
+  {h:'Fund the task', p:['Open the deal and press <b>Fund Task</b>. The money is locked and the work starts right away.'], tip:'You need USDC-Dev in your wallet first. The site warns you before signing if the balance is too low.', m:M.fundProposal}
+ ]},
+ {id:'c-approve', t:'Review work and pay', s:'Approve or open a dispute', d:'When the freelancer submits, the decision is yours.', steps:[
+  {h:'Open the submitted work', p:['The task shows <b>Submitted</b> and the freelancer\'s note: a link to the files or a description.','If they attached a file, press <b>Verify file</b> and pick your copy to check it is exactly the submitted one.'], m:M.review},
+  {h:'Approve & Release', p:['Happy with the work? Press <b>Approve &amp; Release</b>. The freelancer receives the stage amount minus a 0.5% protocol fee.','Both reputation profiles are updated.'], m:M.paid},
+  {h:'Not what you agreed? Open a dispute', p:['Press <b>Open Dispute</b>. The money stays locked and an arbiter decides who gets it, based on the criteria you both agreed to.','Every decision is published in the Public Dispute Log.'], tip:'Do not wait too long: if you do nothing for 14 days after the work is submitted, the freelancer can release the payment themselves.', warn:true, m:M.dispute}
+ ]},
+ {id:'c-refund', t:'Get your money back', s:'Cancel, refund or dispute', d:'Three ways the money comes back to you.', steps:[
+  {h:'Cancel a task that has not started', p:['A funded task the freelancer has not started yet can be cancelled with <b>Cancel Task</b>. The money returns at once, no fee.'], m:M.refund},
+  {h:'Freelancer missed the deadline', p:['If the work was not submitted by the deadline, <b>Get Refund</b> becomes available 14 days after the deadline. You get the full amount back, no fee.'], m:M.refund},
+  {h:'Work submitted but not acceptable', p:['Open a dispute. If the arbiter decides for you, the money returns to your wallet minus the arbitration and protocol fees.'], m:M.dispute}
+ ]},
+ {id:'c-close', t:'Add stages and close the deal', s:'More work, and tidy up at the end', d:'Deals can grow, and finished ones give back their deposit.', steps:[
+  {h:'Add another stage', p:['On the deal page press <b>Add task</b> (as client: <b>Add &amp; Fund Task</b>). The new stage is funded right away and paid separately.'], m:M.stages},
+  {h:'Close finished deals', p:['When every task is finished, the dashboard shows <b>Ready to close</b>. Closing the tasks and the deal returns the small network deposit (about 0.005 SOL) to whoever created it.'], m:M.close}
+ ]},
+ {id:'c-bot', t:'Start from Telegram', s:'@BlinkFlowApp_bot', d:'Start a deal from the bot, finish it on the site.', steps:[
+  {h:'Tell the bot what you need', p:['Send <b>/newdeal</b> to @BlinkFlowApp_bot, choose <b>Customer</b>, then enter the title, amount and number of days.','The bot opens the website with the form already filled. You sign and fund there.'], m:()=>M.bot('client')}
+ ]}
+],
+freelancer: [
+ {id:'f-start', t:'Get started', s:'Wallet, SOL and a USDC account', d:'Set up once, then you can receive payments.', steps:[
+  {h:'Connect a Solana wallet on Devnet', p:['Use Phantom (tested), Solflare or Backpack, switched to Solana Devnet. Then press <b>Select Wallet</b> on BlinkFlow.'], m:M.connect},
+  {h:'Get test SOL and USDC', p:['Press <b>Get USDC/SOL</b>: it opens faucet.solana.com for SOL and spl-token-faucet.com for USDC-Dev. You need a little SOL for network fees, and getting USDC-Dev once creates the USDC account that receives your payments.'], tip:'Without a USDC account a client cannot approve your work. Getting test USDC once solves it.', m:M.faucet},
+  {h:'Switch to Contractor', p:['Set the toggle at the top to <b>Contractor</b>.'], m:()=>`<div class="mock"><span class="cap">Header</span>${header('freelancer')}</div>`}
+ ]},
+ {id:'f-link', t:'Send your client a deal link', s:'Recommended · free, no signature', d:'The easiest way: you fill in the terms, the client funds.', steps:[
+  {h:'Fill in the terms', p:['Press <b>Create Deal</b>. <b>Send a link to my customer</b> is selected by default.','Enter the title, amount, deadline and success criteria. Use <b>Several stages</b> to split the job into up to 5 stages.'], tip:'Nothing goes to the network and you pay nothing. Anyone with the link can read the terms, so keep secrets out.', m:M.createFreelancer},
+  {h:'Copy the link and send it in your chat', p:['Press <b>Create link for customer</b>, then <b>Copy link</b>. Send it where you already talk to the client: Telegram, email, anywhere.'], m:()=>M.share(true)},
+  {h:'Track it on your dashboard', p:['The block <b>Links sent to customers</b> keeps your last 10 links. Copy one again any time.','When the client funds it, the row changes to <b>Funded by the customer</b> with a button to the deal.'], tip:'The list is saved in this browser only.', m:M.linksSent},
+  {h:'Accept the funded deal', p:['Open the deal and press <b>Accept deal &amp; start stage #1</b> on the first stage. One signature accepts the deal and starts stage #1.','After that, start the other stages whenever you like, in any order.'], m:M.accept}
+ ]},
+ {id:'f-propose', t:'Propose to a specific wallet', s:'On-chain proposal', d:'Use it when you know the client\'s wallet and want the proposal in their dashboard.', steps:[
+  {h:'Choose Propose to a specific wallet', p:['In Create Deal switch to <b>Propose to a specific wallet</b> and paste the client\'s wallet.','The client must already have a USDC account. You pay a small refundable network deposit.'], m:M.proposeWallet},
+  {h:'The client funds it from their dashboard', p:['Your proposal appears in the client\'s <b>Awaiting Your Action</b>. When they press <b>Fund Task</b>, the work starts.'], m:()=>M.awaiting('client')},
+  {h:'Changed your mind? Withdraw', p:['While the client has not funded it, you can press <b>Withdraw proposal</b>.'], m:M.withdraw}
+ ]},
+ {id:'f-apply', t:'Apply to a client\'s deal', s:'Deals that are already funded', d:'A client created and funded a deal and shared the link.', steps:[
+  {h:'Open the link and apply', p:['The deal page shows that the escrow is already funded. Write a short note and press <b>Apply</b>.'], m:M.apply},
+  {h:'Accept when chosen', p:['If the client chooses you, you see <b>Accept &amp; Start</b>. Accepting the deal starts stage #1; the other stages can then be started in any order.'], m:M.accept}
+ ]},
+ {id:'f-work', t:'Do the work and submit', s:'Start, deliver, submit', d:'Each stage goes Funded → In Progress → Submitted.', steps:[
+  {h:'Start the task', p:['Funded tasks waiting for you show up in <b>Awaiting Your Action</b>. Open the deal and press <b>Start task</b>.','In a deal the client created, your first start is <b>Accept deal &amp; start stage #1</b>; after that any stage, in any order.'], m:M.start},
+  {h:'Submit before the deadline', p:['Press <b>Submit Work</b>, add a note with a link to the result, and optionally a file (its fingerprint is saved on-chain as proof).'], tip:'Work can be submitted only before the deadline. After it, the client can ask for a refund.', warn:true, m:M.submit}
+ ]},
+ {id:'f-paid', t:'Get paid', s:'Approval or auto-release', d:'Two ways the money reaches you.', steps:[
+  {h:'The client approves', p:['When the client presses <b>Approve &amp; Release</b>, the stage amount minus a 0.5% protocol fee goes to your wallet, and your reputation grows.'], m:M.paid},
+  {h:'Client silent for 14 days?', p:['If the client does nothing for 14 days after you submit, press <b>Claim Payment</b> and release the money yourself.'], m:M.claim},
+  {h:'If the client disputes', p:['An arbiter reviews the agreed criteria and your submitted work. If the decision is for you, the payment is released to you minus the arbitration and protocol fees.'], m:M.dispute}
+ ]},
+ {id:'f-rep', t:'Build your reputation', s:'Soulbound badge on Solana', d:'Your track record follows your wallet.', steps:[
+  {h:'Your on-chain profile', p:['Every finished deal updates a soulbound badge (SBT) on your wallet: deals, success rate, volume, disputes won and lost.','Clients see it when they choose between applicants. It cannot be bought or moved to another wallet.'], m:M.profile}
+ ]},
+ {id:'f-bot', t:'Start from Telegram', s:'@BlinkFlowApp_bot', d:'Prepare a deal from the bot.', steps:[
+  {h:'Use /newdeal', p:['Send <b>/newdeal</b>, choose <b>Contractor</b>, enter the title, amount and days. Press <b>Prepare deal</b> and finish on the website: send a link or propose to a wallet.'], m:()=>M.bot('freelancer')}
+ ]}
+]};
+
+/* ---------- feature reference ---------- */
+const F = [
+ {g:'Deals and escrow', items:[
+  ['Escrow in USDC','both','The client\'s USDC is locked in a Solana smart contract and moves only by the rules of the deal: approval, refund, claim after 14 days or an arbiter decision.','c-create'],
+  ['Create and fund in one step','client','A client creates the deal and locks the money in a single transaction, so a deal on the network is always funded.','c-create'],
+  ['Deal with or without a freelancer','client','Assign a freelancer by wallet, or leave it open and choose from applications.','c-hire'],
+  ['Several stages','both','Split a job into up to 5 stages, each with its own amount, deadline and criteria. All stages are created in one transaction and paid one by one.','c-link'],
+  ['Add stages later','both','Add a new task to an existing deal. A client funds it right away; a task added by the freelancer waits for the client to fund it.','c-close'],
+  ['Success criteria','both','Every task has written criteria. They are what approvals and disputes are judged against.','c-create'],
+  ['Requirements file with fingerprint','both','Attach a brief or spec. Only its SHA-256 fingerprint is stored on-chain; Verify file checks that a copy is identical.','c-approve'],
+  ['Deadlines from 1 to 365 days','both','Every task has a deadline. The contract rejects deadlines shorter than a day or longer than a year.','c-create'],
+  ['One wallet, one role per deal','both','The client and the freelancer of a deal must be different wallets.',null],
+ ]},
+ {g:'Freelancer tools', items:[
+  ['Deal link for your client','freelancer','Fill in the terms and get a link. The client opens it, sees the form filled with your wallet locked, and funds it. Free for you, no signature.','f-link'],
+  ['Links sent to customers','freelancer','Your last 10 links on the dashboard with Copy link, status Waiting or Funded, and a button to the funded deal. Kept in this browser.','f-link'],
+  ['On-chain proposal to a wallet','freelancer','Send a proposal straight to a client\'s wallet. It appears in their dashboard; you can withdraw it until they fund it.','f-propose'],
+  ['Apply to funded deals','freelancer','Open a client\'s deal link and apply with a note. The client chooses one applicant.','f-apply'],
+  ['Accept the deal','freelancer','In a deal the client created, one signature accepts it and starts stage #1. After that the other stages can be started in any order.','f-link'],
+  ['Start task','freelancer','Start a funded task when you are ready to work on it.','f-work'],
+  ['Submit work with proof','freelancer','Submit a note and an optional file; the file fingerprint is stored on-chain.','f-work'],
+  ['Claim payment after 14 days','freelancer','If the client does not respond for 14 days after you submit, release the payment yourself.','f-paid'],
+  ['Cancel a started task','freelancer','A freelancer can give up a task; the client gets the money back.',null],
+ ]},
+ {g:'Client tools', items:[
+  ['Review and fund a freelancer\'s link','client','A form prepared by the freelancer: banner with their full address, locked wallet, editable terms before you sign.','c-link'],
+  ['Choose from applications','client','See applicants with their notes and reputation and pick one.','c-hire'],
+  ['Fund a proposal','client','Fund a task the freelancer proposed. The work starts immediately.','c-proposal'],
+  ['Approve & Release','client','Pay for a stage when the work matches the criteria.','c-approve'],
+  ['Cancel before start','client','Cancel a funded task that has not been started and get the full amount back.','c-refund'],
+  ['Refund after a missed deadline','client','If the work was not submitted by the deadline, get a full refund 14 days after it.','c-refund'],
+ ]},
+ {g:'Disputes', items:[
+  ['Open a dispute','client','Instead of approving submitted work, send it to the arbiter. The money stays locked.','c-approve'],
+  ['Arbiter decision','both','The arbiter gives the stage to one side, judged by the agreed criteria. Big jobs are better split into stages.','f-paid'],
+  ['Public Dispute Log','both','Every arbitration result is public on the site, so decisions can be checked by anyone.','c-approve'],
+ ]},
+ {g:'Reputation', items:[
+  ['Soulbound reputation badge (SBT)','both','An on-chain badge per wallet, updated by every finished deal. It cannot be transferred or bought.','f-rep'],
+  ['Reputation profile page','both','Deals, success rate, total volume, average deal, disputes won and lost, first and last seen.','f-rep'],
+ ]},
+ {g:'Dashboard and convenience', items:[
+  ['Awaiting Your Action','both','The deals where you must act now: fund, start, submit or review.','c-proposal'],
+  ['Filters','both','Active, All, In progress, Pending approval, Dispute, Completed, Needs my action, Not closed, Ready to close, Closed.',null],
+  ['Unfinished deals (drafts)','both','A form you closed without signing is saved for 7 days. Continue or delete it from the dashboard.','c-create'],
+  ['Signing status bar','both','Shows each step of a transaction, a 120-second timer for your signature and a Cancel button.','c-create'],
+  ['Close deals and get the deposit back','both','Finished deals show as Ready to close. Closing returns the network deposit (about 0.005 SOL) to the creator.','c-close'],
+  ['Share anywhere','both','Copy a deal link or share to Telegram, LinkedIn, Facebook or Instagram. Links show a preview card.','c-create'],
+  ['Clear error messages','both','Wallet rejections, low SOL or USDC and network problems are explained in plain words, with what to do next.',null],
+  ['Balance checks before signing','both','The site warns you before signing if you do not have enough USDC or SOL, or if a needed USDC account is missing.',null],
+ ]},
+ {g:'Telegram bot', items:[
+  ['/newdeal','both','Choose your role, enter title, amount and days. The bot opens the site with the form filled.','c-bot'],
+  ['How it works','both','A short explanation of the deal flow right in Telegram.','c-bot'],
+ ]},
+ {g:'Network and safety', items:[
+  ['Solana Devnet with test USDC','both','Everything runs on Devnet with free test tokens while the product is being tested.','c-start'],
+  ['Free test tokens','both','Get USDC/SOL in the header opens the free Devnet faucets: faucet.solana.com for SOL and spl-token-faucet.com for USDC-Dev.','c-start'],
+  ['Any Solana wallet','both','Transactions are signed by the wallet you select: Phantom (tested), Solflare, Backpack and other standard Solana wallets.','c-start'],
+  ['Backup network providers','both','If the main Solana provider fails, the site switches to a backup automatically.',null],
+  ['Low fees','both','0.5% protocol fee when a stage is paid out; 5% arbitration fee only when the arbiter decides a dispute. Cancellations and deadline refunds are free.',null],
+ ]},
+];
+
+/* ---------- FAQ ---------- */
+const Q = [
+ ['What is escrow here?','The client\'s USDC is held by a smart contract on Solana, not by BlinkFlow or the freelancer. The contract releases it only when the client approves, when the freelancer claims after 14 days of silence, on a refund, or by the arbiter\'s decision.'],
+ ['How much does it cost?','A 0.5% protocol fee when a stage is paid out. A 5% arbitration fee only if the arbiter decides a dispute. Cancelling an unstarted task and refunds after a missed deadline are free. Solana network fees are fractions of a cent, and the small deposit for creating a deal (about 0.005 SOL) comes back when it is closed.'],
+ ['What if the freelancer disappears?','If the work is not submitted by the deadline, the client can take the money back 14 days after the deadline with Get Refund.'],
+ ['What if the client disappears?','If the client does not approve or dispute for 14 days after the work is submitted, the freelancer can release the payment with Claim Payment.'],
+ ['Who is the arbiter?','For now, a representative of the BlinkFlow team. All decisions are published in the Public Dispute Log.'],
+ ['Can BlinkFlow take the money?','Funds move only through the contract rules listed above; the team takes part only as the arbiter in a dispute. While on Devnet the program can still be upgraded by the team, which is normal before an audit and a mainnet launch.'],
+ ['Is this real money?','No. BlinkFlow runs on Solana Devnet with test USDC (USDC-Dev). The contract has not been audited yet, so it is not on mainnet.'],
+ ['Which wallet do I need?','A Solana browser wallet switched to Devnet: Phantom (tested), Solflare or Backpack. MetaMask has no Solana Devnet yet, so it cannot be used for testing. Get test SOL and USDC with the button in the site header.'],
+ ['Who can see the deal terms?','Deals are on a public blockchain: amounts, wallets and statuses are visible. A deal link carries its terms, so anyone with the link can read them. Files are never uploaded; only their fingerprints are stored.'],
+ ['Can I split a big job?','Yes. Use Several stages (up to 5) when creating, or add tasks later. Each stage is approved and paid separately, and a dispute affects only its stage.'],
+];
+
+/* ---------- state & render ---------- */
+const store = { get(k){ try{return localStorage.getItem(k)}catch(e){return null} }, set(k,v){ try{localStorage.setItem(k,v)}catch(e){} } };
+let role = (location.hash==='#freelancer'||store.get('bfg-role')==='freelancer') ? 'freelancer' : 'client';
+let goalIdx = 0, stepIdx = 0, filter='all';
+
+const $ = (s)=>document.querySelector(s);
+function setRole(r){
+  role = r; goalIdx = 0; stepIdx = 0; store.set('bfg-role', r);
+  document.querySelectorAll('.role').forEach(b=>b.setAttribute('aria-pressed', String(b.dataset.role===r)));
+  $('#guide-eyebrow').textContent = r==='client' ? 'Client guide' : 'Freelancer guide';
+  renderGoals(); renderStage();
+}
+function renderGoals(){
+  $('#goals').innerHTML = S[role].map((g,i)=>`<button class="goal" role="tab" aria-current="${i===goalIdx}" data-i="${i}"><span class="n">${i+1}</span><span>${g.t}<small>${g.s}</small></span></button>`).join('');
+}
+function renderStage(){
+  const g = S[role][goalIdx]; const st = g.steps[stepIdx]; const last = stepIdx===g.steps.length-1;
+  const nextGoal = S[role][goalIdx+1];
+  $('#stage').innerHTML = `
+    <div class="stage-head"><h3>${g.t}</h3><p>${g.d}</p></div>
+    <div class="steps-bar">${g.steps.map((_,i)=>`<button class="pip ${i<stepIdx?'done':''} ${i===stepIdx?'on':''}" data-s="${i}" aria-label="Step ${i+1}"></button>`).join('')}</div>
+    <div class="step">
+      <div class="step-text"><span class="k">Step ${stepIdx+1} of ${g.steps.length}</span><h4>${st.h}</h4>
+        ${st.p.map(x=>`<p>${x}</p>`).join('')}
+        ${st.tip?`<div class="tip ${st.warn?'warn':''}"><span aria-hidden="true">${st.warn?'⚠️':'💡'}</span><span>${st.tip}</span></div>`:''}
+      </div>
+      <div>${st.m()}</div>
+    </div>
+    <div class="stage-foot"><span class="count">${goalIdx+1}/${S[role].length} · ${g.t}</span>
+      <div class="nav">
+        <button class="btn" id="prev" ${stepIdx===0?'disabled style="opacity:.4;cursor:default"':''}>Back</button>
+        ${last ? (nextGoal ? `<button class="btn primary" id="nextgoal">Next: ${nextGoal.t}</button>` : `<a class="btn primary" href="${SITE}" target="_blank" rel="noopener">Open BlinkFlow</a>`) : `<button class="btn primary" id="next">Next</button>`}
+      </div></div>`;
+}
+document.addEventListener('click',(e)=>{
+  const r = e.target.closest('.role'); if(r){ setRole(r.dataset.role); return; }
+  const g = e.target.closest('.goal'); if(g){ goalIdx=+g.dataset.i; stepIdx=0; renderGoals(); renderStage(); return; }
+  const p = e.target.closest('.pip'); if(p){ stepIdx=+p.dataset.s; renderStage(); return; }
+  if(e.target.closest('#next')){ stepIdx++; renderStage(); return; }
+  if(e.target.closest('#prev')){ if(stepIdx>0){stepIdx--; renderStage();} return; }
+  if(e.target.closest('#nextgoal')){ goalIdx++; stepIdx=0; renderGoals(); renderStage(); $('#stage').scrollIntoView({behavior:'smooth',block:'nearest'}); return; }
+  const go = e.target.closest('.go'); if(go){ openScenario(go.dataset.go); return; }
+  const c = e.target.closest('.chip'); if(c){ filter=c.dataset.f; document.querySelectorAll('.chip').forEach(x=>x.setAttribute('aria-pressed',String(x===c))); renderRef(); return; }
+});
+document.addEventListener('keydown',(e)=>{
+  if(e.target.matches('input,textarea')) return;
+  const g = S[role][goalIdx];
+  if(e.key==='ArrowRight' && stepIdx<g.steps.length-1){ stepIdx++; renderStage(); }
+  if(e.key==='ArrowLeft' && stepIdx>0){ stepIdx--; renderStage(); }
+});
+function openScenario(id){
+  for(const r of ['client','freelancer']){ const i = S[r].findIndex(g=>g.id===id); if(i>=0){ if(r!==role) setRole(r); goalIdx=i; stepIdx=0; renderGoals(); renderStage(); $('#guide').scrollIntoView({behavior:'smooth'}); return; } }
+}
+const esc = (s)=>s.replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+function hl(text,q){ const t = esc(text); if(!q) return t; const i = t.toLowerCase().indexOf(q.toLowerCase()); return i<0 ? t : t.slice(0,i)+'<mark>'+t.slice(i,i+q.length)+'</mark>'+t.slice(i+q.length); }
+function renderRef(){
+  const q = $('#q').value.trim(); const ql = q.toLowerCase(); let total=0;
+  const html = F.map(grp=>{
+    const items = grp.items.filter(([n,w,d])=>(filter==='all'||w==='both'||w===filter) && (!ql || (n+' '+d+' '+grp.g).toLowerCase().includes(ql)));
+    total += items.length; if(!items.length) return '';
+    return `<div class="ref-group"><h3>${grp.g}<span>${items.length}</span></h3><div class="ref-grid">${items.map(([n,w,d,go])=>`
+      <div class="feat"><div class="feat-top"><b>${hl(n,q)}</b><span class="who">${w!=='freelancer'?'<span class="c">Client</span>':''}${w!=='client'?'<span class="f">Freelancer</span>':''}</span></div>
+      <p>${hl(d,q)}</p>${go?`<button class="go" data-go="${go}">Show me how</button>`:''}</div>`).join('')}</div></div>`;
+  }).join('');
+  $('#ref').innerHTML = total ? html : `<div class="empty">Nothing found for “${esc(q)}”. Try another word, for example refund, stage or link.</div>`;
+}
+$('#q').addEventListener('input', renderRef);
+$('#faq-list').innerHTML = Q.map(([q,a])=>`<details><summary>${q}</summary><p>${a}</p></details>`).join('');
+setRole(role); renderRef();
+})();
+</script>
+
+</body>
+</html>
