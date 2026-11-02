@@ -1,5 +1,5 @@
 // chainClient.ts — BlinkflowClient that executes the real BlinkFlow Anchor instructions on Devnet
-// (signed by the connected Phantom account) and then updates the same UI state as mockClient.
+// (signed by the connected wallet) and then updates the same UI state as mockClient.
 //
 // All deal and milestone actions execute on-chain for any task index (0..255).
 // Actions never fall back to mock in chain mode; if a deal has no chain info, an error is thrown.
@@ -85,10 +85,13 @@ function addSig(dealId: string, step: string, sig: string) {
 }
 
 // ---- wallet ---------------------------------------------------------------------------------------
-function provider(): any {
-  const p = (window as any).phantom?.solana ?? (window as any).solana;
-  if (!p?.publicKey) throw new Error('Connect Phantom first.');
-  return p;
+type WalletSigner = { publicKey: PublicKey; signTransaction: (tx: Transaction) => Promise<Transaction> };
+let activeSigner: WalletSigner | null = null;
+export function setWalletSigner(s: WalletSigner | null) { activeSigner = s; }
+
+function provider(): WalletSigner {
+  if (!activeSigner) throw new Error('Connect your wallet first.');
+  return activeSigner;
 }
 
 async function withRetry<T>(fn: () => Promise<T>, tries = 4): Promise<T> {
@@ -442,6 +445,8 @@ export async function readTaskOnChain(deal: PublicKey, index: number): Promise<{
 
 export async function readDealOnChain(deal: PublicKey): Promise<{
   creator: PublicKey;
+  contractor: PublicKey;
+  accepted: boolean;
   taskTotal: number;
   taskClosed: number;
 } | null> {
@@ -453,6 +458,8 @@ export async function readDealOnChain(deal: PublicKey): Promise<{
     throw new Error('Corrupted or invalid deal account data on-chain.');
   }
   const creator = new PublicKey(data.subarray(8, 40));
+  const contractor = new PublicKey(data.subarray(72, 104));
+  const accepted = !contractor.equals(PublicKey.default);
   const tag = data[tagOffset];
   const countOffset = tagOffset + (tag !== 0 ? 33 : 1) + 8;
   if (data.length <= countOffset + 7) {
@@ -460,7 +467,7 @@ export async function readDealOnChain(deal: PublicKey): Promise<{
   }
   const taskTotal = data[countOffset];
   const taskClosed = data[countOffset + 7];
-  return { creator, taskTotal, taskClosed };
+  return { creator, contractor, accepted, taskTotal, taskClosed };
 }
 
 export async function getTaskChainState(dealId: string, index: number) {
@@ -597,7 +604,7 @@ export async function fetchDealTrustAuthority(dealId: string): Promise<string | 
 
 function requireWallet(expected: string, role: string) {
   const me = provider().publicKey.toString();
-  if (me !== expected) throw new Error(`Switch Phantom to the ${role} account (${expected.slice(0, 4)}…${expected.slice(-4)}).`);
+  if (me !== expected) throw new Error(`Switch your wallet to the ${role} account (${expected.slice(0, 4)}…${expected.slice(-4)}).`);
 }
 
 // After every action: let the mock state settle, then push the FINAL state to the shared server so the other
@@ -1052,6 +1059,14 @@ export const chainClient: BlinkflowClient = {
     }
     const c = await ctx(dealId);
     if (!c) throw new Error('This deal is not on-chain, so this action cannot be performed.');
+    try {
+      const onChain = await readDealOnChain(c.a.deal);
+      if (onChain && !onChain.accepted) {
+        throw new Error('Start stage #1 first: it accepts the deal.');
+      }
+    } catch (e: any) {
+      if (e?.message === 'Start stage #1 first: it accepts the deal.') throw e;
+    }
     if (!c.info.contractor) throw new Error('The customer has not picked a contractor yet.');
     requireWallet(c.info.contractor, 'contractor');
     const a = c.a;
@@ -1218,7 +1233,7 @@ export const chainClient: BlinkflowClient = {
     } else if (me === c.info.contractor) {
       side = 'contractor';
     } else {
-      throw new Error('Switch Phantom to the customer or contractor account of this deal.');
+      throw new Error('Switch your wallet to the customer or contractor account of this deal.');
     }
     const currentDeal = getDeals().find((d) => d.id === dealId);
     const currentStatus = currentDeal?.tasks?.[taskIndex]?.status;

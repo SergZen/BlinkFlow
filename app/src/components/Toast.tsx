@@ -61,7 +61,7 @@ export function notifyActionError(
   if (
     code === 'USER_CANCELLED' ||
     code === 'SIGN_TIMEOUT' ||
-    displayedText.startsWith('You cancelled the request in Phantom')
+    displayedText.startsWith('You cancelled the request in your wallet')
   ) {
     toast.info(displayedText, txSig ? { txSig } : undefined);
   } else {

@@ -116,7 +116,8 @@ function setupBot(app, baseUrl, frontendUrl) {
       "2. Share the deal link in any chat or social network.\n" +
       "3. Customer-created deal: contractors open the link and apply, the customer picks one. Contractor-created deal: the customer opens the link and funds the escrow.\n" +
       "4. The contractor does the work and marks it finished.\n" +
-      "5. The customer approves and the payment is released. If there is a disagreement, an arbiter decides.",
+      "5. The customer approves and the payment is released. If there is a disagreement, an arbiter decides." +
+      (frontendUrl ? `\n\nFull guide: ${frontendUrl}/guide` : ''),
       { parse_mode: 'Markdown' }
     ).catch(err => console.error("Telegram API Error:", err));
   };

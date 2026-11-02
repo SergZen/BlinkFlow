@@ -25,7 +25,7 @@ export function friendlyError(e: unknown): string {
     text.includes('user denied') ||
     text.includes('declined')
   ) {
-    return 'You cancelled the request in Phantom. Nothing was sent.';
+    return 'You cancelled the request in your wallet. Nothing was sent.';
   }
 
   // b) not enough SOL: text contains "insufficient lamports", "insufficient funds for fee", "attempt to debit an account but found no record of a prior credit"
@@ -79,7 +79,7 @@ export function friendlyError(e: unknown): string {
 
   // g) contract errors, found in logs as "Error Code: <Name>" or in the message: map
   const contractErrors: Record<string, string> = {
-    unauthorized: 'This wallet is not allowed to do this action. Switch Phantom to the right account.',
+    unauthorized: 'This wallet is not allowed to do this action. Switch your wallet to the right account.',
     invalidtaskstatus: 'The deal is not in the right state for this action. Refresh the page and check its status.',
     contractormustbepending: 'The customer has not picked this wallet as the contractor.',
     protocolpaused: 'The protocol is paused by the admin. Try again later.',
@@ -99,13 +99,13 @@ export function friendlyError(e: unknown): string {
     }
   }
 
-  // h) our own already-clean messages (they start with "Switch Phantom", "The contractor", "The customer", "This deal", "Connect Phantom", "Invalid", "The transaction") → return e.message unchanged.
+  // h) our own already-clean messages (they start with "Switch your wallet", "The contractor", "The customer", "This deal", "Connect your wallet", "Invalid", "The transaction") → return e.message unchanged.
   const cleanPrefixes = [
-    'Switch Phantom',
+    'Switch your wallet',
     'The contractor',
     'The customer',
     'This deal',
-    'Connect Phantom',
+    'Connect your wallet',
     'Invalid',
     'The transaction',
     'The deadline',

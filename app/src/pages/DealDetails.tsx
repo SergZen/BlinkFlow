@@ -459,7 +459,7 @@ export const DealDetails = () => {
       return;
     }
     if (isWrongUserForAddTask) {
-      toast.error(`Switch Phantom to the ${role} account to add a task.`);
+      toast.error(`Switch your wallet to the ${role} account to add a task.`);
       return;
     }
 
@@ -819,7 +819,7 @@ export const DealDetails = () => {
               <Button variant="outline" onClick={() => setVisible(true)}>Connect Wallet to Cancel</Button>
             ) : isWrongCustomer ? (
               <p className="text-sm text-gray-400">
-                Only the customer wallet ({truncateAddress(chainInfo!.customer)}) can do this. Switch Phantom to that account.
+                Only the customer wallet ({truncateAddress(chainInfo!.customer)}) can do this. Switch your wallet to that account.
               </p>
             ) : (
               <Button variant="outline" onClick={() => handleTaskAction(index, () => client.cancelTask(deal.id, index), 'Task cancelled')} disabled={loading || !hasEnoughSol}>
@@ -844,7 +844,7 @@ export const DealDetails = () => {
               <Button onClick={() => setVisible(true)}>Connect Wallet to Fund Task</Button>
             ) : isWrongCustomer ? (
               <p className="text-sm text-gray-400">
-                Only the customer wallet ({truncateAddress(chainInfo!.customer)}) can do this. Switch Phantom to that account.
+                Only the customer wallet ({truncateAddress(chainInfo!.customer)}) can do this. Switch your wallet to that account.
               </p>
             ) : (
               <Button onClick={() => handleTaskAction(index, () => client.depositTask(deal.id, index, publicKey!.toBase58()), 'Task funded')} disabled={loading || !hasEnoughSol} className={!hasEnoughSol ? 'opacity-50' : ''}>
@@ -893,7 +893,7 @@ export const DealDetails = () => {
               <Button onClick={() => setVisible(true)}>Connect Wallet to Get Refund</Button>
             ) : isWrongCustomer ? (
               <p className="text-sm text-gray-400">
-                Only the customer wallet ({truncateAddress(chainInfo!.customer)}) can do this. Switch Phantom to that account.
+                Only the customer wallet ({truncateAddress(chainInfo!.customer)}) can do this. Switch your wallet to that account.
               </p>
             ) : (
               <Button
@@ -928,7 +928,7 @@ export const DealDetails = () => {
                  <Button onClick={() => setVisible(true)}>Connect Wallet to Act</Button>
                ) : isWrongCustomer ? (
                  <p className="text-sm text-gray-400">
-                   Only the customer wallet ({truncateAddress(chainInfo!.customer)}) can do this. Switch Phantom to that account.
+                   Only the customer wallet ({truncateAddress(chainInfo!.customer)}) can do this. Switch your wallet to that account.
                  </p>
                ) : (
                  <>
@@ -968,7 +968,7 @@ export const DealDetails = () => {
                 <Button variant="outline" onClick={() => setVisible(true)}>Connect Wallet to Withdraw Proposal</Button>
               ) : isWrongContractor ? (
                 <p className="text-sm text-gray-400">
-                  Only the selected contractor wallet ({truncateAddress(contractorAddr)}) can do this. Switch Phantom to that account.
+                  Only the selected contractor wallet ({truncateAddress(contractorAddr)}) can do this. Switch your wallet to that account.
                 </p>
               ) : (
                 <Button
@@ -1008,26 +1008,38 @@ export const DealDetails = () => {
         );
       }
 
-      if (task.status === 'CustomerCreated' && index > 0) {
+      if (task.status === 'CustomerCreated') {
+        const isNotAccepted = index > 0 && deal.tasks?.[0]?.status === 'CustomerCreated';
         return (
           <div className="mt-4 pt-4 border-t border-gray-800/50 space-y-3">
             <p className="text-sm text-gray-400">The customer funded this task. Start the task when you are ready to begin work.</p>
-            {!isWrongContractor && renderSolWarning()}
-            {!connected ? (
-              <Button onClick={() => setVisible(true)}>Connect Wallet to Start Task</Button>
-            ) : isWrongContractor ? (
-              <p className="text-sm text-gray-400">
-                Only the selected contractor wallet ({truncateAddress(contractorAddr)}) can do this. Switch Phantom to that account.
-              </p>
+            {isNotAccepted ? (
+              <p className="text-sm text-gray-400">Start stage #1 first. It accepts the deal, then the other stages can be started.</p>
             ) : (
-              <Button
-                variant="primary"
-                onClick={() => handleTaskAction(index, () => client.acceptTask(deal.id, index, publicKey!.toBase58()), 'Task started')}
-                disabled={loading || !hasEnoughSol}
-              >
-                {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> : null}
-                Start task
-              </Button>
+              <>
+                {!isWrongContractor && renderSolWarning()}
+                {!connected ? (
+                  <Button onClick={() => setVisible(true)}>Connect Wallet to Start Task</Button>
+                ) : isWrongContractor ? (
+                  <p className="text-sm text-gray-400">
+                    Only the selected contractor wallet ({truncateAddress(contractorAddr)}) can do this. Switch your wallet to that account.
+                  </p>
+                ) : (
+                  <>
+                    <Button
+                      variant="primary"
+                      onClick={() => handleTaskAction(index, () => client.acceptTask(deal.id, index, publicKey!.toBase58()), index === 0 ? 'Deal accepted' : 'Task started')}
+                      disabled={loading || !hasEnoughSol}
+                    >
+                      {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> : null}
+                      {index === 0 ? 'Accept deal & start stage #1' : 'Start task'}
+                    </Button>
+                    {index === 0 && (
+                      <p className="text-xs text-gray-500">Accepting the deal starts stage #1. After that you can start the other stages in any order.</p>
+                    )}
+                  </>
+                )}
+              </>
             )}
           </div>
         );
@@ -1052,7 +1064,7 @@ export const DealDetails = () => {
                  <Button onClick={() => setVisible(true)}>Connect Wallet to Submit</Button>
               ) : isWrongContractor ? (
                 <p className="text-sm text-gray-400">
-                  Only the selected contractor wallet ({truncateAddress(contractorAddr)}) can do this. Switch Phantom to that account.
+                  Only the selected contractor wallet ({truncateAddress(contractorAddr)}) can do this. Switch your wallet to that account.
                 </p>
               ) : (
                 <>
@@ -1103,7 +1115,7 @@ export const DealDetails = () => {
               <Button onClick={() => setVisible(true)}>Connect Wallet to Claim Payment</Button>
             ) : isWrongContractor ? (
               <p className="text-sm text-gray-400">
-                Only the selected contractor wallet ({truncateAddress(contractorAddr)}) can do this. Switch Phantom to that account.
+                Only the selected contractor wallet ({truncateAddress(contractorAddr)}) can do this. Switch your wallet to that account.
               </p>
             ) : (
               <div className="space-y-2">
@@ -1434,7 +1446,7 @@ export const DealDetails = () => {
 
                 {isWrongUserForAddTask ? (
                   <p className="text-sm text-gray-400">
-                    Only the {role} wallet ({truncateAddress(role === 'customer' ? chainInfo!.customer : contractorAddr)}) can do this. Switch Phantom to that account.
+                    Only the {role} wallet ({truncateAddress(role === 'customer' ? chainInfo!.customer : contractorAddr)}) can do this. Switch your wallet to that account.
                   </p>
                 ) : !connected ? (
                   <Button type="button" onClick={() => setVisible(true)}>Connect Wallet to Add Task</Button>

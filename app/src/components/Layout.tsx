@@ -1,7 +1,7 @@
 import { ReactNode, useState, useEffect } from 'react';
 import { useRole } from '../RoleContext';
 import { NavLink, Link } from 'react-router-dom';
-import { Zap, Home, ScrollText, ShieldCheck, Shield, Menu, X, Send, Sliders, Scale } from 'lucide-react';
+import { Zap, Home, ScrollText, ShieldCheck, Shield, Menu, X, Send, Sliders, Scale, BookOpen } from 'lucide-react';
 import { WalletMultiButton, useWalletModal } from '@solana/wallet-adapter-react-ui';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { NetworkControls } from './NetworkControls';
@@ -74,6 +74,14 @@ export const Layout = ({ children }: { children: ReactNode }) => {
             <ScrollText className="w-4 h-4" />
             Public Dispute Log
           </NavLink>
+          <a
+            href="/guide"
+            onClick={() => setIsMobileMenuOpen(false)}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all font-medium text-sm text-gray-400 hover:text-white hover:bg-gray-800/50"
+          >
+            <BookOpen className="w-4 h-4" />
+            Guide
+          </a>
           {canSeeOps && (
             <>
               <NavLink to="/ops-k7r2x9" onClick={() => setIsMobileMenuOpen(false)} className={({isActive}) => `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all font-medium text-sm ${isActive ? 'bg-gray-800 text-white shadow-sm' : 'text-gray-400 hover:text-white hover:bg-gray-800/50'}`}>
@@ -125,6 +133,8 @@ export const Layout = ({ children }: { children: ReactNode }) => {
           <Link to="/terms" onClick={() => setIsMobileMenuOpen(false)} className="hover:text-slate-300 transition-colors">Terms</Link>
           <span>&middot;</span>
           <Link to="/privacy" onClick={() => setIsMobileMenuOpen(false)} className="hover:text-slate-300 transition-colors">Privacy</Link>
+          <span>&middot;</span>
+          <a href="/guide" onClick={() => setIsMobileMenuOpen(false)} className="hover:text-slate-300 transition-colors">Guide</a>
         </div>
       </aside>
 

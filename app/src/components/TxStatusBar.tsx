@@ -10,7 +10,7 @@ export function useTxBarVisible(): boolean {
 
 const STEPS: { stage: TxStage; label: string }[] = [
   { stage: 'preparing', label: 'Checking accounts' },
-  { stage: 'waiting_signature', label: 'Waiting for signature in Phantom' },
+  { stage: 'waiting_signature', label: 'Waiting for signature in your wallet' },
   { stage: 'sending', label: 'Sending' },
   { stage: 'confirming', label: 'Waiting for network confirmation' },
 ];
@@ -59,7 +59,7 @@ export const TxStatusBar: React.FC = () => {
             <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-400 shrink-0" />
             {progress.stage === 'waiting_signature' && (
               <span className="truncate">
-                Waiting for signature ({elapsed}s). <span className="text-gray-400 hidden sm:inline">The Phantom window may be hidden behind another window.</span>
+                Waiting for signature ({elapsed}s). <span className="text-gray-400 hidden sm:inline">The wallet window may be hidden behind another window.</span>
               </span>
             )}
             {progress.stage === 'confirming' && (

@@ -1,6 +1,6 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { useMemo } from 'react';
-import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react';
+import { useMemo, useEffect } from 'react';
+import { ConnectionProvider, WalletProvider, useWallet } from '@solana/wallet-adapter-react';
 import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
 import { clusterApiUrl } from '@solana/web3.js';
 import { RoleProvider } from './RoleContext';
@@ -21,6 +21,20 @@ import { CookieBanner } from './components/CookieBanner';
 import '@solana/wallet-adapter-react-ui/styles.css';
 import { NetworkProvider, useNetwork } from './NetworkContext';
 import { DEVNET_ENDPOINTS, failoverFetch } from './lib/rpc';
+import { setWalletSigner } from './lib/client/chainClient';
+
+const WalletBridge = () => {
+  const { publicKey, signTransaction, connected } = useWallet();
+  useEffect(() => {
+    if (connected && publicKey && signTransaction) {
+      setWalletSigner({ publicKey, signTransaction: (tx) => signTransaction(tx) });
+    } else {
+      setWalletSigner(null);
+    }
+    return () => setWalletSigner(null);
+  }, [connected, publicKey, signTransaction]);
+  return null;
+};
 
 function InnerApp() {
   const { network } = useNetwork();
@@ -42,6 +56,7 @@ function InnerApp() {
   return (
     <ConnectionProvider endpoint={endpoint} config={connectionConfig}>
       <WalletProvider wallets={wallets} autoConnect>
+        <WalletBridge />
         <WalletModalProvider>
           <RoleProvider>
             <ToastProvider>
