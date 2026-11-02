@@ -58,6 +58,8 @@ pub enum BlinkFlowError {
     InvalidReviewTime,
     #[msg("The required time period before submitting a review has not been reached.")]
     ReviewPeriodNotReached,
+    #[msg("The review period for this task has already expired.")]
+    ReviewPeriodExpired,
     #[msg("The combined protocol and arbitration fee bps cannot exceed 10,000.")]  
     FeeSumExceedsMaximum,
     #[msg("Customer and contractor must be different accounts to prevent self-dealing.")]

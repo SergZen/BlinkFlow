@@ -7,7 +7,7 @@ use anchor_spl::{
 use mpl_core::ID as MPL_CORE_ID;
 
 use crate::{
-    DIAL_SEED, Deal, PROTOCOL_SEED, Protocol, SBT_COLLECTION_SEED, SBT_SEED, TASK_SEED, Task, TaskStatus, error::BlinkFlowError, events::TaskCompleted, sbt::{SbtContext, SbtOutcome, SbtRole, SbtUpdate, update_sbt},
+    DIAL_SEED, Deal, PROTOCOL_SEED, Protocol, REVIEW_PERIOD_SECS, SBT_COLLECTION_SEED, SBT_SEED, TASK_SEED, Task, TaskStatus, error::BlinkFlowError, events::TaskCompleted, sbt::{SbtContext, SbtOutcome, SbtRole, SbtUpdate, update_sbt},
 };
 
 #[derive(Accounts)]
@@ -127,7 +127,18 @@ impl<'info> CompleteTaskByCustomer<'info> {
             BlinkFlowError::InvalidTaskStatus
         );
 
+        let review_time = self
+            .task
+            .finished_at
+            .checked_add(REVIEW_PERIOD_SECS)
+            .ok_or(BlinkFlowError::InvalidReviewTime)?;
+
         let current_time = Clock::get()?.unix_timestamp;
+
+        require!(
+            current_time < review_time,
+            BlinkFlowError::ReviewPeriodExpired
+        );
 
         if !approved {
             self.task.status = TaskStatus::Disputed;
