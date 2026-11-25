@@ -1,17 +1,24 @@
 import { Card } from '../components/Card';
-import { ShieldCheck, Calendar, Loader2 } from 'lucide-react';
+import { ShieldCheck, Calendar, Loader2, Send } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { PublicKey } from '@solana/web3.js';
+import bs58 from 'bs58';
 import { truncateAddress } from '../lib/utils';
 import { fetchReputation, Reputation, RoleReputation } from '../lib/client/sbt';
 import { Button } from '../components/Button';
 import { isRpcUnavailable } from '../lib/rpc';
+import { useToast } from '../components/Toast';
 
 export const Profile = () => {
   const [searchParams] = useSearchParams();
-  const { publicKey } = useWallet();
+  const { publicKey, signMessage } = useWallet();
+  const { error: toastError, success: toastSuccess, info: toastInfo } = useToast();
+
+  const [tgLoading, setTgLoading] = useState(false);
+  const [tgStatus, setTgStatus] = useState<string | null>(null);
+  const [tgLinkUrl, setTgLinkUrl] = useState<string | null>(null);
 
   const walletParam = searchParams.get('wallet')?.trim() || '';
   let queryWallet: string | null = null;
@@ -85,6 +92,59 @@ export const Profile = () => {
       clearInterval(timer);
     };
   }, [isUnavailable, targetWallet]);
+
+  useEffect(() => {
+    setTgStatus(null);
+    setTgLinkUrl(null);
+  }, [publicKey]);
+
+  const handleConnectTelegram = async () => {
+    if (!publicKey) return;
+    if (!signMessage) {
+      toastError('Your wallet does not support message signing. Please use Phantom, Solflare, or another wallet with message signing support.');
+      return;
+    }
+    setTgLoading(true);
+    try {
+      const wallet = publicKey.toBase58();
+      const baseUrl = import.meta.env.VITE_ACTIONS_API_URL || 'http://localhost:3001';
+
+      const sRes = await fetch(`${baseUrl}/api/tg/link/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wallet })
+      });
+      if (!sRes.ok) throw new Error((await sRes.json().catch(() => ({}))).error || 'Failed to start connection');
+      const { nonce, message } = await sRes.json();
+
+      const signature = bs58.encode(await signMessage(new TextEncoder().encode(message)));
+
+      const cRes = await fetch(`${baseUrl}/api/tg/link/confirm`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wallet, nonce, signature })
+      });
+      if (!cRes.ok) throw new Error((await cRes.json().catch(() => ({}))).error || 'Failed to verify signature');
+      const { code } = await cRes.json();
+
+      const botUrl = (import.meta.env.VITE_TELEGRAM_BOT_URL || 'https://t.me/BlinkFlowApp_bot').replace(/\/+$/, '');
+      const tgUrl = `${botUrl}?start=link_${code}`;
+      window.open(tgUrl, '_blank', 'noopener,noreferrer');
+
+      setTgStatus('Open Telegram and press Start');
+      setTgLinkUrl(tgUrl);
+      toastSuccess('Wallet verified! Open Telegram and press Start.');
+    } catch (err: any) {
+      console.error('Telegram linking error:', err);
+      if (err?.message?.includes('User rejected') || err?.name === 'WalletSignMessageError') {
+        toastInfo('Message signing cancelled.');
+      } else {
+        toastError(err?.message || 'Failed to connect Telegram');
+      }
+    } finally {
+      setTgLoading(false);
+    }
+  };
 
   if (loading && !isUnavailable) {
     return <div className="flex justify-center items-center py-20"><Loader2 className="w-8 h-8 animate-spin text-purple-500" /></div>;
@@ -227,6 +287,36 @@ export const Profile = () => {
                 <span className="whitespace-nowrap">{formatDate(reputation?.lastSeen)}</span>
               </div>
             </div>
+
+            {publicKey && (!queryWallet || queryWallet === publicKey.toBase58()) && (
+              <div className="w-full mt-4 space-y-2">
+                <Button
+                  variant="primary"
+                  onClick={handleConnectTelegram}
+                  disabled={tgLoading}
+                  className="w-full flex items-center justify-center gap-2"
+                >
+                  <Send className="w-4 h-4" />
+                  {tgLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin inline" /> : null}
+                  Connect Telegram
+                </Button>
+                {tgStatus && (
+                  <div className="p-3 bg-purple-950/40 border border-purple-500/30 rounded-lg text-xs text-purple-200 text-left space-y-1">
+                    <p className="font-semibold">{tgStatus}</p>
+                    {tgLinkUrl && (
+                      <a
+                        href={tgLinkUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-purple-400 hover:text-purple-300 underline font-medium block"
+                      >
+                        Open Telegram bot &rarr;
+                      </a>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             <p className="text-xs text-gray-500 mt-6 leading-relaxed text-left w-full">
               Reputation badge is created automatically on your first deal (a one-time ~0.002 SOL network fee). Every completed deal and every lost dispute is recorded permanently.

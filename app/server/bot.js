@@ -2,6 +2,16 @@ import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const TelegramBotModule = require('node-telegram-bot-api');
 const TelegramBot = TelegramBotModule.default || TelegramBotModule;
+import {
+  addLink,
+  removeLink,
+  removeAllLinksForChat,
+  getWalletsForChat,
+  getChatMode,
+  setChatMode,
+  consumeLinkCode,
+  shortWallet
+} from './tgLinks.js';
 
 // In-memory conversation state
 // Key: chatId, Value: { step: string, dealData: any, lastActive: number }
@@ -62,6 +72,10 @@ function setupBot(app, baseUrl, frontendUrl) {
     bot.setMyCommands([
       { command: 'start', description: 'Main menu' },
       { command: 'newdeal', description: 'Create a deal' },
+      { command: 'subscribe', description: 'Connect your wallet' },
+      { command: 'mywallets', description: 'List linked wallets' },
+      { command: 'settings', description: 'Notification settings' },
+      { command: 'unsubscribe', description: 'Disconnect wallet' },
       { command: 'cancel', description: 'Cancel' }
     ]).catch(err => console.error("Failed to set commands:", err));
   } catch (e) {
@@ -86,8 +100,20 @@ function setupBot(app, baseUrl, frontendUrl) {
     ).catch(err => console.error("Telegram API Error:", err));
   };
 
-  bot.onText(/^\/start/, (msg) => {
+  bot.onText(/^\/start(?: (.*))?/, (msg, match) => {
     const chatId = msg.chat.id;
+    const param = (match && match[1]) ? match[1].trim() : '';
+    if (param.startsWith('link_')) {
+      const wallet = consumeLinkCode(param.substring(5).trim());
+      if (wallet) {
+        addLink(wallet, chatId);
+        bot.sendMessage(chatId, `✅ Wallet ${shortWallet(wallet)} connected. You will get updates about all your BlinkFlow deals. /settings to choose which updates, /unsubscribe to stop.`).catch(err => console.error("Telegram API Error:", err));
+      } else {
+        bot.sendMessage(chatId, `⚠️ This connection link is invalid or has expired.\n\nPlease connect again from your Profile: ${(frontendUrl || '').replace(/\/+$/, '')}/profile`).catch(err => console.error("Telegram API Error:", err));
+      }
+      return;
+    }
+
     bot.sendMessage(chatId, "👇 Choose an option below:", {
       reply_markup: {
         keyboard: [
@@ -100,6 +126,71 @@ function setupBot(app, baseUrl, frontendUrl) {
     }).then(() => {
       showMenu(chatId);
     }).catch(err => console.error("Telegram API Error:", err));
+  });
+
+  bot.onText(/^\/subscribe/, (msg) => {
+    const profileUrl = `${(frontendUrl || '').replace(/\/+$/, '')}/profile`;
+    bot.sendMessage(msg.chat.id,
+      `To receive Telegram updates for your deals, connect your wallet on the website:\n\n` +
+      `1. Open your Profile: ${profileUrl}\n` +
+      `2. Click "Connect Telegram" and sign the verification message with your wallet\n` +
+      `3. Open the link to return here and activate updates\n\n` +
+      `Signing is free and proves ownership of the wallet without transaction fees.`,
+      { reply_markup: { inline_keyboard: [[{ text: "🔗 Open Profile", url: profileUrl }]] } }
+    ).catch(err => console.error("Telegram API Error:", err));
+  });
+
+  bot.onText(/^\/mywallets/, (msg) => {
+    const chatId = msg.chat.id;
+    const wallets = getWalletsForChat(chatId);
+    if (!wallets || wallets.length === 0) {
+      const profileUrl = `${(frontendUrl || '').replace(/\/+$/, '')}/profile`;
+      bot.sendMessage(chatId, `No wallets connected yet. Use /subscribe to connect your wallet, or visit: ${profileUrl}`).catch(err => console.error("Telegram API Error:", err));
+      return;
+    }
+    const list = wallets.map((w, idx) => `${idx + 1}. \`${shortWallet(w)}\``).join('\n');
+    bot.sendMessage(chatId, `Connected wallets (${wallets.length}):\n\n${list}\n\nUse /settings to choose update types or /unsubscribe to remove.`, { parse_mode: 'Markdown' }).catch(err => console.error("Telegram API Error:", err));
+  });
+
+  bot.onText(/^\/unsubscribe/, (msg) => {
+    const chatId = msg.chat.id;
+    const wallets = getWalletsForChat(chatId);
+    if (!wallets || wallets.length === 0) {
+      bot.sendMessage(chatId, "No wallets are currently connected to this chat.").catch(err => console.error("Telegram API Error:", err));
+      return;
+    }
+    const buttons = wallets.map(w => [{ text: `Disconnect ${shortWallet(w)}`, callback_data: `unsub:${w}` }]);
+    buttons.push([{ text: "❌ All", callback_data: "unsub:all" }], [{ text: "Cancel", callback_data: "cancel" }]);
+    bot.sendMessage(chatId, "Choose which wallet to disconnect:", { reply_markup: { inline_keyboard: buttons } }).catch(err => console.error("Telegram API Error:", err));
+  });
+
+  bot.onText(/^\/settings/, (msg) => {
+    const chatId = msg.chat.id;
+    const wallets = getWalletsForChat(chatId);
+    if (!wallets || wallets.length === 0) {
+      bot.sendMessage(chatId, "No wallets connected yet. Use /subscribe first.").catch(err => console.error("Telegram API Error:", err));
+      return;
+    }
+    const mode = getChatMode(chatId);
+    bot.sendMessage(chatId,
+      `🔔 *Notification settings*\n\n` +
+      `Choose which updates you want to receive for your connected wallets:\n\n` +
+      `• *All updates* (default): every step and status change\n` +
+      `• *Key updates only*: funded, submitted, approved/released, refunded, dispute opened/resolved\n\n` +
+      `Current setting: *${mode === 'key' ? 'Key updates only' : 'All updates'}*`,
+      {
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: `${mode === 'all' ? '✓ ' : ''}All updates`, callback_data: "setmode:all" },
+              { text: `${mode === 'key' ? '✓ ' : ''}Key updates only`, callback_data: "setmode:key" }
+            ],
+            [{ text: "🏠 Menu", callback_data: "menu" }]
+          ]
+        }
+      }
+    ).catch(err => console.error("Telegram API Error:", err));
   });
 
   bot.onText(/^\/cancel/, (msg) => {
@@ -160,7 +251,8 @@ function setupBot(app, baseUrl, frontendUrl) {
       `• *Your role:* ${roleLabel}\n` +
       `• *Amount:* ${session.dealData.amount} USDC\n` +
       `• *Deadline:* ${days} day${days === 1 ? '' : 's'}\n\n` +
-      roleText;
+      roleText +
+      `\n\nWant updates about your deals here? Connect your wallet: ${(frontendUrl || '').replace(/\/+$/, '')}/profile`;
 
     bot.sendMessage(chatId, summary, {
       parse_mode: 'Markdown',
@@ -313,6 +405,35 @@ function setupBot(app, baseUrl, frontendUrl) {
 
     if (data === 'how') {
       sendHowItWorks(chatId);
+      return;
+    }
+
+    if (data === 'unsub:all') {
+      removeAllLinksForChat(chatId);
+      bot.sendMessage(chatId, "✅ All wallets disconnected. You will no longer receive deal updates.").catch(err => console.error(err));
+      return;
+    }
+
+    if (data.startsWith('unsub:')) {
+      const targetWallet = data.substring(6);
+      removeLink(targetWallet, chatId);
+      bot.sendMessage(chatId, `✅ Wallet ${shortWallet(targetWallet)} disconnected.`).catch(err => console.error(err));
+      return;
+    }
+
+    if (data === 'setmode:all' || data === 'setmode:key') {
+      const wallets = getWalletsForChat(chatId);
+      if (!wallets || wallets.length === 0) {
+        bot.sendMessage(chatId, "No wallets connected yet. Use /subscribe first.").catch(err => console.error(err));
+        return;
+      }
+      const newMode = data === 'setmode:key' ? 'key' : 'all';
+      setChatMode(chatId, newMode);
+      bot.sendMessage(
+        chatId,
+        `✅ Notification setting updated: *${newMode === 'key' ? 'Key updates only' : 'All updates'}*`,
+        { parse_mode: 'Markdown' }
+      ).catch(err => console.error(err));
       return;
     }
 

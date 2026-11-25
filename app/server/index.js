@@ -9,6 +9,13 @@ import { Resvg } from '@resvg/resvg-js';
 import escapeHtml from 'escape-html';
 import { Connection, PublicKey, SystemProgram, Transaction, clusterApiUrl } from '@solana/web3.js';
 import { setupBot } from './bot.js';
+import {
+  createNonce,
+  consumeNonce,
+  createLinkCode,
+  verifySignature,
+  shortWallet
+} from './tgLinks.js';
 
 // Connection to devnet
 const connection = new Connection(process.env.SOLANA_RPC_URL_DEVNET || clusterApiUrl('devnet'), 'confirmed');
@@ -824,6 +831,32 @@ app.post('/api/sync/deals/:id/applications/withdraw', (req, res) => {
   }
 
   res.json({ ok: true });
+});
+
+// Telegram wallet link routes (BF-55)
+app.post('/api/tg/link/start', (req, res) => {
+  const { wallet } = req.body || {};
+  if (!wallet || typeof wallet !== 'string' || !WALLET_RE.test(wallet)) {
+    return res.status(400).json({ error: 'Invalid wallet address' });
+  }
+  const { nonce, message } = createNonce(wallet);
+  console.log(`[tg-link] start for ${shortWallet(wallet)}`);
+  res.json({ nonce, message });
+});
+
+app.post('/api/tg/link/confirm', (req, res) => {
+  const { wallet, nonce, signature } = req.body || {};
+  if (!wallet || !nonce || !signature || typeof wallet !== 'string' || !WALLET_RE.test(wallet)) {
+    return res.status(400).json({ error: 'Missing wallet, nonce, or signature' });
+  }
+  const entry = consumeNonce(nonce, wallet);
+  if (!entry) return res.status(400).json({ error: 'Invalid or expired nonce' });
+  if (!verifySignature(wallet, entry.message, signature)) {
+    return res.status(400).json({ error: 'Invalid signature' });
+  }
+  const code = createLinkCode(wallet);
+  console.log(`[tg-link] confirmed for ${shortWallet(wallet)}`);
+  res.json({ code });
 });
 
 app.options('*', cors(corsOptions));

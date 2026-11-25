@@ -17,6 +17,9 @@ importers:
       '@solana/web3.js':
         specifier: ^1.99.0
         version: 1.99.0(bufferutil@4.1.0)(typescript@6.0.3)(utf-8-validate@6.0.6)
+      bs58:
+        specifier: ^6.0.0
+        version: 6.0.0
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
@@ -81,6 +84,9 @@ importers:
       '@solana/web3.js':
         specifier: ^1.99.0
         version: 1.99.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)
+      bs58:
+        specifier: ^6.0.0
+        version: 6.0.0
       cors:
         specifier: ^2.8.5
         version: 2.8.6
@@ -96,6 +102,9 @@ importers:
       satori:
         specifier: ^0.33.5
         version: 0.33.5
+      tweetnacl:
+        specifier: ^1.0.3
+        version: 1.0.3
 
   web:
     dependencies:
