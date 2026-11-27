@@ -16,6 +16,7 @@ import {
   verifySignature,
   shortWallet
 } from './tgLinks.js';
+import { processWebhookBatch, setSyncStore } from './events.js';
 
 // Connection to devnet
 const connection = new Connection(process.env.SOLANA_RPC_URL_DEVNET || clusterApiUrl('devnet'), 'confirmed');
@@ -24,6 +25,7 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
+app.use('/api/helius/webhook', express.json({ limit: '2mb' }));
 app.use(express.json());
 
 const fontRegular = fs.readFileSync(path.join(__dirname, 'Roboto-Regular.ttf'));
@@ -714,6 +716,7 @@ if (persistEnabled && fs.existsSync(APPS_FILE)) {
 }
 
 console.log(`[persist] data dir: ${DATA_DIR}, deals: ${syncStore.size}, applications deals: ${appStore.size}`);
+setSyncStore(syncStore);
 
 let saveTimer = null;
 function saveNow() {
@@ -857,6 +860,33 @@ app.post('/api/tg/link/confirm', (req, res) => {
   const code = createLinkCode(wallet);
   console.log(`[tg-link] confirmed for ${shortWallet(wallet)}`);
   res.json({ code });
+});
+
+// Helius raw webhook route (BF-56)
+app.post('/api/helius/webhook', (req, res) => {
+  const authHeader = req.headers['authorization'];
+  const expectedAuth = process.env.HELIUS_WEBHOOK_AUTH;
+  if (!expectedAuth) {
+    console.warn('[helius] HELIUS_WEBHOOK_AUTH env var not set');
+    return res.status(503).json({ error: 'service unavailable' });
+  }
+  if (!authHeader) {
+    return res.status(401).json({ error: 'unauthorized' });
+  }
+  const a = Buffer.from(authHeader, 'utf-8');
+  const b = Buffer.from(expectedAuth, 'utf-8');
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+    return res.status(401).json({ error: 'unauthorized' });
+  }
+
+  const batch = Array.isArray(req.body) ? req.body : (req.body ? [req.body] : []);
+  res.status(200).json({ ok: true });
+
+  setImmediate(() => {
+    processWebhookBatch(batch, { connection, syncStore }).catch(err => {
+      console.error('[helius] error processing webhook batch:', err.message);
+    });
+  });
 });
 
 app.options('*', cors(corsOptions));
